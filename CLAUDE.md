@@ -23,8 +23,17 @@ iOS app for prosthetic limb users to self-measure walking stability. Local-only,
 ## Project layout
 
 - Repo root contains `CLAUDE.md`, `README.md`, `.gitignore`, `docs/`.
-- `Stabilyz/Stabilyz/` — app source code (all Swift files go here).
+- `Stabilyz/Stabilyz/` — app source code (all Swift files go here), organized by layer per `docs/16-project-folder-structure.md`:
+  - `App/` — entry point, composition root, router root.
+  - `Features/` — one folder per feature.
+  - `Domain/` — pure Swift, no Apple frameworks.
+  - `Algorithms/` — pure Swift + Accelerate only.
+  - `Services/` — protocol-fronted Apple framework adapters.
+  - `Persistence/` — SwiftData entities, repositories, store container.
+  - `DesignSystem/` — colors, typography, shared components, accessible styles.
+  - `Utilities/` — Clock, FileIO, RandomSource, time anchors, extensions.
 - `Stabilyz/StabilyzTests/` — unit tests.
+- `Stabilyz/StabilyzUITests/` — UI tests.
 - `Stabilyz/Stabilyz.xcodeproj` — NEVER edit this file.
 
 ## Build & test
