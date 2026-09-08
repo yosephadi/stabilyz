@@ -1,21 +1,10 @@
-//
-//  ContentView.swift
-//  Stabilyz
-//
-//  Created by Adi's Mac on 09/09/26.
-//
-
 import SwiftUI
 
+/// Placeholder root screen. Replaced by AppRouter in EPIC 8 (docs/11-navigation-architecture.md).
 struct ContentView: View {
     var body: some View {
-        VStack {
-            Image(systemName: "globe")
-                .imageScale(.large)
-                .foregroundStyle(.tint)
-            Text("Hello, world!")
-        }
-        .padding()
+        Text("Stabilyz")
+            .font(.largeTitle)
     }
 }
 
