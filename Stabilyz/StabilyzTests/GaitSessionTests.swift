@@ -4,6 +4,25 @@ import Testing
 
 private let anchor = Date(timeIntervalSince1970: 1_700_000_000)
 
+extension GaitMetrics {
+    /// Arbitrary but well-formed metrics for tests that do not care about values.
+    static func fixture(stepTimeAsymmetry: Double? = nil) -> GaitMetrics {
+        GaitMetrics(
+            stepRegularity: 0.82,
+            strideRegularity: 0.78,
+            cadenceMean: 104,
+            stepTimeCV: 0.041,
+            trunkMotionML: 1.12,
+            trunkMotionVT: 2.30,
+            stepTimeAsymmetry: stepTimeAsymmetry,
+            steps: 210,
+            distance: 180,
+            validStrideCount: 96,
+            windowCount: 12
+        )
+    }
+}
+
 private func makeValid(
     mode: TestMode = .quickTest,
     score: SessionScore? = nil,
@@ -16,7 +35,7 @@ private func makeValid(
         endedAt: anchor.addingTimeInterval(120),
         advertisedClockElapsed: .seconds(120),
         validWalkingDuration: validWalking,
-        metrics: GaitMetrics(),
+        metrics: .fixture(),
         score: score,
         audioConfig: .none,
         algorithmVersion: "1.0.0",
