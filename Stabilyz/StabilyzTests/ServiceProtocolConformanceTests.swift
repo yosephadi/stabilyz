@@ -151,15 +151,15 @@ private actor InMemoryBaselineRepository: BaselineRepository {
 
 @Test func baselineRepositoryEnforcesOneBaselinePerMode() async throws {
     let repository = InMemoryBaselineRepository()
-    let quick = Baseline(id: UUID(), mode: .quickTest)
+    let quick = Baseline.fixture(mode: .quickTest)
     try await repository.save(quick)
 
     await #expect(throws: InMemoryBaselineRepository.DuplicateBaseline.self) {
-        try await repository.save(Baseline(id: UUID(), mode: .quickTest))
+        try await repository.save(Baseline.fixture(mode: .quickTest))
     }
 
     // Modes are segregated: a fullTest baseline is unaffected [PRD OQ-5].
-    try await repository.save(Baseline(id: UUID(), mode: .fullTest))
+    try await repository.save(Baseline.fixture(mode: .fullTest))
     #expect(try await repository.allBaselines().count == 2)
     #expect(try await repository.baseline(mode: .quickTest)?.id == quick.id)
 }

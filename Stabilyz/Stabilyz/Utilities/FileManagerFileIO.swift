@@ -5,12 +5,12 @@ import Foundation
 /// Used for export archives, the recorder scratch file, and the pre-restore
 /// store snapshot (docs/06 §6.1, docs/13 §13.5).
 nonisolated struct FileManagerFileIO: FileIO {
-    private let fileManager: FileManager
+    /// `FileManager` is not `Sendable`, so it is not stored. `FileManager.default`
+    /// is documented as thread-safe for the operations used here, and reaching
+    /// for it per call keeps this type trivially `Sendable`.
+    private var fileManager: FileManager { .default }
 
-    /// `FileManager.default` is thread-safe for the operations used here.
-    init(fileManager: FileManager = .default) {
-        self.fileManager = fileManager
-    }
+    init() {}
 
     func temporaryDirectory() -> URL {
         fileManager.temporaryDirectory

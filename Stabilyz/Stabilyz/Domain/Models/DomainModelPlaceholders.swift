@@ -28,15 +28,3 @@ nonisolated struct SessionScore: Sendable, Equatable, Codable {
         self.relativeIndex = relativeIndex
     }
 }
-
-/// Placeholder — full definition in Task 2.1.4 (docs/05 §5.1).
-/// `mode` is PRD-locked on Baseline [PRD OQ-5] and is therefore present already.
-nonisolated struct Baseline: Sendable, Equatable, Identifiable {
-    let id: UUID
-    let mode: TestMode
-
-    init(id: UUID, mode: TestMode) {
-        self.id = id
-        self.mode = mode
-    }
-}
