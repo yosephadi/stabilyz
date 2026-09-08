@@ -11,14 +11,6 @@ import Foundation
 // They carry ONLY the identity fields the repository APIs need. Do not add
 // product fields here — fill them in via the owning task below.
 
-/// Placeholder — full definition in Task 2.1.1 (docs/05 §5.1).
-/// Only the two PRD-locked cases are declared here; `advertisedDuration`,
-/// `minimumValidWalkingDuration` and the versioned `SessionPolicy` belong to 2.1.1.
-nonisolated enum TestMode: String, Sendable, CaseIterable, Codable {
-    case quickTest
-    case fullTest
-}
-
 /// Placeholder — full definition in Task 2.1.5 (docs/05 §5.1).
 nonisolated struct UserProfile: Sendable, Equatable, Identifiable {
     let id: UUID
