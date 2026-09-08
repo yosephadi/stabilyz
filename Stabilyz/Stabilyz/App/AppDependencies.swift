@@ -18,6 +18,9 @@ import Foundation
 /// Tests build one of these from doubles; there is no singleton and no
 /// environment-wide service lookup.
 nonisolated struct AppDependencies: Sendable {
+    // Observability
+    let logService: LogService
+
     // Utilities
     let clock: Clock
     let fileIO: FileIO
@@ -36,6 +39,7 @@ nonisolated struct AppDependencies: Sendable {
     let baselineRepository: BaselineRepository
 
     init(
+        logService: LogService,
         clock: Clock,
         fileIO: FileIO,
         randomSource: RandomSource,
@@ -48,6 +52,7 @@ nonisolated struct AppDependencies: Sendable {
         gaitSessionRepository: GaitSessionRepository,
         baselineRepository: BaselineRepository
     ) {
+        self.logService = logService
         self.clock = clock
         self.fileIO = fileIO
         self.randomSource = randomSource
@@ -71,6 +76,7 @@ extension AppDependencies {
     /// call site changes.
     static func live() -> AppDependencies {
         AppDependencies(
+            logService: OSLogService(),
             clock: SystemClock(),
             fileIO: FileManagerFileIO(),
             randomSource: UnwiredRandomSource(),               // Task 10.1.1

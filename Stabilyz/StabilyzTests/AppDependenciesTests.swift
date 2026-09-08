@@ -18,6 +18,7 @@ private extension AppDependencies {
     /// constructible without any Apple framework backing (docs/19 §19.4).
     static func testDouble(clock: Clock = FixedClock(now: Date(timeIntervalSince1970: 0), uptime: 0)) -> AppDependencies {
         AppDependencies(
+            logService: OSLogService(subsystem: "com.stabilyz.tests"),
             clock: clock,
             fileIO: FileManagerFileIO(),
             randomSource: StubRandomSource(),

@@ -14,6 +14,10 @@ struct StabilyzApp: App {
     /// currently launches to a placeholder screen (docs/22 Phase 1 DoD).
     private let dependencies = AppDependencies.live()
 
+    init() {
+        dependencies.logService.log(.info, .app, "Stabilyz launched")
+    }
+
     var body: some Scene {
         WindowGroup {
             ContentView()
