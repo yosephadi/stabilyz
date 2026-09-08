@@ -20,14 +20,17 @@ nonisolated struct UserProfile: Sendable, Equatable, Identifiable {
     }
 }
 
-/// Placeholder — full definition in Task 2.1.2 (docs/05 §5.1).
-nonisolated struct GaitSession: Sendable, Equatable, Identifiable {
-    let id: UUID
-    let mode: TestMode
+/// Placeholder — full definition in Task 2.1.3 (docs/05 §5.1).
+nonisolated struct GaitMetrics: Sendable, Equatable, Codable {
+    init() {}
+}
 
-    init(id: UUID, mode: TestMode) {
-        self.id = id
-        self.mode = mode
+/// Placeholder — full definition in Tasks 6.2.2/6.2.3 (docs/05 §5.1).
+nonisolated struct SessionScore: Sendable, Equatable, Codable {
+    let relativeIndex: Int
+
+    init(relativeIndex: Int) {
+        self.relativeIndex = relativeIndex
     }
 }
 
