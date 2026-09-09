@@ -243,16 +243,18 @@ struct DataQualityPolicy: Sendable, Equatable {
     ///
     /// Order matters for the message the user sees: too little walking is a
     /// plainer explanation than a noise measurement, so it is reported first.
+    /// - Parameter validStrideCount: nil at stage 4, which runs before step
+    ///   detection. Stride sufficiency is stage 5's gate (docs/08).
     func invalidReason(
         mode: TestMode,
         validWalkingDuration: Duration,
-        validStrideCount: Int,
+        validStrideCount: Int? = nil,
         highFrequencyPowerRatio: Double
     ) -> InvalidReason? {
         if validWalkingDuration < minimumValidWalkingDuration(for: mode) {
             return .insufficientValidWalking
         }
-        if validStrideCount < minimumValidStrides {
+        if let validStrideCount, validStrideCount < minimumValidStrides {
             return .insufficientValidWalking
         }
         if noise.isTooNoisy(highFrequencyPowerRatio: highFrequencyPowerRatio) {

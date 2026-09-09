@@ -249,3 +249,49 @@ shows non-gait movement surviving both downstream gates.
 **Accounting:** every clean sample lands in exactly one of walking, transient, or
 excluded, and a test asserts the three sum to the session length. Nothing
 disappears silently between stages.
+
+---
+
+## 10. Signal quality validation
+
+**Date:** 2026-09-09 · **Task:** 5.2.3 · **Status:** Decided
+
+**No new tunables.** Stage 4 reuses `NoisePolicy` (8 Hz cutoff, 0.35 threshold)
+and `SessionPolicy` (90 s / 240 s) from entry 1. The dominant-frequency
+diagnostic derives its search band from `plausibleCadenceRange` (30–200 spm ⇒
+0.5–3.33 Hz) rather than declaring one of its own.
+
+**Entry 8 is now structural, not just documented.** `PreprocessedSegment` carries
+`preFilterMagnitude` — acceleration magnitude after resampling, mean-removed,
+before the 20 Hz cleaning band-pass. The noise ratio is computed from that field
+and no other. A test proves the ordering matters rather than asserting it
+indirectly: on a session with a 35 Hz vibration component, the ratio measured on
+the pre-filter signal exceeds the threshold while the same calculation on the
+cleaned channels falls below it.
+
+**Noise ratio is implemented as a filter, not a transform.** `variance(highPass(x))
+÷ variance(x)` expresses the same quantity as a spectral power ratio and is O(n).
+The high-pass is not a brick wall, so the ratio is an estimate — which is all a
+threshold comparison needs.
+
+**Noise is measured over the walking intervals**, not the whole session. Noise
+during a pause says nothing about whether the walking can be scored. When no
+walking was found, the whole clean signal is used so the report still carries a
+value instead of a misleading zero.
+
+**Reason precedence when both gates fail:** insufficient walking is reported, per
+entry 1's ordering — it is the plainer explanation. Both facts stay in the
+report (`walkingShortfall` and `exceededNoiseLimit` are independent), so the
+noisy screen can mention noise even when duration is the headline.
+
+**Dominant-frequency diagnostic** (per-walking-interval, in Hz) is recorded and
+never gates. It is the evidence Phase 12 needs to decide whether entry 9's
+deferred spectral validation is ever required: a vehicle ride and a walk look
+different here even when both clear the amplitude threshold.
+
+**Autocorrelation uses the biased estimator** — divide by the full window length,
+not the overlap. A periodic signal correlates just as well at twice its period,
+so the unbiased estimator leaves fundamental and harmonics tied and lets a
+subharmonic win, reporting half the true frequency. This was caught by a test
+expecting 1.8 Hz and is worth carrying into Task 5.2.4, where Ad1/Ad2 depend on
+exactly this distinction.

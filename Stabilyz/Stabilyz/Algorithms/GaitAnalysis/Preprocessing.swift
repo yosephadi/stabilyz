@@ -15,6 +15,15 @@ struct PreprocessedSegment: Sendable, Equatable {
     let mediolateral: [Double]
     /// Perpendicular to both.
     let anteroposterior: [Double]
+    /// Acceleration magnitude after resampling but **before** the cleaning
+    /// band-pass, mean-removed.
+    ///
+    /// This channel exists so noise can be judged on a signal whose noise has
+    /// not yet been removed (docs/decisions.md entry 8). Measuring the noise
+    /// ratio on the filtered channels would let a session recorded against
+    /// high-frequency vibration come back looking clean. Magnitude rather than
+    /// a projected axis, because the noise metric is orientation-independent.
+    let preFilterMagnitude: [Double]
 
     var count: Int { vertical.count }
     var duration: Duration { .seconds(Double(count) / sampleRateHz) }
@@ -78,13 +87,19 @@ enum Preprocessing {
             }
 
             let projected = project(resampled.samples, axes: axes)
+            let magnitude = resampled.samples.map { sqrt(dot($0.acceleration, $0.acceleration)) }
+            let magnitudeMean = magnitude.reduce(0, +) / Double(magnitude.count)
+
             segments.append(
                 PreprocessedSegment(
                     startTimestamp: resampled.startTimestamp,
                     sampleRateHz: rate,
                     vertical: bandPass(projected.vertical, policy: policy, rate: rate),
                     mediolateral: bandPass(projected.mediolateral, policy: policy, rate: rate),
-                    anteroposterior: bandPass(projected.anteroposterior, policy: policy, rate: rate)
+                    anteroposterior: bandPass(projected.anteroposterior, policy: policy, rate: rate),
+                    // Mean-removed only: power is about variation, and an
+                    // accelerometer-only capture carries gravity as a constant.
+                    preFilterMagnitude: magnitude.map { $0 - magnitudeMean }
                 )
             )
         }
