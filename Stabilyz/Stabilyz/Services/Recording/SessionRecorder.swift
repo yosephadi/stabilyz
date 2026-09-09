@@ -22,11 +22,13 @@ actor SessionRecorder {
     private let screenSleep: ScreenSleepController
     private let clock: Clock
     private let logService: LogService
+    private let fileIO: FileIO
     private let acquisitionPolicy: MotionAcquisitionPolicy
     private let gapPolicy: GapDetectionPolicy
 
     private var state: State = .idle
-    private var samples: [SensorSample] = []
+    /// Bounded, with a scratch file behind it (docs/07 §7.2, docs/14 §14.3).
+    private var sampleBuffer: SessionSampleBuffer?
     private var pedometerEvents: [PedometerEvent] = []
     private var anchor: TimeAnchor?
     private var startedAt: Date?
@@ -55,6 +57,7 @@ actor SessionRecorder {
         screenSleep: ScreenSleepController,
         clock: Clock,
         logService: LogService,
+        fileIO: FileIO,
         acquisitionPolicy: MotionAcquisitionPolicy = .recommendedDefault,
         gapPolicy: GapDetectionPolicy = .recommendedDefault
     ) {
@@ -65,6 +68,7 @@ actor SessionRecorder {
         self.screenSleep = screenSleep
         self.clock = clock
         self.logService = logService
+        self.fileIO = fileIO
         self.acquisitionPolicy = acquisitionPolicy
         self.gapPolicy = gapPolicy
     }
@@ -93,6 +97,7 @@ actor SessionRecorder {
         resetSessionState()
         self.mode = mode
         self.audioConfig = audioConfig
+        sampleBuffer = SessionSampleBuffer(fileIO: fileIO, logService: logService)
 
         // The anchor is stamped before any sample can arrive, so every sample
         // resolves against it (docs/07 §7.4).
@@ -197,8 +202,11 @@ actor SessionRecorder {
         // Elapsed comes from the monotonic clock, never Date arithmetic
         // (docs/07 §7.4).
         let elapsed = Duration.seconds(clock.uptime - anchor.uptime)
+        // Freezing reads back memory and scratch together, then deletes the
+        // scratch file — raw samples never outlive the session (docs/06 §6.4).
+        let frozenSamples = sampleBuffer?.freeze(anchor: anchor) ?? []
         let series = SampleIngestion.align(
-            samples,
+            frozenSamples,
             sampleRateHz: acquisitionPolicy.sampleRateHz,
             policy: gapPolicy
         )
@@ -305,7 +313,7 @@ actor SessionRecorder {
         }
         lastSampleTimestamp = sample.deviceTimestamp
 
-        samples.append(sample)
+        sampleBuffer?.append(sample)
 
         if let anchor {
             let elapsed = sample.deviceTimestamp - anchor.uptime
@@ -326,7 +334,8 @@ actor SessionRecorder {
 
     private func resetSessionState() {
         state = .idle
-        samples.removeAll()
+        sampleBuffer?.discard()
+        sampleBuffer = nil
         pedometerEvents.removeAll()
         anchor = nil
         startedAt = nil

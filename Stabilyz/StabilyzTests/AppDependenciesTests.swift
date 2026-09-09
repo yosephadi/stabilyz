@@ -28,6 +28,16 @@ private extension AppDependencies {
             audioFeedback: SilentAudioFeedbackService(),
             keyDerivation: UnwiredKeyDerivation(),
             secureArchive: UnwiredSecureArchiveCoding(),
+            sessionRecorder: SessionRecorder(
+                motionSensor: UnwiredMotionSensorService(),
+                pedometer: UnwiredPedometerService(),
+                audioFeedback: SilentAudioFeedbackService(),
+                interruptionObserver: SystemSessionInterruptionObserver(audioFeedback: SilentAudioFeedbackService()),
+                screenSleep: SystemScreenSleepController(),
+                clock: clock,
+                logService: OSLogService(subsystem: "com.stabilyz.tests"),
+                fileIO: FileManagerFileIO()
+            ),
             userProfileRepository: UnwiredUserProfileRepository(),
             gaitSessionRepository: UnwiredGaitSessionRepository(),
             baselineRepository: UnwiredBaselineRepository()

@@ -34,6 +34,10 @@ struct AppDependencies: Sendable {
     let keyDerivation: KeyDerivation
     let secureArchive: SecureArchiveCoding
 
+    /// Actor dependency: created once and shared, restarted per session via
+    /// its lifecycle methods rather than recreated (docs/12 §12.3).
+    let sessionRecorder: SessionRecorder
+
     // Persistence
     let userProfileRepository: UserProfileRepository
     let gaitSessionRepository: GaitSessionRepository
@@ -49,6 +53,7 @@ struct AppDependencies: Sendable {
         audioFeedback: AudioFeedbackService,
         keyDerivation: KeyDerivation,
         secureArchive: SecureArchiveCoding,
+        sessionRecorder: SessionRecorder,
         userProfileRepository: UserProfileRepository,
         gaitSessionRepository: GaitSessionRepository,
         baselineRepository: BaselineRepository
@@ -62,6 +67,7 @@ struct AppDependencies: Sendable {
         self.audioFeedback = audioFeedback
         self.keyDerivation = keyDerivation
         self.secureArchive = secureArchive
+        self.sessionRecorder = sessionRecorder
         self.userProfileRepository = userProfileRepository
         self.gaitSessionRepository = gaitSessionRepository
         self.baselineRepository = baselineRepository
@@ -79,16 +85,35 @@ extension AppDependencies {
         let reader = StoreReader(modelContainer: container)
         let writer = StoreWriter(modelContainer: container)
 
+        let logService = OSLogService()
+        let clock = SystemClock()
+        let fileIO = FileManagerFileIO()
+        let motionSensor = CoreMotionSensorService(clock: clock, logService: logService)
+        let pedometer = CoreMotionPedometerService(logService: logService)
+        // Task 7.1.1 replaces this with the AVAudioEngine implementation;
+        // silence is the specified degraded behaviour meanwhile (docs/10 §10.4).
+        let audioFeedback = SilentAudioFeedbackService()
+
         return AppDependencies(
-            logService: OSLogService(),
-            clock: SystemClock(),
-            fileIO: FileManagerFileIO(),
+            logService: logService,
+            clock: clock,
+            fileIO: fileIO,
             randomSource: UnwiredRandomSource(),               // Task 10.1.1
-            motionSensor: UnwiredMotionSensorService(),        // Task 4.1.1
-            pedometer: UnwiredPedometerService(),              // Task 4.1.2
-            audioFeedback: SilentAudioFeedbackService(),       // Task 7.1.1
+            motionSensor: motionSensor,
+            pedometer: pedometer,
+            audioFeedback: audioFeedback,
             keyDerivation: UnwiredKeyDerivation(),             // Task 10.1.1
             secureArchive: UnwiredSecureArchiveCoding(),       // Task 10.1.2
+            sessionRecorder: SessionRecorder(
+                motionSensor: motionSensor,
+                pedometer: pedometer,
+                audioFeedback: audioFeedback,
+                interruptionObserver: SystemSessionInterruptionObserver(audioFeedback: audioFeedback),
+                screenSleep: SystemScreenSleepController(),
+                clock: clock,
+                logService: logService,
+                fileIO: fileIO
+            ),
             userProfileRepository: SwiftDataUserProfileRepository(reader: reader, writer: writer),
             gaitSessionRepository: SwiftDataGaitSessionRepository(reader: reader, writer: writer),
             baselineRepository: SwiftDataBaselineRepository(reader: reader, writer: writer)
@@ -107,16 +132,33 @@ extension AppDependencies {
     /// misreport baseline progress. Surfacing this as a user-facing recovery
     /// path belongs to app-level persistence error handling (docs/15 §15.1).
     static func storeUnavailable() -> AppDependencies {
-        AppDependencies(
-            logService: OSLogService(),
-            clock: SystemClock(),
-            fileIO: FileManagerFileIO(),
+        let logService = OSLogService()
+        let clock = SystemClock()
+        let fileIO = FileManagerFileIO()
+        let motionSensor = UnwiredMotionSensorService()
+        let pedometer = UnwiredPedometerService()
+        let audioFeedback = SilentAudioFeedbackService()
+
+        return AppDependencies(
+            logService: logService,
+            clock: clock,
+            fileIO: fileIO,
             randomSource: UnwiredRandomSource(),
-            motionSensor: UnwiredMotionSensorService(),
-            pedometer: UnwiredPedometerService(),
-            audioFeedback: SilentAudioFeedbackService(),
+            motionSensor: motionSensor,
+            pedometer: pedometer,
+            audioFeedback: audioFeedback,
             keyDerivation: UnwiredKeyDerivation(),
             secureArchive: UnwiredSecureArchiveCoding(),
+            sessionRecorder: SessionRecorder(
+                motionSensor: motionSensor,
+                pedometer: pedometer,
+                audioFeedback: audioFeedback,
+                interruptionObserver: SystemSessionInterruptionObserver(audioFeedback: audioFeedback),
+                screenSleep: SystemScreenSleepController(),
+                clock: clock,
+                logService: logService,
+                fileIO: fileIO
+            ),
             userProfileRepository: UnwiredUserProfileRepository(),
             gaitSessionRepository: UnwiredGaitSessionRepository(),
             baselineRepository: UnwiredBaselineRepository()

@@ -114,7 +114,8 @@ private func makeRecorder(
         interruptionObserver: interruptions,
         screenSleep: screenSleep,
         clock: clock,
-        logService: log
+        logService: log,
+        fileIO: FileManagerFileIO()
     )
     return (recorder, clock, audio, log)
 }
@@ -230,7 +231,8 @@ private func collect(_ events: AsyncStream<SessionRecordingEvent>) async -> [Ses
         interruptionObserver: ManualInterruptionObserver(),
         screenSleep: ScreenSleepSpy(),
         clock: clock,
-        logService: RecorderLog()
+        logService: RecorderLog(),
+        fileIO: FileManagerFileIO()
     )
 
     _ = try await recorder.begin(mode: .quickTest, audioConfig: .none)
@@ -249,7 +251,8 @@ private func collect(_ events: AsyncStream<SessionRecordingEvent>) async -> [Ses
         interruptionObserver: ManualInterruptionObserver(),
         screenSleep: ScreenSleepSpy(),
         clock: clock,
-        logService: RecorderLog()
+        logService: RecorderLog(),
+        fileIO: FileManagerFileIO()
     )
 
     await #expect(throws: StabilyzError.permission(.motionDenied)) {
