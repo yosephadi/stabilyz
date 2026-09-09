@@ -91,6 +91,18 @@ struct UserProfile: Sendable, Equatable, Identifiable {
         self.createdAt = createdAt
     }
 
+    /// Whether the hard gate before Home has actually been passed [PRD §7].
+    ///
+    /// The type already says a profile cannot exist without an acceptance date,
+    /// and onboarding always writes a real one. This exists for the one way that
+    /// can be untrue in practice: `UserProfileEntity` declares a SwiftData
+    /// default of `.distantPast`, so a row written outside the wizard — a future
+    /// migration, a hand-edited store, a restore of a malformed archive — can
+    /// carry the sentinel and still map to a valid profile. Routing straight to
+    /// Home on such a profile would walk the user past the disclaimer, which is
+    /// the one thing [PRD §7] forbids.
+    var hasAcceptedDisclaimer: Bool { disclaimerAcceptedAt > .distantPast }
+
     /// Whether step-time asymmetry may be reported for this user.
     ///
     /// Bilateral users never get a fabricated asymmetry value [PRD §7, OQ-1].

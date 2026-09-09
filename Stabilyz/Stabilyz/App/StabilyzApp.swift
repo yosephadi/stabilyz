@@ -10,8 +10,9 @@ import SwiftUI
 @main
 struct StabilyzApp: App {
     /// The composition root, built exactly once (docs/12 §12.1). Feature
-    /// initializers receive what they need from here as they are built; the app
-    /// currently launches to a placeholder screen (docs/22 Phase 1 DoD).
+    /// initializers receive what they need from here as they are built. The
+    /// root is `AppRouter` (docs/11 §11.1); each phase's screen arrives with its
+    /// own task.
     private let dependencies: AppDependencies
 
     init() {
@@ -28,7 +29,13 @@ struct StabilyzApp: App {
 
     var body: some Scene {
         WindowGroup {
-            ContentView()
+            ContentView(
+                router: AppRouter(
+                    profiles: dependencies.userProfileRepository,
+                    drafts: dependencies.onboardingDrafts,
+                    logService: dependencies.logService
+                )
+            )
         }
     }
 }

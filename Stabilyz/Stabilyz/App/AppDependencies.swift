@@ -38,6 +38,10 @@ struct AppDependencies: Sendable {
     /// its lifecycle methods rather than recreated (docs/12 §12.3).
     let sessionRecorder: SessionRecorder
 
+    /// Whether the onboarding wizard has something to resume (docs/04 §4.1).
+    /// Task 8.1.2 replaces the empty store with the real UserDefaults-backed one.
+    let onboardingDrafts: OnboardingDraftStore
+
     // Persistence
     let userProfileRepository: UserProfileRepository
     let gaitSessionRepository: GaitSessionRepository
@@ -54,6 +58,7 @@ struct AppDependencies: Sendable {
         keyDerivation: KeyDerivation,
         secureArchive: SecureArchiveCoding,
         sessionRecorder: SessionRecorder,
+        onboardingDrafts: OnboardingDraftStore = EmptyOnboardingDraftStore(),
         userProfileRepository: UserProfileRepository,
         gaitSessionRepository: GaitSessionRepository,
         baselineRepository: BaselineRepository
@@ -68,6 +73,7 @@ struct AppDependencies: Sendable {
         self.keyDerivation = keyDerivation
         self.secureArchive = secureArchive
         self.sessionRecorder = sessionRecorder
+        self.onboardingDrafts = onboardingDrafts
         self.userProfileRepository = userProfileRepository
         self.gaitSessionRepository = gaitSessionRepository
         self.baselineRepository = baselineRepository
