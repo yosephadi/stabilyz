@@ -1044,3 +1044,61 @@ Buffer contents, engine state transitions, idempotence and the drop-when-suspend
 behaviour are all verifiable off-device and are tested. **Audible output, real
 route changes, Bluetooth behaviour and actual sound-to-footfall latency are not**
 — they require a device and belong to Phase 12 (docs/19 §19.4).
+
+---
+
+## 24. Audio degradation on route change and interruption
+
+**Date:** 2026-09-09 · **Task:** 7.1.2 · **Status:** Decided
+
+### The state machine, and why it is separately callable
+
+`handle(_ event:)` applies an audio-session event to the engine. The
+`AVAudioSession` notification observers call it *and* publish the event; tests
+call it directly.
+
+That separation exists because a simulator cannot be made to change audio route.
+Without it the entire degradation path would be untestable and would first run in
+front of a user whose AirPods went flat mid-walk.
+
+- **Interrupted** → suspend. Stop cleanly rather than fight for the session.
+- **Interruption ended** → resume, or degrade. Never a third state.
+- **Route changed** → rebuild the engine against the new route. A route change
+  can change the output sample rate, which invalidates the existing connections
+  and buffers; reconnecting and re-synthesising is cheap and happens between
+  tones. Failing to rebuild degrades to silence rather than leaving nodes wired
+  to a format that no longer exists.
+
+### Degradation is terminal, silent, and logged
+
+Once degraded the service stays silent for the rest of the session: no alert, no
+error screen, no interruption to the walk [PRD §6], with a log trail for
+diagnosis. `ErrorPresenter` has returned nil for every audio error since
+Task 2.2.2; a test restates it here, because 7.1.2 is where audio starts actually
+failing.
+
+### Drop-don't-queue survives the interruption boundary
+
+7.1.1 drops tones requested while suspended. This task adds the second half:
+they are not replayed on resume either. `scheduledToneCount` makes that
+observable — a tick that arrives after the interruption has ended is worse than
+no tick, because it lands against a footfall that already happened.
+
+### The 4.2.3 decision stands, now pinned end to end
+
+Audio route changes and audio interruptions **do not** increment
+`interruptionCount`; only `didEnterBackground` does. Three tests hold the line:
+audio events alone leave the count at zero, a backgrounding among them still
+counts exactly one, and the recorder's own event stream carries no `.interrupted`
+for audio trouble — the Recording screen must not report an interruption because
+someone's headphones disconnected.
+
+Recorder isolation is asserted by comparison rather than by inspection: the same
+fixture is recorded twice, once with audio events fired throughout, and the
+sample count, gap info, gap list and interruption count are identical.
+
+### What the simulator cannot verify
+
+Real Bluetooth disconnection, real route switching, actual rerouting to the
+device speaker, and audible continuity across a route change. The *policy* is
+tested; the hardware behaviour is Phase 12 (docs/19 §19.4).

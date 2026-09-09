@@ -86,6 +86,9 @@ EPIC 8 — Core Flows UI
     Task 8.2.2 Recording cover (elapsed, stop, tones)                       → dep: 4.2.2, 7.1.1
     Task 8.2.3 Processing screen + routing to Score/Noisy                   → dep: 5.1.1
     Task 8.2.4 Score screen (building/relative states, expandable signals)  → dep: 6.2.3
+      ↳ carries EPIC 6 audit ACs 7/9/10: the building state, the
+        "vs. your baseline" rendering, and the provisional framing.
+        Screen-level, so unverifiable until this screen exists.
     Task 8.2.5 Noisy screen (plain-language, invalid, no score)
   Feature 8.3 Home
     Task 8.3.1 Home empty/populated + trend snapshot + export nudge         → dep: 8.2.4
@@ -94,6 +97,8 @@ EPIC 9 — History & Clinician
   Feature 9.1 History
     Task 9.1.1 Session list (valid-only, mode-labeled, filter)              → dep: 3.2.1
     Task 9.1.2 Swift Charts trend (mode-separated series)                   → dep: 9.1.1
+      ↳ carries EPIC 6 audit: trend independence — the two modes render as
+        separate series and never share a line [PRD OQ-5].
   Feature 9.2 Clinician Summary
     Task 9.2.1 Summary screen (baselines, last N [OPEN], trend, per-mode empty/partial states) → dep: 9.1.2
 
@@ -105,6 +110,11 @@ EPIC 10 — Backup (Export/Import/Restore)
   Feature 10.2 Export
     Task 10.2.1 Export wizard (passphrase set/confirm, unrecoverable warning)
     Task 10.2.2 Archive generation + share sheet + temp cleanup             → dep: 10.1.3
+      ↳ TEST REQUIREMENT, from the EPIC 6 audit: the "never exported" limb of
+        the invalid-session rule. An archive built from a store containing
+        invalid sessions must contain none of them. The other three limbs
+        (never scored, never baseline-counted, never shown in history) are
+        covered; this one cannot be tested before an archive exists.
   Feature 10.3 Restore
     Task 10.3.1 Import validation order (decrypt → validate → touch)        → dep: 10.1.3
     Task 10.3.2 First-launch restore path + fallback                        → dep: 10.3.1, 8.1.1

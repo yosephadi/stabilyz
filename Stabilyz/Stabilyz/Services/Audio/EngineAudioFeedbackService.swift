@@ -29,6 +29,13 @@ actor EngineAudioFeedbackService: AudioFeedbackService {
 
     private var isPrepared = false
     private var isSuspended = false
+    /// Tones actually handed to the engine.
+    ///
+    /// Exists so "dropped, not queued" is observable: a tick requested while
+    /// suspended must never appear here, and must not appear later either.
+    private(set) var scheduledToneCount = 0
+    /// Whether audio has degraded to silence for the rest of the session.
+    private(set) var isDegraded = false
 
     private nonisolated let continuation: AsyncStream<AudioFeedbackEvent>.Continuation
     nonisolated let events: AsyncStream<AudioFeedbackEvent>
@@ -160,12 +167,13 @@ actor EngineAudioFeedbackService: AudioFeedbackService {
     /// requires audio never to crash or freeze the session, and a queued tick
     /// arriving after an interruption would be worse than no tick.
     private func play(_ tone: Tone) {
-        guard isPrepared, !isSuspended, engine.isRunning,
+        guard isPrepared, !isSuspended, !isDegraded, engine.isRunning,
               let player = players[tone], let buffer = buffers[tone]
         else { return }
 
         player.scheduleBuffer(buffer, at: nil, options: .interrupts)
         if !player.isPlaying { player.play() }
+        scheduledToneCount += 1
     }
 
     // MARK: - Suspend / resume (hooks for Task 7.1.2)
@@ -192,10 +200,95 @@ actor EngineAudioFeedbackService: AudioFeedbackService {
             isSuspended = false
             logService.log(.info, .audio, "audio resumed")
         } catch {
-            // Staying suspended is the safe failure: silence, not a crash.
-            logService.log(.warning, .audio, "audio could not resume; continuing silently")
-            continuation.yield(.degraded)
+            // Silence, not a crash. The session carries on regardless.
+            degrade("could not resume after interruption")
         }
+    }
+
+    // MARK: - Degradation (Task 7.1.2)
+
+    /// Applies an audio-session event to the engine (docs/10 §10.3).
+    ///
+    /// Separated from the notification observer so the state machine is
+    /// testable without real hardware: a route change on a simulator cannot be
+    /// provoked, but the response to one can be driven directly.
+    ///
+    /// **Nothing here touches the recorder.** Audio state is independent of the
+    /// sample path, the gap machinery and the session's own event stream; the
+    /// recorder learns of audio trouble only through the feedback signals it
+    /// already carries, and those never count as recording interruptions
+    /// (Task 4.2.3).
+    func handle(_ event: AudioFeedbackEvent) async {
+        switch event {
+        case .interrupted:
+            // A call or alarm took the session. Stop cleanly rather than
+            // fighting for it [PRD §6].
+            logService.log(.warning, .audio, "audio interrupted")
+            await suspend()
+
+        case .interruptionEnded:
+            logService.log(.info, .audio, "audio interruption ended")
+            await resume()
+
+        case .routeChanged:
+            // Headphones unplugged, AirPods gone flat, a switch to the car.
+            // iOS reroutes playback itself; the engine may still need rebuilding
+            // because the new route can have a different output format.
+            logService.log(.info, .audio, "audio route changed")
+            await reconfigureForRouteChange()
+
+        case .degraded:
+            // Already reported by whoever raised it.
+            break
+        }
+    }
+
+    /// Rebuilds the engine against the current route.
+    ///
+    /// A route change can change the output sample rate, which invalidates the
+    /// existing connections and buffers. Rebuilding is cheap and happens between
+    /// tones; failing to rebuild degrades to silence rather than leaving nodes
+    /// connected to a format that no longer exists.
+    private func reconfigureForRouteChange() async {
+        guard isPrepared, !isDegraded else { return }
+
+        let format = engine.outputNode.outputFormat(forBus: 0)
+        guard format.sampleRate > 0 else {
+            degrade("no output format after route change")
+            return
+        }
+
+        if engine.isRunning { engine.stop() }
+
+        for (tone, player) in players {
+            engine.disconnectNodeOutput(player)
+            engine.connect(player, to: engine.mainMixerNode, format: format)
+            buffers[tone] = ToneSynthesis.buffer(for: tone.spec, format: format)
+        }
+
+        do {
+            try engine.start()
+            if !isSuspended {
+                for player in players.values { player.play() }
+            }
+            logService.log(.info, .audio, "audio engine rebuilt for new route")
+        } catch {
+            degrade("engine would not restart after route change")
+        }
+    }
+
+    /// Falls silent for the rest of the session.
+    ///
+    /// Silent to the user and logged for diagnostics [PRD §6]: there is no
+    /// alert, no error screen and no interruption to the walk. The recording
+    /// continues untouched.
+    private func degrade(_ reason: String) {
+        guard !isDegraded else { return }
+        isDegraded = true
+        for player in players.values { player.stop() }
+        if engine.isRunning { engine.stop() }
+        logService.log(.warning, .audio, "audio degraded: \(reason)")
+        continuation.yield(.degraded)
     }
 
     // MARK: - Session events
@@ -215,7 +308,9 @@ actor EngineAudioFeedbackService: AudioFeedbackService {
             ) { note in
                 guard let raw = note.userInfo?[AVAudioSessionInterruptionTypeKey] as? UInt,
                       let type = AVAudioSession.InterruptionType(rawValue: raw) else { return }
-                continuation.yield(type == .began ? .interrupted : .interruptionEnded)
+                let event: AudioFeedbackEvent = type == .began ? .interrupted : .interruptionEnded
+                continuation.yield(event)
+                Task { await self.handle(event) }
             }
         )
 
@@ -225,6 +320,7 @@ actor EngineAudioFeedbackService: AudioFeedbackService {
                 object: session, queue: nil
             ) { _ in
                 continuation.yield(.routeChanged)
+                Task { await self.handle(.routeChanged) }
             }
         )
     }
