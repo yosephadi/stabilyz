@@ -87,6 +87,11 @@ enum ErrorPresenter {
                 message: "The movement data from that session was too unsettled to measure. Try keeping your phone in the same place for the whole walk.",
                 isRecoverable: true
             )
+        case .processing(.baselineModeMismatch):
+            ErrorPresentation(
+                message: "Something went wrong working out that result. Please try again.",
+                isRecoverable: true
+            )
         case .processing(.cancelled):
             ErrorPresentation(
                 message: "That session was stopped before it finished, so there's no result to show.",

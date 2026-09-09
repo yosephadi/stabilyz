@@ -11,9 +11,10 @@ import Foundation
 /// the recorder produced is the single source of truth for validity
 /// (docs/07 §7.8).
 ///
-/// Task 4.2.4 adds the bounded in-memory ring and the temp scratch file that
-/// back this during a long session; the contract handed downstream is this type
-/// either way.
+/// Lives in Domain rather than beside the recorder: it is the input named by
+/// the `GaitScoringAlgorithm` contract, and docs/03 forbids Domain depending on
+/// a Service. docs/16 sketches it under Services/Recording, but the layering
+/// rule is the binding one.
 struct RawSessionBuffer: Sendable, Equatable {
     let mode: TestMode
     let audioConfig: SessionAudioConfig

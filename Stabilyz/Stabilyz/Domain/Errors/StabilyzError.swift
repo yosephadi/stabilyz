@@ -46,6 +46,9 @@ enum StabilyzError: Error, Equatable {
         /// A cancelled run marks the session invalid rather than half-processed
         /// (docs/14 §14.3).
         case cancelled
+        /// A baseline from another mode reached the scorer — a caller bug that
+        /// would otherwise silently compare across modes [PRD OQ-5].
+        case baselineModeMismatch
     }
 
     enum Persistence: Equatable {
