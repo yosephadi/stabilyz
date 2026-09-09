@@ -62,7 +62,7 @@ private let stepPolicy = AlgorithmConfiguration.v1.liveStepFeedback
     // What is persisted says the walk was paced, and at what [docs/05 §5.1].
     let cue = MetronomeCue(baseline: .fixture(cadenceBPM: 104), mode: .quickTest)
 
-    #expect(cue?.audioConfig == .metronome(bpm: 104))
+    #expect(cue?.audioConfig == .metronome(cue: .fixture(bpm: 104)))
 }
 
 // MARK: - The baseline gate is structural [PRD AC]
@@ -113,6 +113,43 @@ private let stepPolicy = AlgorithmConfiguration.v1.liveStepFeedback
     #expect(MetronomeCue(baseline: .fixture(cadenceBPM: 0), mode: .quickTest) == nil)
     #expect(MetronomeCue(baseline: .fixture(cadenceBPM: -20), mode: .quickTest) == nil)
     #expect(MetronomeCue(baseline: .fixture(cadenceBPM: .nan), mode: .quickTest) == nil)
+}
+
+// MARK: - The gate is in the type, not in the call site
+
+@Test func theOnlyWayToConfigureAMetronomeIsThroughACue() throws {
+    // [PRD §5, §7] There is no `SessionAudioConfig.metronome(bpm:)` any more:
+    // the case carries a cue, and a cue needs that mode's baseline. A call site
+    // — including Session Setup in Task 8.2.1 — cannot invent a tempo.
+    let cue = try #require(MetronomeCue(baseline: .fixture(mode: .fullTest, cadenceBPM: 118), mode: .fullTest))
+
+    guard case .metronome(let carried) = cue.audioConfig else {
+        Issue.record("the cue did not produce a metronome config")
+        return
+    }
+    #expect(carried == cue)
+    #expect(carried.mode == .fullTest)
+    #expect(carried.bpm == 118)
+}
+
+@Test func aPersistedMetronomeSessionRoundTripsWithItsTempoAndMode() throws {
+    // The config is persisted with the session for transparency (docs/05 §5.1).
+    let config = SessionAudioConfig.metronome(cue: .fixture(bpm: 104.5, mode: .fullTest))
+
+    let data = try JSONEncoder().encode(config)
+    #expect(try JSONDecoder().decode(SessionAudioConfig.self, from: data) == config)
+}
+
+@Test func aCorruptTempoIsRefusedOnDecodeRatherThanRestored() throws {
+    // Decoding is a read of history, so it re-checks what is still checkable.
+    // A zero BPM could only come from corruption, and would schedule silence.
+    let valid = SessionAudioConfig.metronome(cue: .fixture(bpm: 104))
+    let json = String(decoding: try JSONEncoder().encode(valid), as: UTF8.self)
+    let corrupted = json.replacingOccurrences(of: "104", with: "0")
+
+    #expect(throws: (any Error).self) {
+        try JSONDecoder().decode(SessionAudioConfig.self, from: Data(corrupted.utf8))
+    }
 }
 
 // MARK: - The beat grid

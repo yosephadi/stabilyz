@@ -84,6 +84,15 @@ EPIC 8 — Core Flows UI
   Feature 8.2 Session Flow
     Task 8.2.1 Setup screen (mode, audio selector, permission pre-flight, first-session framing) → dep: 6.1.2
     Task 8.2.2 Recording cover (elapsed, stop, tones)                       → dep: 4.2.2, 7.1.1
+      ↳ carries EPIC 7 audit finding 2: swap `EngineAudioFeedbackService` into
+        `AppDependencies.live()` (and `.storeUnavailable()`), replacing
+        `SilentAudioFeedbackService`, and own its `prepare()`/`teardown()`
+        lifecycle around the session. Until this lands the app is silent: the
+        whole audio epic is unreachable from the production graph, and the suite
+        is green only because every audio test constructs the engine directly.
+        Do not swap the slot without the lifecycle — `prepare()` activates an
+        `AVAudioSession` and something must deactivate it. Delete the stale
+        "Task 7.1.1 replaces this" comment at the same time.
     Task 8.2.3 Processing screen + routing to Score/Noisy                   → dep: 5.1.1
     Task 8.2.4 Score screen (building/relative states, expandable signals)  → dep: 6.2.3
       ↳ carries EPIC 6 audit ACs 7/9/10: the building state, the

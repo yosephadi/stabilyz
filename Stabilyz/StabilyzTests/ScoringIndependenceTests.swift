@@ -93,30 +93,36 @@ private actor CountingAudio: AudioFeedbackService {
     func resume() async {}
 }
 
-/// Audio that never returns from the feedback paths — the stalled or wedged
-/// consumer docs/10 §10.4 says must not delay the batch.
+/// Audio where **every** call stalls — the dead or wedged layer the data path
+/// must be independent of (ledger entry 25).
 ///
-/// The stop tone and `stopMetronome` are deliberately prompt: `stop()` awaits
-/// those two by design (the tone must sound before teardown [PRD AC]), and the
-/// shipped engine cannot block there — it only schedules a preloaded buffer.
-/// See the EPIC 7 audit.
+/// Nothing here is exempt: the start tone, the stop tone, the metronome start
+/// and stop, and every tick all hang for thirty seconds. `started` and
+/// `finished` are counted separately, so "the session did not wait" is a fact
+/// about the two counts rather than a stopwatch reading.
 private actor WedgedAudio: AudioFeedbackService {
     nonisolated var events: AsyncStream<AudioFeedbackEvent> { AsyncStream { $0.finish() } }
 
+    private(set) var started = 0
+    private(set) var finished = 0
     private(set) var startedTicks = 0
-    private(set) var finishedTicks = 0
 
-    func playStartTone() async {}
-    func playStopTone() async {}
+    private func stall() async {
+        started += 1
+        try? await Task.sleep(for: .seconds(30))
+        finished += 1
+    }
+
+    func playStartTone() async { await stall() }
+    func playStopTone() async { await stall() }
     func playStepTick() async {
         startedTicks += 1
-        try? await Task.sleep(for: .seconds(30))
-        finishedTicks += 1
+        await stall()
     }
-    func startMetronome(bpm: Double) async { try? await Task.sleep(for: .seconds(30)) }
-    func stopMetronome() async {}
-    func suspend() async {}
-    func resume() async {}
+    func startMetronome(bpm: Double) async { await stall() }
+    func stopMetronome() async { await stall() }
+    func suspend() async { await stall() }
+    func resume() async { await stall() }
 }
 
 /// Audio that has already failed: silent, degraded, and saying so.
@@ -143,7 +149,7 @@ private struct IndependenceClock: Clock {
 }
 
 /// Every audio config a session can be recorded under.
-private let everyAudioConfig: [SessionAudioConfig] = [.none, .stepFeedback, .metronome(bpm: 104)]
+private let everyAudioConfig: [SessionAudioConfig] = [.none, .stepFeedback, .metronome(cue: .fixture(bpm: 104))]
 
 // MARK: - Byte-identical results, scored path
 
@@ -291,14 +297,14 @@ private let everyAudioConfig: [SessionAudioConfig] = [.none, .stepFeedback, .met
     #expect(await eventuallyStalled(wedged), "no tick was requested, so nothing was stalled")
     let wedgedBuffer = try await recorder.stop()
 
-    #expect(await wedged.finishedTicks == 0, "the recording waited for the audio layer")
+    #expect(await wedged.finished == 0, "the recording waited for the audio layer")
     #expect(wedgedBuffer.series == cleanBuffer.series)
 
     let cleanResult = try await pipeline.analyze(buffer: cleanBuffer, baseline: nil, profile: nil, progress: { _ in })
     let wedgedResult = try await pipeline.analyze(buffer: wedgedBuffer, baseline: nil, profile: nil, progress: { _ in })
 
     // Still stuck, and the batch is already done.
-    #expect(await wedged.finishedTicks == 0)
+    #expect(await wedged.finished == 0)
     #expect(
         try snapshotBytes(SessionAnalysisResult(outcome: wedgedResult, algorithmVersion: configuration.version))
             == snapshotBytes(SessionAnalysisResult(outcome: cleanResult, algorithmVersion: configuration.version))
@@ -377,6 +383,47 @@ private let everyAudioConfig: [SessionAudioConfig] = [.none, .stepFeedback, .met
     )
 }
 
+// MARK: - The data path never awaits audio (ledger entry 25)
+
+@Test func theDataPathNeverAwaitsAudio() async throws {
+    // Every audio call stalls for thirty seconds — start tone, stop tone,
+    // metronome start and stop, every tick. The session must still record,
+    // freeze, hand off and score, and produce the same bytes as a silent run.
+    let fixture = try goldenFixture(GoldenSignalSpec(seconds: 130), name: "wedged-everything")
+    let configuration = AlgorithmConfiguration.v1
+    let pipeline = GaitAnalysisPipeline(configuration: configuration)
+
+    let clean = makeRecorder(fixture: fixture, audio: CountingAudio())
+    _ = try await clean.begin(mode: .quickTest, audioConfig: .none)
+    let cleanBuffer = try await clean.stop()
+
+    let wedged = WedgedAudio()
+    let recorder = makeRecorder(fixture: fixture, audio: wedged)
+
+    // A metronome session, so stopMetronome is on the wedged list too.
+    let began = await bounded { try await recorder.begin(mode: .quickTest, audioConfig: .metronome(cue: .fixture(bpm: 104))) }
+    #expect(began != nil, "begin waited on the audio layer")
+
+    let buffer = await bounded { try await recorder.stop() }
+    let frozen = try #require(buffer, "stop waited on the audio layer")
+
+    // Froze everything, and did not wait for a single audio call to return.
+    #expect(frozen.series == cleanBuffer.series)
+    #expect(await wedged.started > 0, "no audio was requested, so nothing was stalled")
+    #expect(await wedged.finished == 0, "an audio call returned; the test proved nothing")
+
+    // And it still scores, identically.
+    let result = try await pipeline.analyze(buffer: frozen, baseline: nil, profile: nil, progress: { _ in })
+    let reference = try await pipeline.analyze(buffer: cleanBuffer, baseline: nil, profile: nil, progress: { _ in })
+
+    #expect(result.isValid)
+    #expect(await wedged.finished == 0)
+    #expect(
+        try snapshotBytes(SessionAnalysisResult(outcome: result, algorithmVersion: configuration.version))
+            == snapshotBytes(SessionAnalysisResult(outcome: reference, algorithmVersion: configuration.version))
+    )
+}
+
 // MARK: - Helpers
 
 /// Lets a test push audio trouble at the recorder as the real observer would.
@@ -436,4 +483,25 @@ private func eventuallyStalled(_ audio: WedgedAudio) async -> Bool {
         try? await Task.sleep(for: .milliseconds(20))
     }
     return false
+}
+
+/// Runs `work`, giving up after `seconds`.
+///
+/// A regression here would otherwise hang the suite rather than fail it: the
+/// point of these tests is that a call *returns*, and the only way to assert
+/// that is to bound the wait and treat the bound as a failure.
+private func bounded<T: Sendable>(
+    _ seconds: Double = 10,
+    _ work: @escaping @Sendable () async throws -> T
+) async -> T? {
+    await withTaskGroup(of: T?.self) { group in
+        group.addTask { try? await work() }
+        group.addTask {
+            try? await Task.sleep(for: .seconds(seconds))
+            return nil
+        }
+        let first = await group.next() ?? nil
+        group.cancelAll()
+        return first
+    }
 }

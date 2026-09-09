@@ -19,8 +19,9 @@
 
 ## 7.3 Start / Stop
 
-- Start: `SessionRecorder.begin(mode:audioConfig:)` → start accelerometer + deviceMotion + pedometer updates → confirm first samples arriving → signal readiness → play start tone [PRD AC]. If priming exceeds the latency target, fail fast into a plain-language error (no silent failure [PRD §6 permission analog]).
-- Stop: user Stop button (always visible [PRD §5]) → stop tone → stop sensor updates → freeze buffer → hand off to `SessionProcessor`.
+- Start: `SessionRecorder.begin(mode:audioConfig:)` → start accelerometer + deviceMotion + pedometer updates → confirm first samples arriving → signal readiness → **request** the start tone [PRD AC]. If priming exceeds the latency target, fail fast into a plain-language error (no silent failure [PRD §6 permission analog]).
+- Stop: user Stop button (always visible [PRD §5]) → disarm feedback → **request** the stop tone → stop sensor updates → drain → freeze buffer → hand off to `SessionProcessor`.
+- **Audio is requested, never awaited, in both directions** (decisions.md entry 25). The tones are handed off to a separate task, so the data path — start sensors / disarm → stop sensors → drain → freeze → handoff — cannot be delayed by the audio layer. The PRD requires both behaviours (a session records; distinct start and stop tones play); it does not require the recorder to block on the second to guarantee the first. Under a wedged or dead audio layer the walk is still measured, frozen and scored, and the tone is simply lost — the same best-effort treatment every other sound gets (docs/10 §10.4).
 
 ## 7.4 Timestamps
 

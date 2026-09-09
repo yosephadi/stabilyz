@@ -12,7 +12,7 @@ import Foundation
 ///
 /// It carries the mode it was built for so the mismatch is visible in the value
 /// itself, not only in the code that built it.
-struct MetronomeCue: Sendable, Equatable {
+struct MetronomeCue: Sendable, Equatable, Codable {
     let mode: TestMode
     let bpm: Double
 
@@ -35,5 +35,35 @@ struct MetronomeCue: Sendable, Equatable {
 
     /// What is persisted with the session, so a reader knows the walk was
     /// paced (docs/05 §5.1, docs/10 §10.4 — the PRD-sanctioned influence).
-    var audioConfig: SessionAudioConfig { .metronome(bpm: bpm) }
+    var audioConfig: SessionAudioConfig { .metronome(cue: self) }
+
+    // MARK: - Coding
+
+    /// Decoding is a **read of history**, not a new opt-in.
+    ///
+    /// A persisted session records the tempo a past walk was actually paced at;
+    /// the baseline that justified it may since have been replaced, and
+    /// re-deriving it would rewrite the record. So decoding re-checks what is
+    /// still checkable — a real, positive tempo — and refuses a row that could
+    /// only come from corruption, rather than silently reconstructing one
+    /// (the same reasoning as `Baseline`, reached the other way: `Baseline`
+    /// declines `Codable` entirely because its invariant *can* be re-checked
+    /// and synthesized decoding would skip it).
+    private enum CodingKeys: String, CodingKey { case mode, bpm }
+
+    enum DecodingError: Error, Equatable {
+        case implausibleTempo(Double)
+    }
+
+    init(from decoder: any Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        let bpm = try container.decode(Double.self, forKey: .bpm)
+
+        guard bpm.isFinite, bpm > 0 else {
+            throw DecodingError.implausibleTempo(bpm)
+        }
+
+        self.mode = try container.decode(TestMode.self, forKey: .mode)
+        self.bpm = bpm
+    }
 }

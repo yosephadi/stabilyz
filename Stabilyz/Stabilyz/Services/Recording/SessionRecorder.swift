@@ -166,16 +166,9 @@ actor SessionRecorder {
 
         // Arm the sound before the first sample can be ingested. Inert unless
         // this session opted in [PRD AC — Step Feedback is off by default].
+        // This is the bridge, not the audio layer: it subscribes to a stream
+        // and returns; it never awaits a tone.
         await stepFeedback.start(audioConfig: audioConfig, events: stepEvents)
-
-        // The other engine, equally opt-in (Task 7.2.2). The BPM travels on the
-        // config, which `MetronomeCue` is the only way to build — so it is
-        // necessarily this mode's own baseline cadence [PRD §5]. Nothing about
-        // the metronome touches the samples; it is pacing, not measurement
-        // (docs/10 §10.4).
-        if case .metronome(let bpm) = audioConfig {
-            await audioFeedback.startMetronome(bpm: bpm)
-        }
 
         sampleTask = Task { [weak self] in
             for await sample in sampleStream {
@@ -205,8 +198,23 @@ actor SessionRecorder {
 
         // Sensors are confirmed delivering by this point: signal readiness,
         // then the tone (docs/07 §7.3).
+        //
+        // The tone and the metronome are **requested, never awaited** (ledger
+        // entry 25). Both PRD ACs still hold — recording starts, and a distinct
+        // start tone plays — but the data path does not depend on the audio
+        // layer being healthy enough to return. Ordering is preserved where it
+        // is observable: the request is issued after readiness, so a tone can
+        // never precede a recording.
         continuation.yield(.ready)
-        await audioFeedback.playStartTone()
+        requestAudio { audio, config in
+            await audio.playStartTone()
+            // The other engine, equally opt-in (Task 7.2.2). The tempo travels
+            // on the config, which `MetronomeCue` is the only way to build — so
+            // it is necessarily this mode's own baseline cadence [PRD §5].
+            if case .metronome(let cue) = config {
+                await audio.startMetronome(bpm: cue.bpm)
+            }
+        }
         logService.log(.info, .session, "session started: mode=\(mode.rawValue)")
 
         return events
@@ -222,13 +230,20 @@ actor SessionRecorder {
             throw StabilyzError.recording(.notRecording)
         }
 
-        // Silence the feedback before the stop tone, so neither a late footfall
-        // nor a queued beat sounds over the end of the walk.
+        // Silence the feedback first, so neither a late footfall nor a queued
+        // beat sounds over the end of the walk. Disarming is a bridge call: it
+        // sets a flag and returns.
         await stepFeedback.stop()
-        if case .metronome = audioConfig {
-            await audioFeedback.stopMetronome()
+
+        // From here the data path — sensor stop, drain, freeze, handoff — never
+        // awaits audio (ledger entry 25). The stop tone is requested alongside
+        // it and is best-effort, like every other sound: a wedged audio layer
+        // costs the walk its tone, never its measurement [PRD §7 AC].
+        requestAudio { audio, config in
+            if case .metronome = config { await audio.stopMetronome() }
+            await audio.playStopTone()
         }
-        await audioFeedback.playStopTone()
+
         await motionSensor.stop()
         await pedometer.stop()
         await interruptionObserver.stopObserving()
@@ -281,6 +296,21 @@ actor SessionRecorder {
         resetSessionState()
 
         return buffer
+    }
+
+    /// Hands a piece of audio work off the critical path (ledger entry 25).
+    ///
+    /// Audio is fire-and-forget in both directions. Every method on
+    /// `AudioFeedbackService` is non-throwing and returns promptly by contract,
+    /// and the shipped engine only stops or schedules a preloaded buffer — but
+    /// the recorder does not rely on that being true. A session is measured,
+    /// frozen and scored whatever the audio layer is doing.
+    private func requestAudio(
+        _ work: @escaping @Sendable (AudioFeedbackService, SessionAudioConfig) async -> Void
+    ) {
+        let audio = audioFeedback
+        let config = audioConfig
+        Task { await work(audio, config) }
     }
 
     // MARK: - Permission

@@ -4,6 +4,28 @@
 **Date:** 2026-09-09.
 **Method:** read-only inspection plus one full test run. The only code changes in this session are Task 7.2.3's own tests, the scoring-independence source scan, and one line added to `CLAUDE.md`.
 
+
+**Postscript (2026-09-09, EPIC 7 close-out):** findings 1 and 3 are closed, and
+finding 2 is scheduled.
+
+- **Finding 1 — resolved.** `SessionRecorder` no longer awaits any audio call in
+  either direction; the tones and the metronome are requested off the critical
+  path. Recorded as decisions.md entry 25, which supersedes the Start/Stop
+  ordering in docs/07 §7.3; §7.3 has been amended to match. `WedgedAudio` now
+  stalls **every** audio call, and `theDataPathNeverAwaitsAudio` proves a session
+  still records, freezes, hands off and scores byte-identically with all of them
+  still in flight. Mutation-verified at its bound.
+- **Finding 3 — resolved, at the type level rather than by a scan.**
+  `SessionAudioConfig.metronome` now carries a `MetronomeCue`; no bare-BPM case
+  remains, so a hand-written tempo is a compile error rather than something a
+  guard has to notice. `MetronomeCue` gained a validating `init(from:)` —
+  decoding is a read of history and re-checks only what stays checkable.
+- **Finding 2 — scheduled, not closed.** Task 8.2.2 in
+  docs/23-engineering-task-breakdown.md now carries the `AppDependencies` swap
+  and the `prepare()`/`teardown()` lifecycle it depends on. The app is still
+  silent until that lands.
+- Findings 4 and the §6 judgment calls stand as written.
+
 ---
 
 ## 1. Full suite

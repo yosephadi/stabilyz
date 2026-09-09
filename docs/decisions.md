@@ -1102,3 +1102,63 @@ sample count, gap info, gap list and interruption count are identical.
 Real Bluetooth disconnection, real route switching, actual rerouting to the
 device speaker, and audible continuity across a route change. The *policy* is
 tested; the hardware behaviour is Phase 12 (docs/19 §19.4).
+
+---
+
+## 25. Audio is requested, never awaited — the data path is independent of it
+
+**Date:** 2026-09-09 · **Task:** EPIC 7 close-out (audit finding 1) · **Status:** Decided
+
+**Supersedes the Start/Stop ordering in docs/07 §7.3**, which has been amended
+to match.
+
+### What changed
+
+`SessionRecorder` no longer awaits any `AudioFeedbackService` call. The start
+tone, the metronome start, the metronome stop and the stop tone are handed to a
+separate task via `requestAudio`; the data path runs on regardless:
+
+```
+begin: permission → sensors → confirm delivery → .ready → [request tone + metronome]
+stop:  disarm feedback → [request stop tone] → stop sensors → drain → freeze → handoff
+```
+
+### Why
+
+The EPIC 7 audit (docs/audits/epic-7.md, finding 1) recorded that scoring was
+provably independent of audio while *Stop* was not. `stop()` awaited
+`stopMetronome()` and `playStopTone()` before freezing the buffer, so a wedged
+audio layer could delay — in principle indefinitely — the batch that [PRD §7 AC]
+says audio must never block or alter. The shipped engine cannot block there, but
+"our implementation happens not to" is a weaker guarantee than the AC deserves,
+and it is not the kind of property that survives a future maintainer.
+
+The ordering it replaced was not itself a PRD requirement. The PRD requires two
+behaviours — a session records, and distinct start and stop tones play — not any
+particular internal sequencing between them. Ordering is still preserved where
+it is observable: the tone is requested *after* readiness is signalled and after
+the feedback engines are disarmed, so a tone can never precede its recording nor
+sound over a beat that should already have stopped.
+
+### What this costs
+
+Under a dead or wedged audio layer the tone is lost rather than delayed. That is
+the same best-effort treatment every other sound already gets (docs/10 §10.4:
+audio failure is surfaced only as silent degradation and can never fail a
+session). A walk measured in silence is a complete measurement; a walk that
+never freezes because a tone never returned is not.
+
+### What would change it
+
+A PRD requirement that the stop tone be *guaranteed* audible before the session
+ends — which would mean bounding the wait rather than removing it, since an
+unbounded wait can never be a guarantee anyway.
+
+### Verification
+
+`theDataPathNeverAwaitsAudio` records, stops, freezes and scores a session
+against an audio layer where **every** call stalls for thirty seconds, bounding
+each recorder call so a regression fails rather than hangs. The result is
+byte-identical to a clean run and every audio call is still in flight at the
+end. Mutation-verified: restoring `await audioFeedback.playStopTone()` to the
+critical path fails the test at its bound.

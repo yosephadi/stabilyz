@@ -324,12 +324,12 @@ private struct UndeterminedMotionService: MotionSensorService {
 @Test func stopFreezesTheBufferWithSessionContext() async throws {
     let (recorder, _, _, _) = makeRecorder()
 
-    _ = try await recorder.begin(mode: .fullTest, audioConfig: .metronome(bpm: 104))
+    _ = try await recorder.begin(mode: .fullTest, audioConfig: .metronome(cue: .fixture(bpm: 104)))
     let buffer = try await recorder.stop()
 
     // audioConfig is persisted with the session for transparency [REC].
     #expect(buffer.mode == .fullTest)
-    #expect(buffer.audioConfig == .metronome(bpm: 104))
+    #expect(buffer.audioConfig == .metronome(cue: .fixture(bpm: 104)))
     #expect(buffer.isEmpty == false)
 }
 

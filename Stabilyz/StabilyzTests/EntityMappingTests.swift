@@ -20,7 +20,7 @@ import Testing
     let session = GaitSession.fixtureValid(
         mode: .fullTest,
         score: SessionScore.fixture(relativeIndex: 112),
-        audioConfig: .metronome(bpm: 104),
+        audioConfig: .metronome(cue: .fixture(bpm: 104)),
         interruptionCount: 1,
         gapInfo: SessionGapInfo(gapCount: 1, totalGapDuration: .seconds(4), longestGapDuration: .seconds(4))
     )

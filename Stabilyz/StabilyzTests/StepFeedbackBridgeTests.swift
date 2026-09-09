@@ -109,7 +109,7 @@ private func ticks(
 @Test func aMetronomeSessionDoesNotGetStepFeedback() async {
     // The two engines are separate (docs/10 §10.1); opting into one is not
     // opting into the other.
-    #expect(await ticks(for: [event(at: 0), event(at: 0.6)], audioConfig: .metronome(bpm: 108)) == 0)
+    #expect(await ticks(for: [event(at: 0), event(at: 0.6)], audioConfig: .metronome(cue: .fixture(bpm: 108))) == 0)
 }
 
 @Test func optingInTicksOncePerConfidentStep() async {

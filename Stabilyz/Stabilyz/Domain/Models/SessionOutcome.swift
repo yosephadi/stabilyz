@@ -38,13 +38,18 @@ enum SessionOutcome: Sendable, Equatable, Codable {
 /// Which audio opt-in was active for a session, persisted with it for
 /// transparency and interpretation [REC — docs/05 §5.1, docs/10 §10.4].
 ///
-/// Modeled as an enum so the BPM cannot be present without the metronome, or
-/// absent with it. Step Feedback is pre-baseline only and the Metronome is
-/// post-baseline only [PRD §5]; that gating lives in Session Setup, not here.
+/// Modeled as an enum so the tempo cannot be present without the metronome, or
+/// absent with it. The metronome case carries a `MetronomeCue` rather than a
+/// bare BPM, and a cue cannot be built without that mode's own established
+/// baseline — so "the metronome is not offered during sessions 1–5" and "the
+/// tempo is this mode's baseline cadence" [PRD §5, §7] are properties of the
+/// type, not rules a call site has to remember. Step Feedback's pre-baseline
+/// gating remains Session Setup's to enforce; nothing about a tick depends on
+/// a value that could be wrong.
 enum SessionAudioConfig: Sendable, Equatable, Codable {
     case none
     case stepFeedback
-    case metronome(bpm: Double)
+    case metronome(cue: MetronomeCue)
 }
 
 /// Sensor gap record, kept to explain noise and validity decisions

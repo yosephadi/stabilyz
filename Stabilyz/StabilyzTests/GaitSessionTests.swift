@@ -130,21 +130,22 @@ private func makeInvalid(reason: InvalidReason, mode: TestMode = .quickTest) -> 
 
 // MARK: - Audio config
 
-@Test func audioConfigCannotCarryABPMWithoutTheMetronome() {
-    // The invariant is structural: there is no representable state with a BPM
-    // and no metronome, or a metronome and no BPM.
-    #expect(SessionAudioConfig.metronome(bpm: 108) != .stepFeedback)
+@Test func audioConfigCannotCarryATempoWithoutTheMetronome() {
+    // The invariant is structural: there is no representable state with a tempo
+    // and no metronome, or a metronome and no tempo — and since Task 7.2.2's
+    // close-out, no representable metronome without a baseline behind it.
+    #expect(SessionAudioConfig.metronome(cue: .fixture(bpm: 108)) != .stepFeedback)
     #expect(SessionAudioConfig.none != .stepFeedback)
 
-    if case .metronome(let bpm) = SessionAudioConfig.metronome(bpm: 108) {
-        #expect(bpm == 108)
+    if case .metronome(let cue) = SessionAudioConfig.metronome(cue: .fixture(bpm: 108)) {
+        #expect(cue.bpm == 108)
     } else {
         Issue.record("expected metronome case")
     }
 }
 
 @Test func audioConfigRoundTripsThroughCoding() throws {
-    for config in [SessionAudioConfig.none, .stepFeedback, .metronome(bpm: 104.5)] {
+    for config in [SessionAudioConfig.none, .stepFeedback, .metronome(cue: .fixture(bpm: 104.5))] {
         let data = try JSONEncoder().encode(config)
         #expect(try JSONDecoder().decode(SessionAudioConfig.self, from: data) == config)
     }
