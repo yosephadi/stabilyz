@@ -655,7 +655,7 @@ produce a baseline claiming comparability it does not have.
 
 ## 17. Baseline refusal on the fifth valid session
 
-**Date:** 2026-09-09 · **Task:** 6.1.2 · **Status:** Decided (behaviour) / **[OPEN]** (recovery policy)
+**Date:** 2026-09-09 · **Task:** 6.1.2 · **Status:** Decided
 
 ### What happens
 
@@ -675,21 +675,23 @@ restarting their progress would be both wrong and unexplainable. A later session
 retries against the same first five and refuses again, which is stable rather
 than oscillating.
 
-### The flag is currently ephemeral — [OPEN]
+### The flag stays ephemeral — decided
 
-The refusal is returned in `SessionCommitResult` and logged. It is **not
-persisted**: nothing in the schema records "this mode has five valid sessions and
-a baseline that could not be built".
+The refusal is returned in `SessionCommitResult` and logged. It is **not**
+persisted, and does not need to be.
 
-That is deliberate for now, because the recovery policy is itself deferred.
-docs/09 §9.6 leaves algorithm-version mismatch handling [OPEN] — re-baseline
-prompt, coexistence, or migration — and until that is decided there is nothing
-for a persisted flag to drive. v1 ships one algorithm version, so the case cannot
-arise in practice; the refusal path exists so that it fails visibly rather than
-silently if it ever does.
+**The stuck state is already persisted structurally:** five valid sessions of a
+mode with no baseline row. That is derivable from the store, survives relaunch,
+and travels in the EPIC 10 export archive with no new DTO field, because the
+archive already carries valid sessions and baselines. The refusal *reason* is
+recomputed on retry from the same inputs, so storing it would duplicate something
+the data already determines.
 
-**Phase 12 / post-v1:** deciding §9.6's policy also decides whether this flag
-needs persisting and what the user is told.
+Schema for docs/09 §9.6's version-mismatch policy — re-baseline prompt,
+coexistence, or migration — lands **with that policy when it is decided**, not
+before. v1 ships one algorithm version so the case cannot arise in practice; the
+refusal path exists so that it fails visibly rather than silently if it ever
+does.
 
 ### Ordering: compute, then write
 
