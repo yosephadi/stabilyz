@@ -403,6 +403,49 @@ private func ticks(
     #expect(await spy.tickCount == afterFirst)
 }
 
+@Test func asecondOptInStillTicks() async throws {
+    // The direction where disarming and cancelling differ. Cancelling the
+    // consumer would terminate the recorder's shared step stream for good, so
+    // this second session would be silent forever and nothing else would say so.
+    let clock = BridgeClock()
+    let fixture = footfallFixture(name: "twice")
+    let spy = TickSpy()
+    let recorder = makeRecorder(fixture: fixture, clock: clock, audio: spy)
+
+    _ = try await recorder.begin(mode: .quickTest, audioConfig: .stepFeedback)
+    #expect(await eventuallyTicked(spy))
+    _ = try await recorder.stop()
+    let afterFirst = await spy.tickCount
+
+    _ = try await recorder.begin(mode: .fullTest, audioConfig: .stepFeedback)
+    let tickedAgain = await eventuallyTicked(spy, beyond: afterFirst)
+    _ = try await recorder.stop()
+
+    #expect(tickedAgain, "the second opted-in session never ticked — the stream was consumed once and lost")
+}
+
+@Test func optingInAgainAfterASilentSessionStillTicks() async throws {
+    // Same guarantee across a session that never armed the wiring at all.
+    let clock = BridgeClock()
+    let fixture = footfallFixture(name: "quiet-then-ticking")
+    let spy = TickSpy()
+    let recorder = makeRecorder(fixture: fixture, clock: clock, audio: spy)
+
+    _ = try await recorder.begin(mode: .quickTest, audioConfig: .stepFeedback)
+    #expect(await eventuallyTicked(spy))
+    _ = try await recorder.stop()
+
+    _ = try await recorder.begin(mode: .quickTest, audioConfig: .none)
+    _ = try await recorder.stop()
+    let afterSilent = await spy.tickCount
+
+    _ = try await recorder.begin(mode: .quickTest, audioConfig: .stepFeedback)
+    let tickedAgain = await eventuallyTicked(spy, beyond: afterSilent)
+    _ = try await recorder.stop()
+
+    #expect(tickedAgain)
+}
+
 // MARK: - Helpers
 
 /// A capture of sharp footfalls, the shape the live detector is built for: a
@@ -458,9 +501,9 @@ private func makeRecorder(
 /// Ticks are delivered by an independent task, so a session that has stopped
 /// may still have one in flight. Waits briefly rather than sleeping a fixed
 /// amount.
-private func eventuallyTicked(_ spy: TickSpy) async -> Bool {
+private func eventuallyTicked(_ spy: TickSpy, beyond floor: Int = 0) async -> Bool {
     for _ in 0..<100 {
-        if await spy.tickCount > 0 { return true }
+        if await spy.tickCount > floor { return true }
         try? await Task.sleep(for: .milliseconds(20))
     }
     return false

@@ -297,3 +297,52 @@ private enum SourceTree {
         #expect(lines.contains { line in Self.schedulingSymbols.contains { line.contains($0) } })
     }
 }
+
+// MARK: - The metronome never reads step timing (Task 7.2.2)
+
+/// The mirror of `StepFeedbackSchedulingGuardTests`. Step Feedback mirrors
+/// steps and never schedules; the metronome schedules and never mirrors steps
+/// [PRD OQ-4]. Together the two scans pin the property that keeps the two
+/// engines distinguishable — a metronome that quietly nudged toward the user's
+/// own cadence would still sound plausible and would no longer be the
+/// pre-scheduled tempo the PRD describes.
+@Suite struct MetronomeIndependenceGuardTests {
+    static let stepSymbols = ["LiveStepEvent", "LiveStepDetector", "StepTickGate", "stepEvents", "StepFeedbackBridge"]
+
+    static let metronomeFiles = [
+        "Services/Audio/MetronomeSchedule.swift",
+        "Domain/Models/MetronomeCue.swift"
+    ]
+
+    @Test func theMetronomePathReadsNoStepTiming() throws {
+        let root = SourceTree.appSourceRoot()
+
+        for path in Self.metronomeFiles {
+            let url = root.appendingPathComponent(path)
+            let source = try #require(
+                try? String(contentsOf: url, encoding: .utf8),
+                "\(path) is missing — the scan itself is broken"
+            )
+
+            for line in StepFeedbackSchedulingGuardTests.codeLines(in: source) {
+                for symbol in Self.stepSymbols {
+                    #expect(
+                        line.contains(symbol) == false,
+                        "\(path) refers to \(symbol) — the metronome is a scheduled tempo and must never follow the walk's own steps [PRD OQ-4]"
+                    )
+                }
+            }
+        }
+    }
+
+    @Test func theScanWouldCatchStepTimingLeakingIn() {
+        let offending = """
+        // Mentioning LiveStepEvent in prose is fine.
+        func nudge(towards event: LiveStepEvent) {}
+        """
+        let lines = StepFeedbackSchedulingGuardTests.codeLines(in: offending)
+
+        #expect(lines.count == 1)
+        #expect(lines.contains { line in Self.stepSymbols.contains { line.contains($0) } })
+    }
+}

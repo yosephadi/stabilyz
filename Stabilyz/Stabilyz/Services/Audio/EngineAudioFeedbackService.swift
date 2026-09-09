@@ -29,6 +29,27 @@ actor EngineAudioFeedbackService: AudioFeedbackService {
 
     private var isPrepared = false
     private var isSuspended = false
+
+    /// The running metronome's beat grid, nil when it is not running
+    /// (Task 7.2.2).
+    private var metronome: MetronomeSchedule?
+    /// Kept so a resume can restart the grid from now at the same tempo.
+    private var metronomeBPM: Double?
+    /// Invalidates the top-up callbacks of a metronome that has since been
+    /// stopped, suspended or restarted, so a stale callback cannot revive it.
+    private var metronomeGeneration = 0
+
+    /// Beats queued on the engine at a time, and the point at which the next
+    /// batch is queued.
+    ///
+    /// The batch is refilled when its *first* beat renders, so the engine is
+    /// never holding fewer than `metronomeBatchSize - 1` beats and a late
+    /// callback cannot open a gap in the tempo. Nothing is allocated per beat:
+    /// one preloaded buffer is re-scheduled, and the one `Task` on this path is
+    /// per batch, not per tick.
+    private static let metronomeBatchSize = 8
+    /// A moment of lead-in, so the first beat is scheduled rather than raced.
+    private static let metronomeLeadIn: TimeInterval = 0.1
     /// Tones actually handed to the engine.
     ///
     /// Exists so "dropped, not queued" is observable: a tick requested while
@@ -131,6 +152,7 @@ actor EngineAudioFeedbackService: AudioFeedbackService {
         for observer in observers { NotificationCenter.default.removeObserver(observer) }
         observers.removeAll()
 
+        stopMetronomeSchedule()
         if engine.isRunning { engine.stop() }
         players.removeAll()
         buffers.removeAll()
@@ -148,16 +170,124 @@ actor EngineAudioFeedbackService: AudioFeedbackService {
     func playStopTone() async { play(.stop) }
     func playStepTick() async { play(.stepTick) }
 
-    /// Task 7.2.2 supplies the scheduled metronome. A single click is available
-    /// now so the engine's node is exercised rather than dormant.
+    /// Starts a steady, pre-scheduled beat at `bpm` (docs/10 §10.1).
+    ///
+    /// The interval is `60 / bpm`, and the caller is expected to have taken
+    /// that BPM from the session mode's own baseline — `MetronomeCue` is the
+    /// only way to build one, and it cannot be built without that baseline
+    /// [PRD §5, §7].
+    ///
+    /// Beats go onto the **engine's own sample timeline**, ahead of time, so
+    /// their spacing is decided by the audio clock rather than by when a timer
+    /// happened to fire [REC — docs/10 §10.1: audio-timeline scheduling, not
+    /// `Timer`, for jitter]. Nothing here touches the main actor, and a tempo
+    /// this engine cannot render leaves it silent rather than failing a session.
     func startMetronome(bpm: Double) async {
-        logService.log(.info, .audio, "metronome requested at \(Int(bpm)) bpm")
-        play(.metronome)
+        guard isPrepared, !isSuspended, !isDegraded, engine.isRunning,
+              let player = players[.metronome]
+        else { return }
+
+        stopMetronomeSchedule()
+
+        guard let schedule = MetronomeSchedule(
+            interval: .seconds(60 / bpm),
+            sampleRate: player.outputFormat(forBus: 0).sampleRate,
+            startingAt: currentFrame(of: player) + leadInFrames(for: player)
+        ) else {
+            logService.log(.warning, .audio, "metronome tempo unusable; continuing silently")
+            return
+        }
+
+        metronome = schedule
+        metronomeBPM = bpm
+        logService.log(.info, .audio, "metronome started at \(Int(bpm)) bpm")
+        scheduleMetronomeBatch()
     }
 
     func stopMetronome() async {
+        guard metronome != nil || metronomeBPM != nil else { return }
+        stopMetronomeSchedule()
         players[.metronome]?.stop()
-        players[.metronome]?.play()
+        if isPrepared, !isSuspended, !isDegraded, engine.isRunning {
+            players[.metronome]?.play()
+        }
+        logService.log(.info, .audio, "metronome stopped")
+    }
+
+    /// Whether beats are currently queued on the timeline.
+    var isMetronomeRunning: Bool { metronome != nil }
+
+    /// Beats handed to the engine since this service was created.
+    ///
+    /// Exists so "missed beats are never replayed" is observable: an
+    /// interruption of any length costs exactly one batch on resume, never a
+    /// catch-up burst proportional to how long the call lasted.
+    private(set) var scheduledBeatCount = 0
+
+    /// The preloaded beat buffer, so a test can show that scheduling re-uses
+    /// one buffer rather than making a new one per beat.
+    var metronomeBuffer: AVAudioPCMBuffer? { buffers[.metronome] }
+
+    /// The frame the next unqueued beat will land on, for tests that need to
+    /// see the grid rather than hear it.
+    var nextMetronomeBeatFrame: Int64? { metronome?.nextBeatFrame }
+
+    /// Forgets the grid and invalidates any top-up already in flight.
+    private func stopMetronomeSchedule() {
+        metronome = nil
+        metronomeBPM = nil
+        metronomeGeneration &+= 1
+    }
+
+    /// Queues the next batch of beats on the player's timeline.
+    ///
+    /// One preloaded buffer, scheduled repeatedly at computed sample times: no
+    /// synthesis, no buffer allocation, no file I/O and no main-thread hop on
+    /// the path that decides when a beat sounds.
+    private func scheduleMetronomeBatch() {
+        guard var schedule = metronome,
+              let player = players[.metronome], let buffer = buffers[.metronome],
+              isPrepared, !isSuspended, !isDegraded, engine.isRunning
+        else { return }
+
+        let generation = metronomeGeneration
+
+        for index in 0..<Self.metronomeBatchSize {
+            let when = AVAudioTime(sampleTime: schedule.nextBeat(), atRate: schedule.sampleRate)
+
+            if index == 0 {
+                // Refill as soon as the batch starts playing, not as it ends.
+                player.scheduleBuffer(buffer, at: when, options: [], completionCallbackType: .dataRendered) { [weak self] _ in
+                    Task { await self?.topUpMetronome(generation: generation) }
+                }
+            } else {
+                player.scheduleBuffer(buffer, at: when, options: [])
+            }
+            scheduledBeatCount += 1
+        }
+
+        metronome = schedule
+        if !player.isPlaying { player.play() }
+    }
+
+    /// Queues the following batch, unless this callback belongs to a metronome
+    /// that has since been stopped, suspended or restarted.
+    private func topUpMetronome(generation: Int) async {
+        guard generation == metronomeGeneration else { return }
+        scheduleMetronomeBatch()
+    }
+
+    /// The player's current position on its own timeline, or zero before it has
+    /// rendered anything.
+    private func currentFrame(of player: AVAudioPlayerNode) -> Int64 {
+        guard let nodeTime = player.lastRenderTime,
+              let playerTime = player.playerTime(forNodeTime: nodeTime)
+        else { return 0 }
+        return playerTime.sampleTime
+    }
+
+    private func leadInFrames(for player: AVAudioPlayerNode) -> Int64 {
+        Int64(Self.metronomeLeadIn * player.outputFormat(forBus: 0).sampleRate)
     }
 
     /// Schedules a preloaded buffer on an already-running node.
@@ -186,6 +316,12 @@ actor EngineAudioFeedbackService: AudioFeedbackService {
     func suspend() async {
         guard isPrepared, !isSuspended else { return }
         isSuspended = true
+        // The queued beats go with the players. The tempo is remembered so
+        // resume can rebuild the grid; the generation bump means the callbacks
+        // of the batch that was interrupted cannot re-arm it behind our back.
+        let bpm = metronomeBPM
+        stopMetronomeSchedule()
+        metronomeBPM = bpm
         for player in players.values { player.stop() }
         if engine.isRunning { engine.pause() }
         logService.log(.info, .audio, "audio suspended")
@@ -199,6 +335,13 @@ actor EngineAudioFeedbackService: AudioFeedbackService {
             for player in players.values { player.play() }
             isSuspended = false
             logService.log(.info, .audio, "audio resumed")
+
+            // The metronome comes back at tempo **from now**. The beats that
+            // fell during the call are gone, not queued: a burst of catch-up
+            // clicks would be a worse cue than the silence was.
+            if let bpm = metronomeBPM {
+                await startMetronome(bpm: bpm)
+            }
         } catch {
             // Silence, not a crash. The session carries on regardless.
             degrade("could not resume after interruption")
@@ -285,6 +428,7 @@ actor EngineAudioFeedbackService: AudioFeedbackService {
     private func degrade(_ reason: String) {
         guard !isDegraded else { return }
         isDegraded = true
+        stopMetronomeSchedule()
         for player in players.values { player.stop() }
         if engine.isRunning { engine.stop() }
         logService.log(.warning, .audio, "audio degraded: \(reason)")

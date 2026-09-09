@@ -168,6 +168,15 @@ actor SessionRecorder {
         // this session opted in [PRD AC — Step Feedback is off by default].
         await stepFeedback.start(audioConfig: audioConfig, events: stepEvents)
 
+        // The other engine, equally opt-in (Task 7.2.2). The BPM travels on the
+        // config, which `MetronomeCue` is the only way to build — so it is
+        // necessarily this mode's own baseline cadence [PRD §5]. Nothing about
+        // the metronome touches the samples; it is pacing, not measurement
+        // (docs/10 §10.4).
+        if case .metronome(let bpm) = audioConfig {
+            await audioFeedback.startMetronome(bpm: bpm)
+        }
+
         sampleTask = Task { [weak self] in
             for await sample in sampleStream {
                 await self?.ingest(sample)
@@ -213,9 +222,12 @@ actor SessionRecorder {
             throw StabilyzError.recording(.notRecording)
         }
 
-        // Silence the ticks before the stop tone, so a late footfall cannot
-        // sound over the end of the walk.
+        // Silence the feedback before the stop tone, so neither a late footfall
+        // nor a queued beat sounds over the end of the walk.
         await stepFeedback.stop()
+        if case .metronome = audioConfig {
+            await audioFeedback.stopMetronome()
+        }
         await audioFeedback.playStopTone()
         await motionSensor.stop()
         await pedometer.stop()
