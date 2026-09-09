@@ -234,3 +234,66 @@ private enum SourceTree {
         #expect(Self.violations(in: loose).isEmpty == false)
     }
 }
+
+// MARK: - Step Feedback schedules nothing (Task 7.2.1)
+
+/// [PRD AC, OQ-4] Step Feedback is reactive and **must never imply a tempo**.
+/// The metronome of Task 7.2.2 is the component allowed to schedule; these two
+/// files are not.
+///
+/// A scan rather than a test, because the failure is an addition, not a wrong
+/// answer: a `Timer` added here to "smooth out" the ticks would pass every
+/// behavioural test on a steady walk and only misbehave on the irregular gait
+/// this app exists to measure.
+@Suite struct StepFeedbackSchedulingGuardTests {
+    /// Every way of asking for something to happen later.
+    static let schedulingSymbols = [
+        "Timer", "DispatchSourceTimer", "asyncAfter", "Task.sleep",
+        "DispatchQueue.schedule", "AVAudioTime", "scheduleBuffer(", "RunLoop"
+    ]
+
+    static let stepFeedbackFiles = [
+        "Services/Audio/StepFeedbackBridge.swift",
+        "Services/Audio/StepTickGate.swift"
+    ]
+
+    /// Code lines only; a comment saying the word "Timer" is not a timer.
+    static func codeLines(in source: String) -> [String] {
+        source.split(separator: "\n", omittingEmptySubsequences: false)
+            .map { String($0).trimmingCharacters(in: .whitespaces) }
+            .filter { !$0.hasPrefix("//") && !$0.isEmpty }
+    }
+
+    @Test func theStepFeedbackPathSchedulesNothing() throws {
+        let root = SourceTree.appSourceRoot()
+
+        for path in Self.stepFeedbackFiles {
+            let url = root.appendingPathComponent(path)
+            let source = try #require(
+                try? String(contentsOf: url, encoding: .utf8),
+                "\(path) is missing — the scan itself is broken"
+            )
+
+            for line in Self.codeLines(in: source) {
+                for symbol in Self.schedulingSymbols {
+                    #expect(
+                        line.contains(symbol) == false,
+                        "\(path) uses \(symbol) — Step Feedback is reactive and must never imply a tempo [PRD OQ-4]"
+                    )
+                }
+            }
+        }
+    }
+
+    @Test func theScanWouldCatchAScheduler() {
+        // A guard that never fails is indistinguishable from one that cannot.
+        let offending = """
+        // A Timer here would be wrong.
+        let timer = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) { _ in }
+        """
+        let lines = Self.codeLines(in: offending)
+
+        #expect(lines.count == 1, "the comment line was not excluded")
+        #expect(lines.contains { line in Self.schedulingSymbols.contains { line.contains($0) } })
+    }
+}

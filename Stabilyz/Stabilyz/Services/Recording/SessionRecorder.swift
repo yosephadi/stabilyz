@@ -31,6 +31,14 @@ actor SessionRecorder {
     /// *subscribes*; it never writes back (docs/10 §10.4).
     nonisolated let stepEvents: AsyncStream<LiveStepEvent>
     private nonisolated let stepContinuation: AsyncStream<LiveStepEvent>.Continuation
+    /// Turns those footfalls into sound (Task 7.2.1). Built here rather than
+    /// injected because it needs exactly what the recorder already holds — the
+    /// audio service and the live-detection policy — and because the recorder
+    /// is the one component that knows when a session starts and ends.
+    ///
+    /// It only ever reads `stepEvents`. Nothing on the sample path waits for
+    /// it (docs/10 §10.4).
+    private let stepFeedback: StepFeedbackBridge
 
     private var state: State = .idle
     /// Bounded, with a scratch file behind it (docs/07 §7.2, docs/14 §14.3).
@@ -82,6 +90,11 @@ actor SessionRecorder {
         let (stream, continuation) = AsyncStream<LiveStepEvent>.makeStream(bufferingPolicy: .bufferingNewest(8))
         stepEvents = stream
         stepContinuation = continuation
+        stepFeedback = StepFeedbackBridge(
+            audioFeedback: audioFeedback,
+            policy: configuration.liveStepFeedback,
+            logService: logService
+        )
     }
 
     var isRecording: Bool { state == .recording }
@@ -151,6 +164,10 @@ actor SessionRecorder {
         eventContinuation = continuation
         state = .recording
 
+        // Arm the sound before the first sample can be ingested. Inert unless
+        // this session opted in [PRD AC — Step Feedback is off by default].
+        await stepFeedback.start(audioConfig: audioConfig, events: stepEvents)
+
         sampleTask = Task { [weak self] in
             for await sample in sampleStream {
                 await self?.ingest(sample)
@@ -196,6 +213,9 @@ actor SessionRecorder {
             throw StabilyzError.recording(.notRecording)
         }
 
+        // Silence the ticks before the stop tone, so a late footfall cannot
+        // sound over the end of the walk.
+        await stepFeedback.stop()
         await audioFeedback.playStopTone()
         await motionSensor.stop()
         await pedometer.stop()
