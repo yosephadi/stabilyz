@@ -165,3 +165,87 @@ Discovered while implementing pipeline stage 2. All live in
 **Filter form:** second-order Butterworth biquads (Q = 1/√2), written out rather
 than taken from Accelerate. The filter is the part of the pipeline most worth
 being able to read and check by hand, and at 36k samples the cost is irrelevant.
+
+---
+
+## 7. Hand-written biquad instead of vDSP
+
+**Date:** 2026-09-09 · **Task:** 5.2.1 · **Status:** Decided
+
+docs/08 lists Accelerate/vDSP as stage 2's dependency. The band-pass is written
+out as second-order Butterworth biquads in plain Swift instead.
+
+**Why.** Zero-phase filtering is not a single vDSP call anyway — `filtfilt` is
+forward pass, reverse, second pass, reverse, so the framework would carry only
+the inner loop. The filter is scientific-core code: it decides what the rest of
+the pipeline sees, and being able to read and check it by hand is worth more here
+than the loop speed. Its behaviour is pinned by tests against synthetic signals
+with known frequency content, so a later swap has a safety net.
+
+**Precision:** the coefficients and filter state are `Double` throughout. At this
+scale single precision buys nothing and a band-pass accumulating error across a
+forward-backward pass is not worth the risk.
+
+**Swap trigger:** profiling ever showing filter cost matters. It will not at 36k
+samples, but if the window count or a v2 algorithm changes that, the biquad has a
+test suite ready to validate a vDSP replacement against.
+
+---
+
+## 8. Noise must be measured before the cleaning low-pass
+
+**Date:** 2026-09-09 · **Task:** 5.1.2 → binding on 5.2.3 · **Status:** Decided
+
+The noise ratio (power above 8 Hz ÷ total power) must be computed on the **raw or
+resample-only** signal, **before** the 20 Hz cleaning low-pass in
+`PreprocessingPolicy`.
+
+Measuring it after filtering would judge noise on a signal whose noise has just
+been removed: a session recorded against high-frequency vibration would come back
+looking clean, and would then be scored as if it were a good walk. The two cutoffs
+exist for different purposes — 20 Hz cleans the signal, 8 Hz judges it — and the
+judging has to happen first.
+
+**Binding on Task 5.2.3:** the ordering must be explicit in the code and covered
+by a test that a high-frequency-vibration session is rejected rather than cleaned
+into apparent validity.
+
+---
+
+## 9. Walking-detection tunables
+
+**Date:** 2026-09-09 · **Task:** 5.2.2 · **Status:** Provisional
+
+Discovered while implementing pipeline stage 3. All live in
+`WalkingDetectionPolicy` inside `AlgorithmConfiguration`, each marked
+**PROVISIONAL — pending device validation (Phase 12)**.
+
+| Parameter | Value | Reasoning |
+|---|---|---|
+| `activityWindow` | 1 s | About two strides, so one footfall cannot open a bout and one quiet moment between steps cannot close one |
+| `verticalRMSThreshold` | 0.05 g | Standing registers near zero after the band-pass; walking trunk acceleration is an order of magnitude larger |
+| `maximumBridgedPause` | 0.5 s | Hesitating at a kerb is one walk, not two |
+| `initiationTrim` | 1 s | Gait initiation is not steady-state gait [PRD OQ-1, Tura note] |
+| `terminationTrim` | 1 s | Gait termination, likewise |
+| `minimumBoutDuration` | 3 s | What remains after trimming must be long enough to measure |
+| `plausibleCadenceRange` | 30–200 spm | Only for judging pedometer agreement, never for overriding it |
+
+**Pedometer is a hint, not authority.** The accelerometer decides where walking
+is; the pedometer result is recorded as `PedometerAgreement` — implied cadence,
+whether that cadence is plausible, and whether the two disagree about walking
+being present at all. Disagreement is recorded and the session proceeds on the
+accelerometer's evidence. A pocket carry can under-count steps while the trunk
+signal is perfectly good, and treating the pedometer as authoritative would throw
+away a valid session.
+
+**Deliberately deferred: spectral walking validation.** Stage 3 separates movement
+from stillness by amplitude, not by whether the movement is periodic at walking
+frequencies. A vehicle ride could clear the RMS threshold. That case is caught
+downstream — the noise ratio (entry 8) flags road vibration, and step detection
+in Task 5.2.4 requires plausible step peaks. Adding a cadence-band test here would
+duplicate stage 5's work with a second set of thresholds. Revisit if device data
+shows non-gait movement surviving both downstream gates.
+
+**Accounting:** every clean sample lands in exactly one of walking, transient, or
+excluded, and a test asserts the three sum to the session length. Nothing
+disappears silently between stages.

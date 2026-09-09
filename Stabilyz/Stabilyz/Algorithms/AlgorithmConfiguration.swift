@@ -67,6 +67,41 @@ struct PreprocessingPolicy: Sendable, Equatable {
     let zeroPhaseFiltering: Bool
 }
 
+/// Which stretches of a session count as walking (docs/08 stage 3).
+struct WalkingDetectionPolicy: Sendable, Equatable {
+    /// PROVISIONAL — pending device validation (Phase 12).
+    /// Window for the moving RMS that separates movement from stillness. About
+    /// two strides, so a single footfall cannot open a bout and a single quiet
+    /// moment between steps cannot close one.
+    let activityWindow: Duration
+    /// PROVISIONAL — pending device validation (Phase 12).
+    /// Vertical RMS, in g, above which the trunk is moving like walking rather
+    /// than standing. Standing still registers near zero after the band-pass;
+    /// trunk acceleration while walking is an order of magnitude larger.
+    let verticalRMSThreshold: Double
+    /// PROVISIONAL — pending device validation (Phase 12).
+    /// A dip shorter than this does not end a bout — hesitating at a kerb is
+    /// not two walks.
+    let maximumBridgedPause: Duration
+    /// PROVISIONAL — pending device validation (Phase 12).
+    /// Gait initiation is not steady-state gait: the first strides accelerate
+    /// from rest and are more variable than the walk they lead into. Excluded
+    /// per the Tura note [PRD OQ-1].
+    let initiationTrim: Duration
+    /// PROVISIONAL — pending device validation (Phase 12).
+    /// Gait termination, likewise — decelerating to a stop.
+    let terminationTrim: Duration
+    /// PROVISIONAL — pending device validation (Phase 12).
+    /// What remains after trimming must be at least this long to be steady-state
+    /// walking worth measuring.
+    let minimumBoutDuration: Duration
+    /// PROVISIONAL — pending device validation (Phase 12).
+    /// Steps per minute that a human walk can plausibly produce. Used only to
+    /// judge whether the pedometer agrees with what the accelerometer found —
+    /// never to override it.
+    let plausibleCadenceRange: ClosedRange<Double>
+}
+
 /// How noise is measured and where the acceptable limit sits
 /// (docs/08 stage 4, PRD: "define threshold").
 struct NoisePolicy: Sendable, Equatable {
@@ -237,6 +272,7 @@ struct AlgorithmConfiguration: Sendable, Equatable {
     let motionAcquisition: MotionAcquisitionPolicy
     let gapDetection: GapDetectionPolicy
     let preprocessing: PreprocessingPolicy
+    let walkingDetection: WalkingDetectionPolicy
     let orientation: OrientationPolicy
     let noise: NoisePolicy
     let trunkProxy: TrunkProxyPolicy
@@ -282,6 +318,22 @@ struct AlgorithmConfiguration: Sendable, Equatable {
             // PROVISIONAL — pending device validation (Phase 12).
             filterEdgePaddingCycles: 3,
             zeroPhaseFiltering: true
+        ),
+        walkingDetection: WalkingDetectionPolicy(
+            // PROVISIONAL — pending device validation (Phase 12).
+            activityWindow: .milliseconds(1000),
+            // PROVISIONAL — pending device validation (Phase 12).
+            verticalRMSThreshold: 0.05,
+            // PROVISIONAL — pending device validation (Phase 12).
+            maximumBridgedPause: .milliseconds(500),
+            // PROVISIONAL — pending device validation (Phase 12).
+            initiationTrim: .seconds(1),
+            // PROVISIONAL — pending device validation (Phase 12).
+            terminationTrim: .seconds(1),
+            // PROVISIONAL — pending device validation (Phase 12).
+            minimumBoutDuration: .seconds(3),
+            // PROVISIONAL — pending device validation (Phase 12).
+            plausibleCadenceRange: 30...200
         ),
         orientation: OrientationPolicy(
             verticalFromGravity: true,
