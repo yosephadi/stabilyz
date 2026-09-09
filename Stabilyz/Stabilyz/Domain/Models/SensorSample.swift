@@ -18,20 +18,25 @@ struct Vector3: Sendable, Equatable {
 ///
 /// See docs/07-motion-sensor-architecture.md §7.2 and §7.4: `deviceTimestamp` is
 /// device uptime in seconds and is the primary, monotonic, gap-revealing clock.
-/// `wallClockAnchor` is the `Date` captured once at session start, so every
-/// sample's wall-clock time is `wallClockAnchor + (deviceTimestamp - anchorUptime)`.
+/// `anchor` is the `(Date, uptime)` pair captured once at session start, which
+/// is what turns a device timestamp into wall-clock time.
 struct SensorSample: Sendable, Equatable {
     let deviceTimestamp: TimeInterval
-    let wallClockAnchor: Date
+    let anchor: TimeAnchor
     let acceleration: Vector3
     /// Non-nil only when device-motion updates are enabled by the acquisition policy.
     let gravity: Vector3?
 
-    init(deviceTimestamp: TimeInterval, wallClockAnchor: Date, acceleration: Vector3, gravity: Vector3? = nil) {
+    init(deviceTimestamp: TimeInterval, anchor: TimeAnchor, acceleration: Vector3, gravity: Vector3? = nil) {
         self.deviceTimestamp = deviceTimestamp
-        self.wallClockAnchor = wallClockAnchor
+        self.anchor = anchor
         self.acceleration = acceleration
         self.gravity = gravity
+    }
+
+    /// Wall-clock time of this sample, derived through the anchor.
+    var wallClockTime: Date {
+        anchor.wallClockTime(forDeviceTimestamp: deviceTimestamp)
     }
 }
 

@@ -69,16 +69,16 @@ private func makeService() -> CoreMotionSensorService {
 
 @Test func samplesCarryTheStartAnchorAndDeviceTimebase() {
     // docs/07 §7.4: deviceTimestamp is device uptime, the monotonic clock all
-    // durations come from; wallClockAnchor is captured once at start.
-    let anchor = Date(timeIntervalSince1970: 1_700_000_000)
+    // durations come from; the anchor pair is captured once at start.
+    let anchor = TimeAnchor(wallClock: Date(timeIntervalSince1970: 1_700_000_000), uptime: 1_200)
     let sample = SensorSample(
         deviceTimestamp: 1_234.5,
-        wallClockAnchor: anchor,
+        anchor: anchor,
         acceleration: Vector3(x: 0.1, y: -0.2, z: 0.98),
         gravity: Vector3(x: 0, y: 0, z: -1)
     )
 
-    #expect(sample.wallClockAnchor == anchor)
+    #expect(sample.anchor == anchor)
     #expect(sample.deviceTimestamp == 1_234.5)
     #expect(sample.gravity != nil)
 }
@@ -87,7 +87,7 @@ private func makeService() -> CoreMotionSensorService {
     // Gravity is only available with device-motion updates enabled.
     let sample = SensorSample(
         deviceTimestamp: 1,
-        wallClockAnchor: Date(timeIntervalSince1970: 0),
+        anchor: TimeAnchor(wallClock: Date(timeIntervalSince1970: 0), uptime: 0),
         acceleration: Vector3(x: 0, y: 0, z: 0)
     )
     #expect(sample.gravity == nil)

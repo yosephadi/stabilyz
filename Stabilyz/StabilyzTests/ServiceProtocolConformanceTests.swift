@@ -93,10 +93,10 @@ private actor InMemoryBaselineRepository: BaselineRepository {
 // MARK: - Tests
 
 @Test func motionServiceStreamsSamples() async throws {
-    let anchor = Date(timeIntervalSince1970: 1_000)
+    let anchor = TimeAnchor(wallClock: Date(timeIntervalSince1970: 1_000), uptime: 500)
     let service = FixtureMotionSensorService(samples: [
-        SensorSample(deviceTimestamp: 0.00, wallClockAnchor: anchor, acceleration: Vector3(x: 0, y: 0, z: -1)),
-        SensorSample(deviceTimestamp: 0.01, wallClockAnchor: anchor, acceleration: Vector3(x: 0, y: 0, z: -1))
+        SensorSample(deviceTimestamp: 0.00, anchor: anchor, acceleration: Vector3(x: 0, y: 0, z: -1)),
+        SensorSample(deviceTimestamp: 0.01, anchor: anchor, acceleration: Vector3(x: 0, y: 0, z: -1))
     ])
 
     var received: [SensorSample] = []

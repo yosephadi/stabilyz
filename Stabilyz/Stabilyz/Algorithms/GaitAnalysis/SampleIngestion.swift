@@ -1,0 +1,124 @@
+import Foundation
+
+/// A stretch of time where the sensor delivered nothing (docs/07 §7.7).
+struct SensorGap: Sendable, Equatable {
+    /// Device timestamp of the last sample before the gap.
+    let start: TimeInterval
+    /// Device timestamp of the first sample after the gap.
+    let end: TimeInterval
+
+    var duration: Duration { .seconds(end - start) }
+
+    init(start: TimeInterval, end: TimeInterval) {
+        self.start = start
+        self.end = end
+    }
+}
+
+/// When a spacing between samples counts as a gap rather than jitter.
+///
+/// [REC — tunable, not a PRD value.] Sensor delivery jitters by a fraction of
+/// the sample interval under normal load, so a small multiple avoids counting
+/// ordinary scheduling noise as a dropout. `toleranceMultiplier` of 3 means a
+/// gap is only recorded once at least two consecutive samples are missing.
+///
+/// The real value must be validated on device against thermal throttling and
+/// backgrounding behaviour (docs/21); it moves into the versioned
+/// `AlgorithmConfiguration` in Task 5.1.2.
+struct GapDetectionPolicy: Sendable, Equatable {
+    let toleranceMultiplier: Double
+
+    init(toleranceMultiplier: Double) {
+        self.toleranceMultiplier = toleranceMultiplier
+    }
+
+    static let recommendedDefault = GapDetectionPolicy(toleranceMultiplier: 3)
+
+    /// Spacing above which a jump counts as a gap, for a given sample rate.
+    func gapThreshold(sampleRateHz: Double) -> TimeInterval {
+        toleranceMultiplier / sampleRateHz
+    }
+}
+
+/// The output of pipeline stage 1 — a time-aligned sample series with the gaps
+/// made explicit (docs/08 stage 1).
+struct AlignedSampleSeries: Sendable, Equatable {
+    /// Ordered by device timestamp, duplicates removed.
+    let samples: [SensorSample]
+    let gaps: [SensorGap]
+
+    /// Wall-clock span from first to last sample, gaps included. This is
+    /// elapsed clock time, not the walking that counted.
+    var recordedSpan: Duration {
+        guard let first = samples.first, let last = samples.last else { return .zero }
+        return .seconds(last.deviceTimestamp - first.deviceTimestamp)
+    }
+
+    /// Span with gap time removed — the time the sensor was actually
+    /// delivering. Still not "valid walking": stages 3 and 4 decide that.
+    var coveredDuration: Duration {
+        gaps.reduce(recordedSpan) { $0 - $1.duration }
+    }
+
+    /// Rolled up for the session record (docs/05 §5.1).
+    var gapInfo: SessionGapInfo {
+        SessionGapInfo(
+            gapCount: gaps.count,
+            totalGapDuration: gaps.reduce(Duration.zero) { $0 + $1.duration },
+            longestGapDuration: gaps.map(\.duration).max() ?? .zero
+        )
+    }
+}
+
+/// Pipeline stage 1: ingestion and synchronisation (docs/08).
+///
+/// De-duplicates, orders, and exposes gap intervals. Pure — it is the recorder
+/// that calls this, but none of the logic depends on CoreMotion.
+///
+/// It deliberately does **not** interpolate across a gap. Manufacturing samples
+/// would let a suspended session look like clean walking, which is exactly what
+/// [PRD §6] forbids: "must not silently produce a corrupted clean score".
+enum SampleIngestion {
+    /// - Parameter sampleRateHz: the acquisition rate the samples were
+    ///   requested at, which sets the expected spacing.
+    static func align(
+        _ samples: [SensorSample],
+        sampleRateHz: Double,
+        policy: GapDetectionPolicy = .recommendedDefault
+    ) -> AlignedSampleSeries {
+        guard !samples.isEmpty else {
+            return AlignedSampleSeries(samples: [], gaps: [])
+        }
+
+        // Order first: a late delivery must not read as a backwards jump.
+        let ordered = samples.sorted { $0.deviceTimestamp < $1.deviceTimestamp }
+
+        // De-duplicate on timestamp. A repeated timestamp is a redelivery, not
+        // a second measurement.
+        var deduplicated: [SensorSample] = []
+        deduplicated.reserveCapacity(ordered.count)
+        for sample in ordered where deduplicated.last?.deviceTimestamp != sample.deviceTimestamp {
+            deduplicated.append(sample)
+        }
+
+        let threshold = policy.gapThreshold(sampleRateHz: sampleRateHz)
+        var gaps: [SensorGap] = []
+        for (previous, current) in zip(deduplicated, deduplicated.dropFirst())
+        where current.deviceTimestamp - previous.deviceTimestamp > threshold {
+            gaps.append(SensorGap(start: previous.deviceTimestamp, end: current.deviceTimestamp))
+        }
+
+        return AlignedSampleSeries(samples: deduplicated, gaps: gaps)
+    }
+
+    /// Places pedometer events on the device timebase so both streams share one
+    /// timeline (docs/07 §7.4, docs/08 stage 1).
+    static func deviceTimestamps(
+        for events: [PedometerEvent],
+        anchor: TimeAnchor
+    ) -> [(event: PedometerEvent, deviceTimestamp: TimeInterval)] {
+        events
+            .map { ($0, anchor.deviceTimestamp(forWallClock: $0.timestamp)) }
+            .sorted { $0.1 < $1.1 }
+    }
+}

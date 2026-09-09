@@ -92,10 +92,10 @@ actor CoreMotionSensorService: MotionSensorService {
 
         stopUpdates()
 
-        // docs/07 §7.4: one anchor captured at start. Every sample's wall-clock
-        // time is anchor + (deviceTimestamp - anchorUptime); durations always
-        // come from device timestamps, never from Date arithmetic.
-        let anchor = clock.now
+        // docs/07 §7.4: one (Date, uptime) anchor captured at start. Every
+        // sample's wall-clock time derives from it; durations always come from
+        // device timestamps, never from Date arithmetic.
+        let anchor = TimeAnchor(clock: clock)
         let interval = 1.0 / policy.sampleRateHz
         let arrival = SampleArrivalFlag()
 
@@ -114,7 +114,7 @@ actor CoreMotionSensorService: MotionSensorService {
                 continuation.yield(
                     SensorSample(
                         deviceTimestamp: motion.timestamp,
-                        wallClockAnchor: anchor,
+                        anchor: anchor,
                         acceleration: Vector3(
                             x: motion.userAcceleration.x,
                             y: motion.userAcceleration.y,
@@ -132,7 +132,7 @@ actor CoreMotionSensorService: MotionSensorService {
                 continuation.yield(
                     SensorSample(
                         deviceTimestamp: data.timestamp,
-                        wallClockAnchor: anchor,
+                        anchor: anchor,
                         acceleration: Vector3(
                             x: data.acceleration.x,
                             y: data.acceleration.y,

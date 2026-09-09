@@ -128,11 +128,11 @@ struct GaitFixture: Codable, Equatable, Sendable {
         return last.t - first.t
     }
 
-    func sensorSamples(anchoredAt anchor: Date) -> [SensorSample] {
+    func sensorSamples(anchoredAt anchor: TimeAnchor) -> [SensorSample] {
         samples.map { sample in
             SensorSample(
                 deviceTimestamp: sample.t,
-                wallClockAnchor: anchor,
+                anchor: anchor,
                 acceleration: Vector3(x: sample.ax, y: sample.ay, z: sample.az),
                 gravity: sample.gx.flatMap { gx in
                     guard let gy = sample.gy, let gz = sample.gz else { return nil }

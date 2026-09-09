@@ -44,7 +44,7 @@ actor FixtureSensorService: MotionSensorService {
 
         stopReplay()
 
-        let anchor = clock.now
+        let anchor = TimeAnchor(clock: clock)
         let samples = fixture.sensorSamples(anchoredAt: anchor)
         let pacing = self.pacing
 

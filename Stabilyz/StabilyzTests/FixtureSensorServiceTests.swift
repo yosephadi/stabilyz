@@ -94,12 +94,12 @@ private struct FixtureClock: Clock {
     let clock = FixtureClock()
     let service = FixtureSensorService(fixture: .steadyWalk, clock: clock)
 
-    var anchors: Set<Date> = []
+    var anchors: Set<TimeAnchor> = []
     for await sample in try await service.start(policy: .recommendedDefault) {
-        anchors.insert(sample.wallClockAnchor)
+        anchors.insert(sample.anchor)
     }
 
-    #expect(anchors == [clock.now])
+    #expect(anchors == [TimeAnchor(clock: clock)])
 }
 
 @Test func replayPreservesTheGapAsATimestampJump() async throws {
