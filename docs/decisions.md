@@ -295,3 +295,54 @@ so the unbiased estimator leaves fundamental and harmonics tied and lets a
 subharmonic win, reporting half the true frequency. This was caught by a test
 expecting 1.8 Hz and is worth carrying into Task 5.2.4, where Ad1/Ad2 depend on
 exactly this distinction.
+
+---
+
+## 11. Feature extraction — lag anchoring and windowing
+
+**Date:** 2026-09-09 · **Task:** 5.2.4 · **Status:** Provisional (values) / Decided (method)
+
+New tunables in `FeatureExtractionPolicy`, each marked **PROVISIONAL — pending
+device validation (Phase 12)**.
+
+| Parameter | Value | Reasoning |
+|---|---|---|
+| `analysisWindowDuration` | 10 s | Holds well over the ~3.5 strides Tura reports as sufficient for Ad2 once transients are excluded [PRD OQ-1], while several windows still fit in a Quick Test |
+| `minimumAnalysisWindowDuration` | 5 s | A trailing window this long is still worth analysing rather than discarding the end of every walk |
+| `stepPeakProminenceSDs` | 0.5 | Low enough not to miss the weaker side of an asymmetric gait, high enough to ignore ripple between steps |
+| `lagSearchTolerance` | 0.15 | Fractional window around an expected lag when reading an autocorrelation peak |
+
+**The step lag comes from detected footfalls, not from the strongest
+autocorrelation peak.** This is the load-bearing decision of the stage. In an
+asymmetric gait the stride peak can be *stronger* than the step peak, so
+anchoring on "whichever correlation is biggest" is exactly how Ad1 and Ad2 end up
+swapped — and a swapped pair still looks entirely plausible in the output. The
+step period is taken as the median detected step interval, cross-checked against
+`plausibleCadenceRange`; the stride lag is twice it. Both peaks are then read
+within `lagSearchTolerance` of their own expected lag. **The search is never
+free.**
+
+**The swap test is verified to have teeth.** With the two anchors deliberately
+exchanged, `unequalHalfCyclesGiveStrideRegularityAboveStepRegularity` and
+`eachAdIsReadAtItsOwnLagAndTheStrideLagIsTwiceTheStepLag` both fail. A test that
+would pass either way would be worse than no test here.
+
+**Ad values are clamped to [0, 1].** A negative correlation at a lag means the
+pattern does not repeat there — that is zero regularity, not a negative amount of
+it.
+
+**Windows are non-overlapping.** Overlapping windows would count strides twice,
+and the stride total gates the session at the minimum-strides check. The trailing
+partial window is kept only if it reaches the minimum.
+
+**Profile blindness is structural.** `FeatureExtraction.extract` takes no
+`UserProfile` and nothing in the stage branches on amputation level or side, so
+Ad1/Ad2 are computed identically for every user [PRD OQ-1, §7 AC]. The test
+constructs a unilateral and a bilateral profile to make the invariant explicit
+and to fail loudly if a profile parameter is ever added; the one profile-dependent
+feature, sound-vs-prosthetic asymmetry, belongs to stage 6.
+
+**Stage boundary held.** Stage 5 emits per-window facts — step times, Ad1, Ad2,
+per-axis trunk RMS. Aggregating those into session `GaitMetrics` is Task 5.2.5.
+Collapsing them here would destroy the across-window variability that step-time
+CV is computed from.

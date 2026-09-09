@@ -102,6 +102,29 @@ struct WalkingDetectionPolicy: Sendable, Equatable {
     let plausibleCadenceRange: ClosedRange<Double>
 }
 
+/// Step detection and autocorrelation for pipeline stage 5 (docs/08).
+struct FeatureExtractionPolicy: Sendable, Equatable {
+    /// PROVISIONAL — pending device validation (Phase 12).
+    /// Analysis window. Long enough to hold well over the ~3.5 strides Tura
+    /// reports as sufficient for Ad2 once transients are excluded [PRD OQ-1],
+    /// short enough that several windows fit inside a Quick Test.
+    let analysisWindowDuration: Duration
+    /// PROVISIONAL — pending device validation (Phase 12).
+    /// A trailing window shorter than the full length is still analysed if it
+    /// reaches this, rather than discarding the end of every walk.
+    let minimumAnalysisWindowDuration: Duration
+    /// PROVISIONAL — pending device validation (Phase 12).
+    /// Standard deviations above the window mean a sample must reach to be a
+    /// footfall. Low enough not to miss the weaker side of an asymmetric gait,
+    /// high enough to ignore ripple between steps.
+    let stepPeakProminenceSDs: Double
+    /// PROVISIONAL — pending device validation (Phase 12).
+    /// Fractional window around an expected lag when reading an autocorrelation
+    /// peak. The search is always anchored: a free search over all lags is what
+    /// lets a stride peak be mistaken for a step peak.
+    let lagSearchTolerance: Double
+}
+
 /// How noise is measured and where the acceptable limit sits
 /// (docs/08 stage 4, PRD: "define threshold").
 struct NoisePolicy: Sendable, Equatable {
@@ -275,6 +298,7 @@ struct AlgorithmConfiguration: Sendable, Equatable {
     let gapDetection: GapDetectionPolicy
     let preprocessing: PreprocessingPolicy
     let walkingDetection: WalkingDetectionPolicy
+    let featureExtraction: FeatureExtractionPolicy
     let orientation: OrientationPolicy
     let noise: NoisePolicy
     let trunkProxy: TrunkProxyPolicy
@@ -336,6 +360,16 @@ struct AlgorithmConfiguration: Sendable, Equatable {
             minimumBoutDuration: .seconds(3),
             // PROVISIONAL — pending device validation (Phase 12).
             plausibleCadenceRange: 30...200
+        ),
+        featureExtraction: FeatureExtractionPolicy(
+            // PROVISIONAL — pending device validation (Phase 12).
+            analysisWindowDuration: .seconds(10),
+            // PROVISIONAL — pending device validation (Phase 12).
+            minimumAnalysisWindowDuration: .seconds(5),
+            // PROVISIONAL — pending device validation (Phase 12).
+            stepPeakProminenceSDs: 0.5,
+            // PROVISIONAL — pending device validation (Phase 12).
+            lagSearchTolerance: 0.15
         ),
         orientation: OrientationPolicy(
             verticalFromGravity: true,
