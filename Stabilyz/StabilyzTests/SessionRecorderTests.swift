@@ -67,18 +67,52 @@ private struct FailingPedometerService: PedometerService {
     func events(from start: Date, to end: Date) async throws -> PedometerEvent? { nil }
 }
 
+/// Lets a test inject interruptions on demand.
+private actor ManualInterruptionObserver: SessionInterruptionObserver {
+    private var continuation: AsyncStream<SessionInterruption>.Continuation?
+    private(set) var isObserving = false
+
+    func startObserving() async -> AsyncStream<SessionInterruption> {
+        let (stream, continuation) = AsyncStream<SessionInterruption>.makeStream(bufferingPolicy: .unbounded)
+        self.continuation = continuation
+        isObserving = true
+        return stream
+    }
+
+    func stopObserving() async {
+        isObserving = false
+        continuation?.finish()
+        continuation = nil
+    }
+
+    func send(_ interruption: SessionInterruption) {
+        continuation?.yield(interruption)
+    }
+}
+
+private actor ScreenSleepSpy: ScreenSleepController {
+    private(set) var calls: [String] = []
+
+    func preventSleep() async { calls.append("prevent") }
+    func allowSleep() async { calls.append("allow") }
+}
+
 private func makeRecorder(
     fixture: GaitFixture = .steadyWalk,
     clock: SteppableClock = SteppableClock(),
     motion: (any MotionSensorService)? = nil,
     pedometer: (any PedometerService)? = nil,
     audio: ToneSpy = ToneSpy(),
-    log: RecorderLog = RecorderLog()
+    log: RecorderLog = RecorderLog(),
+    interruptions: ManualInterruptionObserver = ManualInterruptionObserver(),
+    screenSleep: ScreenSleepSpy = ScreenSleepSpy()
 ) -> (SessionRecorder, SteppableClock, ToneSpy, RecorderLog) {
     let recorder = SessionRecorder(
         motionSensor: motion ?? FixtureSensorService(fixture: fixture, clock: clock),
         pedometer: pedometer ?? FixturePedometerService(fixture: fixture, clock: clock),
         audioFeedback: audio,
+        interruptionObserver: interruptions,
+        screenSleep: screenSleep,
         clock: clock,
         logService: log
     )
@@ -193,6 +227,8 @@ private func collect(_ events: AsyncStream<SessionRecordingEvent>) async -> [Ses
         motionSensor: UndeterminedMotionService(fixture: .steadyWalk, clock: clock),
         pedometer: FixturePedometerService(fixture: .steadyWalk, clock: clock),
         audioFeedback: ToneSpy(),
+        interruptionObserver: ManualInterruptionObserver(),
+        screenSleep: ScreenSleepSpy(),
         clock: clock,
         logService: RecorderLog()
     )
@@ -210,6 +246,8 @@ private func collect(_ events: AsyncStream<SessionRecordingEvent>) async -> [Ses
         motionSensor: FixtureSensorService(fixture: .steadyWalk, clock: clock),
         pedometer: FailingPedometerService(authorization: .denied),
         audioFeedback: ToneSpy(),
+        interruptionObserver: ManualInterruptionObserver(),
+        screenSleep: ScreenSleepSpy(),
         clock: clock,
         logService: RecorderLog()
     )
@@ -367,4 +405,118 @@ private struct UndeterminedMotionService: MotionSensorService {
     #expect(second.audioConfig == .none)
     // The second session carries its own samples, not the first session's too.
     #expect(second.samples.count == first.samples.count)
+}
+
+// MARK: - Interruptions (Task 4.2.3)
+
+@Test func backgroundingIsCountedAndSurfacedToTheUI() async throws {
+    let interruptions = ManualInterruptionObserver()
+    let (recorder, _, _, _) = makeRecorder(interruptions: interruptions)
+
+    let events = try await recorder.begin(mode: .quickTest, audioConfig: .none)
+    let collector = Task { await collect(events) }
+    await interruptions.send(.didEnterBackground)
+    await interruptions.send(.didBecomeActive)
+    let buffer = try await recorder.stop()
+    let collected = await collector.value
+
+    #expect(buffer.interruptionCount == 1)
+    #expect(collected.contains(.interrupted))
+}
+
+@Test func feedbackOnlyEventsDoNotCountAsInterruptions() async throws {
+    // Counting a route change would overstate how disturbed the walk was and
+    // could push a sound session toward the noisy path (docs/10 §10.4).
+    let interruptions = ManualInterruptionObserver()
+    let (recorder, _, _, _) = makeRecorder(interruptions: interruptions)
+
+    _ = try await recorder.begin(mode: .quickTest, audioConfig: .none)
+    await interruptions.send(.audioRouteChanged)
+    await interruptions.send(.audioInterrupted)
+    await interruptions.send(.willResignActive)
+    let buffer = try await recorder.stop()
+
+    #expect(buffer.interruptionCount == 0)
+}
+
+@Test func repeatedSuspensionsAreCountedIndividually() async throws {
+    let interruptions = ManualInterruptionObserver()
+    let (recorder, _, _, _) = makeRecorder(interruptions: interruptions)
+
+    _ = try await recorder.begin(mode: .fullTest, audioConfig: .none)
+    for _ in 0..<3 {
+        await interruptions.send(.didEnterBackground)
+        await interruptions.send(.didBecomeActive)
+    }
+    let buffer = try await recorder.stop()
+
+    #expect(buffer.interruptionCount == 3)
+}
+
+@Test func anInterruptionNeverAltersTheRecordedSamples() async throws {
+    // [PRD §6] the suspension shows up as a gap; nothing is patched over, and
+    // the normal pipeline decides validity.
+    let interruptions = ManualInterruptionObserver()
+    let fixture = GaitFixture.makeWalk(name: "interrupted", cadenceBPM: 108, seconds: 2)
+    let (recorder, _, _, _) = makeRecorder(fixture: fixture, interruptions: interruptions)
+
+    _ = try await recorder.begin(mode: .quickTest, audioConfig: .none)
+    await interruptions.send(.didEnterBackground)
+    let buffer = try await recorder.stop()
+
+    #expect(buffer.samples.count == fixture.samples.count)
+    #expect(buffer.interruptionCount == 1)
+}
+
+@Test func interruptionsAfterStopAreIgnored() async throws {
+    let interruptions = ManualInterruptionObserver()
+    let (recorder, _, _, _) = makeRecorder(interruptions: interruptions)
+
+    _ = try await recorder.begin(mode: .quickTest, audioConfig: .none)
+    let buffer = try await recorder.stop()
+    await interruptions.send(.didEnterBackground)
+
+    #expect(buffer.interruptionCount == 0)
+    #expect(await recorder.isRecording == false)
+}
+
+@Test func interruptionCountDoesNotCarryIntoTheNextSession() async throws {
+    let interruptions = ManualInterruptionObserver()
+    let (recorder, _, _, _) = makeRecorder(interruptions: interruptions)
+
+    _ = try await recorder.begin(mode: .quickTest, audioConfig: .none)
+    await interruptions.send(.didEnterBackground)
+    let first = try await recorder.stop()
+
+    _ = try await recorder.begin(mode: .quickTest, audioConfig: .none)
+    let second = try await recorder.stop()
+
+    #expect(first.interruptionCount == 1)
+    #expect(second.interruptionCount == 0)
+}
+
+// MARK: - Screen sleep
+
+@Test func theScreenIsKeptAwakeForTheDurationOfASession() async throws {
+    // [REC — docs/07 §7.7] and released afterwards, so the setting does not
+    // leak into the rest of the app.
+    let screenSleep = ScreenSleepSpy()
+    let (recorder, _, _, _) = makeRecorder(screenSleep: screenSleep)
+
+    _ = try await recorder.begin(mode: .quickTest, audioConfig: .none)
+    #expect(await screenSleep.calls == ["prevent"])
+
+    _ = try await recorder.stop()
+    #expect(await screenSleep.calls == ["prevent", "allow"])
+}
+
+@Test func observationStopsWithTheSession() async throws {
+    let interruptions = ManualInterruptionObserver()
+    let (recorder, _, _, _) = makeRecorder(interruptions: interruptions)
+
+    _ = try await recorder.begin(mode: .quickTest, audioConfig: .none)
+    #expect(await interruptions.isObserving)
+
+    _ = try await recorder.stop()
+    #expect(await interruptions.isObserving == false)
 }

@@ -18,6 +18,8 @@ actor SessionRecorder {
     private let motionSensor: MotionSensorService
     private let pedometer: PedometerService
     private let audioFeedback: AudioFeedbackService
+    private let interruptionObserver: SessionInterruptionObserver
+    private let screenSleep: ScreenSleepController
     private let clock: Clock
     private let logService: LogService
     private let acquisitionPolicy: MotionAcquisitionPolicy
@@ -38,6 +40,10 @@ actor SessionRecorder {
     private var eventContinuation: AsyncStream<SessionRecordingEvent>.Continuation?
     private var sampleTask: Task<Void, Never>?
     private var pedometerTask: Task<Void, Never>?
+    private var interruptionTask: Task<Void, Never>?
+    /// Device timestamp when the app was suspended, so the resulting gap can be
+    /// attributed to the interruption rather than to sensor trouble.
+    private var suspendedAt: TimeInterval?
     private var lastSampleTimestamp: TimeInterval?
     private var lastReportedSecond = -1
 
@@ -45,6 +51,8 @@ actor SessionRecorder {
         motionSensor: MotionSensorService,
         pedometer: PedometerService,
         audioFeedback: AudioFeedbackService,
+        interruptionObserver: SessionInterruptionObserver,
+        screenSleep: ScreenSleepController,
         clock: Clock,
         logService: LogService,
         acquisitionPolicy: MotionAcquisitionPolicy = .recommendedDefault,
@@ -53,6 +61,8 @@ actor SessionRecorder {
         self.motionSensor = motionSensor
         self.pedometer = pedometer
         self.audioFeedback = audioFeedback
+        self.interruptionObserver = interruptionObserver
+        self.screenSleep = screenSleep
         self.clock = clock
         self.logService = logService
         self.acquisitionPolicy = acquisitionPolicy
@@ -136,6 +146,18 @@ actor SessionRecorder {
             }
         }
 
+        // Any suspension stops sample delivery, so observation has to be live
+        // before the session is declared ready (docs/07 §7.7).
+        let interruptions = await interruptionObserver.startObserving()
+        interruptionTask = Task { [weak self] in
+            for await interruption in interruptions {
+                await self?.handle(interruption)
+            }
+        }
+        // [REC] keep the screen awake for the duration; no background motion
+        // mode is added in v1.
+        await screenSleep.preventSleep()
+
         // Sensors are confirmed delivering by this point: signal readiness,
         // then the tone (docs/07 §7.3).
         continuation.yield(.ready)
@@ -158,6 +180,10 @@ actor SessionRecorder {
         await audioFeedback.playStopTone()
         await motionSensor.stop()
         await pedometer.stop()
+        await interruptionObserver.stopObserving()
+        await screenSleep.allowSleep()
+        interruptionTask?.cancel()
+        interruptionTask = nil
 
         // Drain rather than cancel. Stopping a service finishes its stream, so
         // these complete; cancelling here would discard samples that had
@@ -224,6 +250,45 @@ actor SessionRecorder {
         }
     }
 
+    // MARK: - Interruptions
+
+    /// Records an interruption and surfaces it to the UI (docs/07 §7.7).
+    ///
+    /// The count is only incremented for events that actually suspend sample
+    /// delivery. An audio route change degrades feedback without touching the
+    /// accelerometer, so counting it would overstate how disturbed the walk was
+    /// and could push an otherwise sound session toward the noisy path.
+    ///
+    /// Nothing here alters the samples. The suspension shows up as a gap in the
+    /// data, walking analysis excludes it, and the normal pipeline decides
+    /// validity — a session is never quietly presented as clean [PRD §6].
+    private func handle(_ interruption: SessionInterruption) {
+        guard state == .recording else { return }
+
+        switch interruption {
+        case .didEnterBackground:
+            interruptionCount += 1
+            suspendedAt = lastSampleTimestamp
+            logService.log(.warning, .session, "session interrupted: app suspended")
+            eventContinuation?.yield(.interrupted)
+
+        case .didBecomeActive:
+            if let suspendedAt {
+                logService.log(.info, .session, "session resumed after suspension at \(Int(suspendedAt))s")
+                self.suspendedAt = nil
+            }
+
+        case .willResignActive:
+            // Losing focus does not by itself stop delivery; if it becomes a
+            // suspension, didEnterBackground follows and counts it.
+            logService.log(.info, .session, "session lost focus")
+
+        case .audioInterrupted, .audioRouteChanged:
+            // Feedback-only degradation; recording is unaffected (docs/10 §10.4).
+            logService.log(.warning, .audio, "audio degraded during session")
+        }
+    }
+
     // MARK: - Ingestion
 
     private func ingest(_ sample: SensorSample) {
@@ -269,6 +334,7 @@ actor SessionRecorder {
         audioConfig = .none
         interruptionCount = 0
         pedometerAvailable = true
+        suspendedAt = nil
         lastSampleTimestamp = nil
         lastReportedSecond = -1
         eventContinuation = nil
