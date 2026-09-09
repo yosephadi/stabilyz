@@ -25,6 +25,13 @@ actor SessionRecorder {
     private let fileIO: FileIO
     private let acquisitionPolicy: MotionAcquisitionPolicy
     private let gapPolicy: GapDetectionPolicy
+    private let stepPolicy: LiveStepDetectionPolicy
+
+    /// Live footfalls for audio feedback (docs/07 §7.2). Long-lived and shared,
+    /// so the audio layer subscribes once rather than per session. Audio
+    /// *subscribes*; it never writes back (docs/10 §10.4).
+    nonisolated let stepEvents: AsyncStream<LiveStepEvent>
+    private nonisolated let stepContinuation: AsyncStream<LiveStepEvent>.Continuation
 
     private var state: State = .idle
     /// Bounded, with a scratch file behind it (docs/07 §7.2, docs/14 §14.3).
@@ -46,6 +53,9 @@ actor SessionRecorder {
     /// Device timestamp when the app was suspended, so the resulting gap can be
     /// attributed to the interruption rather than to sensor trouble.
     private var suspendedAt: TimeInterval?
+    /// Nil unless the session opted into Step Feedback — detection is skipped
+    /// entirely otherwise, so an unused session pays nothing per sample.
+    private var stepDetector: LiveStepDetector?
     private var lastSampleTimestamp: TimeInterval?
     private var lastReportedSecond = -1
 
@@ -59,7 +69,8 @@ actor SessionRecorder {
         logService: LogService,
         fileIO: FileIO,
         acquisitionPolicy: MotionAcquisitionPolicy = .recommendedDefault,
-        gapPolicy: GapDetectionPolicy = .recommendedDefault
+        gapPolicy: GapDetectionPolicy = .recommendedDefault,
+        stepPolicy: LiveStepDetectionPolicy = .provisional
     ) {
         self.motionSensor = motionSensor
         self.pedometer = pedometer
@@ -71,6 +82,11 @@ actor SessionRecorder {
         self.fileIO = fileIO
         self.acquisitionPolicy = acquisitionPolicy
         self.gapPolicy = gapPolicy
+        self.stepPolicy = stepPolicy
+
+        let (stream, continuation) = AsyncStream<LiveStepEvent>.makeStream(bufferingPolicy: .bufferingNewest(8))
+        stepEvents = stream
+        stepContinuation = continuation
     }
 
     var isRecording: Bool { state == .recording }
@@ -98,6 +114,9 @@ actor SessionRecorder {
         self.mode = mode
         self.audioConfig = audioConfig
         sampleBuffer = SessionSampleBuffer(fileIO: fileIO, logService: logService)
+        if audioConfig == .stepFeedback {
+            stepDetector = LiveStepDetector(policy: stepPolicy)
+        }
 
         // The anchor is stamped before any sample can arrive, so every sample
         // resolves against it (docs/07 §7.4).
@@ -315,6 +334,14 @@ actor SessionRecorder {
 
         sampleBuffer?.append(sample)
 
+        // Detection is deliberately after buffering: the recording is what
+        // matters, and feedback must never delay or alter it (docs/10 §10.4).
+        // The buffering policy drops the oldest pending tick rather than
+        // blocking the sample path if the audio layer stalls.
+        if let event = stepDetector?.process(sample) {
+            stepContinuation.yield(event)
+        }
+
         if let anchor {
             let elapsed = sample.deviceTimestamp - anchor.uptime
             let whole = Int(elapsed)
@@ -336,6 +363,7 @@ actor SessionRecorder {
         state = .idle
         sampleBuffer?.discard()
         sampleBuffer = nil
+        stepDetector = nil
         pedometerEvents.removeAll()
         anchor = nil
         startedAt = nil
