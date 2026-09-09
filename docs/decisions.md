@@ -949,3 +949,98 @@ because a comparison reaching across modes is what [PRD OQ-5] forbids.
 `breakdown` and `summaryLine` ride in the JSON blob (docs/05 §5.2). A test reads
 the raw entity to confirm the column is populated for the scored session and null
 for every other.
+
+---
+
+## 22. Foundation is permitted in Domain and Algorithms
+
+**Date:** 2026-09-09 · **Task:** EPIC 6 close-out · **Status:** Decided
+
+CLAUDE.md and docs/03 rule 1 previously said `Domain/` and `Algorithms/` import
+**no** Apple frameworks. Both now read: no Apple frameworks **except Foundation**
+(Accelerate additionally allowed in `Algorithms/`).
+
+### Why the original wording could not hold
+
+docs/05 specifies the domain model in terms of `Date` (`startedAt`, `endedAt`,
+`establishedAt`, `disclaimerAcceptedAt`, `createdAt`), `UUID` (every entity id,
+`sourceSessionIDs`) and `Duration`. `Date` and `UUID` live in Foundation and have
+no stdlib equivalent, so the two documents contradicted each other: the layering
+rule forbade exactly what the data model required.
+
+This was flagged when it first bit, in Task 1.2.1, and Foundation has been
+imported in those layers ever since. The amendment makes the written rule match
+both the specification and the code, rather than leaving a rule that every file
+in the layer visibly breaks — a rule nobody can follow teaches people to ignore
+rules.
+
+### What the rule still excludes, unchanged
+
+SwiftUI, CoreMotion, AVFoundation, SwiftData, CryptoKit and CommonCrypto. That is
+the intent that matters: the gait science stays independently testable, and no
+UI, hardware or persistence type can leak into it. Foundation carries no such
+coupling.
+
+### Now enforced, not just written
+
+`ImportHygieneTests` scans every `.swift` file under `Domain/` and `Algorithms/`
+and fails naming the file and the offending import. The rule is checked by the
+suite rather than by reviewer memory.
+
+---
+
+## 23. AVAudioEngine tones service
+
+**Date:** 2026-09-09 · **Task:** 7.1.1 · **Status:** Decided (design) / Provisional (the sounds)
+
+### One owner for AVAudioSession
+
+`EngineAudioFeedbackService` is the only component that configures, activates or
+observes `AVAudioSession` (docs/10 §10.2). The interruption observer from
+Task 4.2.3 consumes this service's `events` stream instead of observing the
+session itself, so the category and active state have a single writer and there
+is no ordering question between two components managing it.
+
+Enforced by a source scan, not by convention: a test walks every `.swift` file
+under the app source and fails naming any file outside the owner that references
+`AVAudioSession` in code (comments excepted).
+
+### Tones are synthesised, not shipped
+
+A sine burst with a linear fade is a handful of lines, diffable in review, and
+avoids carrying audio files whose provenance and licensing would need tracking
+for a two-tone app. The fade exists because a hard edge on a sine burst clicks,
+which reads as a defect rather than a cue.
+
+**The sounds themselves are PROVISIONAL.** Pitch, length and envelope are
+placeholders pending device listening (Phase 12). What [PRD AC] actually requires
+— that start and stop are *distinct* — is asserted by test on both frequency and
+duration.
+
+### Latency by construction
+
+Buffers are synthesised and nodes attached once during `prepare()`, with one
+player per tone so a step tick never waits behind a stop tone. Playing is then a
+`scheduleBuffer` on an already-running node: no allocation, no file I/O, no main
+actor hop [PRD §7 — the sound must feel connected to the step].
+
+### Degradation is the only failure mode
+
+Every method is non-throwing and every failure path logs and continues silently
+(docs/10 §10.4). A tone requested before `prepare`, after `teardown`, or while
+suspended is dropped rather than queued — a tick arriving after an interruption
+ended would be worse than no tick. A walk is measured perfectly well in silence.
+
+### Suspend and resume are separate from teardown
+
+An interruption is temporary, and rebuilding the engine for one would cost the
+latency the preload bought. `suspend`/`resume` stop and restart playback while
+keeping the nodes and buffers; Task 7.1.2 drives them from the event stream. A
+failed resume stays suspended, which is silence rather than a crash.
+
+### What the simulator cannot verify
+
+Buffer contents, engine state transitions, idempotence and the drop-when-suspended
+behaviour are all verifiable off-device and are tested. **Audible output, real
+route changes, Bluetooth behaviour and actual sound-to-footfall latency are not**
+— they require a device and belong to Phase 12 (docs/19 §19.4).

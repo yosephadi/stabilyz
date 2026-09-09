@@ -11,7 +11,7 @@ iOS app for prosthetic limb users to self-measure walking stability. Local-only,
 
 ## Hard architecture rules (`docs/03-application-layer-architecture.md` — violating these = redo)
 
-- Layers: Presentation → Feature/State → Domain → Algorithms → Services → Persistence. `Domain/` and `Algorithms/` import NO Apple frameworks (Accelerate is allowed in `Algorithms/` only).
+- Layers: Presentation → Feature/State → Domain → Algorithms → Services → Persistence. `Domain/` and `Algorithms/` import no Apple frameworks except Foundation (Accelerate additionally allowed in `Algorithms/` only).
 - Only `Services/` and `Persistence/` may import CoreMotion, AVFoundation, SwiftData, CryptoKit, or CommonCrypto.
 - No DSP, scoring, or baseline math in ViewModels or Views.
 - All baseline queries and scoring calls take an explicit `TestMode` parameter.
@@ -39,7 +39,7 @@ iOS app for prosthetic limb users to self-measure walking stability. Local-only,
 
 ## Build & test
 
-- From repo root: `xcodebuild -scheme Stabilyz -destination 'platform=iOS Simulator,name=iPhone 17' test`
+- From repo root: `xcodebuild -project Stabilyz/Stabilyz.xcodeproj -scheme Stabilyz -destination 'platform=iOS Simulator,name=iPhone 17 Pro' test`
 - If the simulator name fails, list available simulators with `xcrun simctl list devices available` and use one of those.
 - Run tests after every change. NEVER end a session with the build or tests broken.
 - If the full suite fails at ~0 s with crash symbols, re-run once before diagnosing — known simulator flakiness; a reproducing failure is real, a one-off is infrastructure.
