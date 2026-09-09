@@ -67,6 +67,26 @@ struct PreprocessingPolicy: Sendable, Equatable {
     let zeroPhaseFiltering: Bool
 }
 
+/// The encouraging summary shown beside a score (docs/04 §4.9).
+struct SummaryPolicy: Sendable, Equatable {
+    /// PROVISIONAL — pending device validation (Phase 12).
+    /// **[OPEN]** How many recent same-mode sessions a comparison is made
+    /// against. [PRD] says "vs. last N sessions of that mode" without fixing N.
+    /// Three is enough to be more than the previous walk and few enough to still
+    /// mean "lately".
+    let recentSessionCount: Int
+    /// PROVISIONAL — pending device validation (Phase 12).
+    /// How far a metric must move, in baseline SDs, before the summary will call
+    /// it a change. Below this the difference is indistinguishable from an
+    /// ordinary session-to-session wobble, and saying otherwise would be a
+    /// claim the data does not support.
+    let minimumNoticeableChange: Double
+    /// PROVISIONAL — pending device validation (Phase 12).
+    /// Index points either side of the baseline that still count as "about
+    /// usual", rather than better or worse.
+    let aroundBaselineIndexMargin: Int
+}
+
 /// Baseline establishment (docs/09).
 struct BaselinePolicy: Sendable, Equatable {
     /// PROVISIONAL — pending device validation (Phase 12).
@@ -326,6 +346,7 @@ struct AlgorithmConfiguration: Sendable, Equatable {
     let walkingDetection: WalkingDetectionPolicy
     let featureExtraction: FeatureExtractionPolicy
     let baseline: BaselinePolicy
+    let summary: SummaryPolicy
     let orientation: OrientationPolicy
     let noise: NoisePolicy
     let trunkProxy: TrunkProxyPolicy
@@ -401,6 +422,14 @@ struct AlgorithmConfiguration: Sendable, Equatable {
         baseline: BaselinePolicy(
             // PROVISIONAL — pending device validation (Phase 12).
             minimumAsymmetrySessions: 3
+        ),
+        summary: SummaryPolicy(
+            // PROVISIONAL — pending device validation (Phase 12). [OPEN] N.
+            recentSessionCount: 3,
+            // PROVISIONAL — pending device validation (Phase 12).
+            minimumNoticeableChange: 0.25,
+            // PROVISIONAL — pending device validation (Phase 12).
+            aroundBaselineIndexMargin: 3
         ),
         orientation: OrientationPolicy(
             verticalFromGravity: true,

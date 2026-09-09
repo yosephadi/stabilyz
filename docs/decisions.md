@@ -770,3 +770,123 @@ through the same services the app uses, then scores a sixth. It pins two things:
   anchor.
 
 All ten pre-existing golden files were verified unchanged by the regeneration.
+
+---
+
+## 19. Simulator flakiness — re-run before diagnosing
+
+**Date:** 2026-09-09 · **Task:** 6.2.2 (retrospective) · **Status:** Decided
+
+### The signature
+
+A run fails with a large number of tests reported failed at **0.000 seconds**,
+often with `Early unexpected exit, operation never finished bootstrapping` or
+`Failed to create a bundle instance representing …StabilyzTests.xctest`. The
+attributed crash symbol is **arbitrary** — it names whichever test function was
+nearest, and it changes between runs on identical code. The set of "failed" tests
+also changes between runs.
+
+That is the fingerprint of infrastructure, not a defect: a real crash reproduces
+in the same place.
+
+### The policy
+
+**Re-run once before diagnosing.** A failure that reproduces is real and gets
+investigated. A one-off is infrastructure and is discarded.
+
+**No code change may result from a non-reproducing failure.** Bisecting against
+an unstable simulator produces conclusions that are noise — a bisect step that
+"passes" may simply have got a good run.
+
+### Why this is written down
+
+It was learned the expensive way during Task 6.2.2: a run reported 131 failures
+at 0.000 s, and four bisection runs were spent chasing it through new code. The
+same code then passed twice in a row, and the already-committed tree reproduced
+the same symptom class. Nothing was wrong with the code, and no change came out
+of the detour — but the time did.
+
+### Escalation
+
+If the frequency grows, investigate the simulator setup itself — clone count,
+device state, DerivedData staging — rather than absorbing it as a per-run cost.
+
+---
+
+## 20. MetricBreakdown and the encouraging summary
+
+**Date:** 2026-09-09 · **Task:** 6.2.3 · **Status:** Decided (structure and rules) / Provisional (values)
+
+### The breakdown is per *signal*, not per metric
+
+docs/04 §4.9 lists what the user sees: gait consistency, step-time/cadence
+variability, trunk-motion proxy, asymmetry when present. Two of those rest on
+more than one metric — consistency on Ad1 and Ad2, the trunk proxy on ML and VT.
+
+The breakdown carries **both components** rather than collapsing them, because
+whether they present as one number or two is EPIC 8's call, and a domain type
+that collapsed them would take that decision away. `SignalID` raw values are
+stable keys; `provisionalLabel` is explicitly EPIC 8's to replace.
+
+"Gait consistency" is *not* provisional. [PRD OQ-1] fixes it, and a test asserts
+no signal label except the asymmetry one may contain "symmetr".
+
+### Absence vocabulary carried forward unchanged
+
+`MetricAvailability` is `standardized` / `rawOnly` / `unmeasured` — 6.2.1's
+distinctions, kept intact so the Score screen and the clinician summary describe
+absence the same way the pipeline did. A signal with nothing on either side is
+omitted rather than shown empty.
+
+### Cadence and asymmetry carry values, never verdicts
+
+Neither has a decided direction (entry 3), so neither gets a
+`directionAdjustedZ` and neither can ever produce an improvement claim in the
+summary. Tests assert both — including that a large cadence move with weak
+recent history still yields no claim.
+
+### Summary v0 — every template has a predicate
+
+[PRD] requires the summary be "generated from real metric comparisons within the
+same mode, not a static string". Each of the six claims is reachable only when
+its evidence exists, and every predicate is tested **both ways**: a claim that
+can appear without its data is the failure mode worth guarding, because it is
+invisible in the output.
+
+Three hard rules, each with a test:
+
+- **No percentage claim** [PRD §5, §7] — the composite is not calibrated to
+  support "12% more stable". A guard asserts no `%` and no "percent" across
+  every branch, with a companion test proving those cases reach all six claims,
+  so the guard cannot silently stop covering them.
+- **No improvement claim without an improvement**, and a signal only counts if
+  *every* metric behind it improved — half a trunk proxy improving is not the
+  trunk proxy improving.
+- **Nothing implying the baseline is permanent** [PRD §6], and no medical
+  language. Both are keyword-audited.
+
+A below-baseline session is stated plainly and paired with "walking varies day to
+day", so an honest result is not delivered as a failure.
+
+### Same-mode filtering happens inside the engine
+
+The generator takes raw history and filters to valid same-mode sessions itself,
+rather than trusting the caller. A test passes Full Test sessions that would look
+like a large improvement mixed with flat Quick Test history and asserts they are
+ignored [PRD OQ-5].
+
+### New tunables
+
+| Parameter | Value | Reasoning |
+|---|---|---|
+| `SummaryPolicy.recentSessionCount` | 3 | **PROVISIONAL — [OPEN].** [PRD] says "vs. last N sessions of that mode" without fixing N. Three is more than the previous walk and still means "lately". |
+| `SummaryPolicy.minimumNoticeableChange` | 0.25 SD | **PROVISIONAL.** Below this, a difference is indistinguishable from ordinary session-to-session variation, and calling it a change would be a claim the data does not support. |
+| `SummaryPolicy.aroundBaselineIndexMargin` | 3 points | **PROVISIONAL.** Index points either side of baseline that still count as "about usual". |
+
+### Handoff: the summary cannot run inside the pipeline
+
+`GaitAnalysisPipeline` is pure and has no history, so it cannot generate a
+summary. `SessionScore` is therefore left carrying `relativeIndex`, `compositeZ`
+and `algorithmVersion` only; attaching `breakdown` and `summaryLine` belongs to
+**Task 6.2.4**, at commit time, where the repository can supply recent same-mode
+sessions.
