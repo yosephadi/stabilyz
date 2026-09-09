@@ -113,7 +113,7 @@ private func makeInvalid(reason: InvalidReason, mode: TestMode = .quickTest) -> 
     #expect(building.score == nil)
     #expect(building.countsTowardBaseline)
 
-    let scored = makeValid(score: SessionScore(relativeIndex: 112))
+    let scored = makeValid(score: SessionScore.fixture(relativeIndex: 112))
     #expect(scored.score?.relativeIndex == 112)
 }
 

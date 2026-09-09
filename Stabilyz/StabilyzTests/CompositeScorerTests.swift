@@ -62,7 +62,7 @@ private func scoreOf(_ metrics: GaitMetrics, against baseline: Baseline, session
         )
     )
     return CompositeScorer.score(
-        standardization, sessionAlgorithmVersion: sessionVersion, configuration: config
+        standardization, metrics: metrics, sessionAlgorithmVersion: sessionVersion, configuration: config
     )
 }
 
@@ -192,7 +192,7 @@ private func scoreOf(_ metrics: GaitMetrics, against baseline: Baseline, session
     #expect(standardization.standardization(for: .stepTimeAsymmetry) != nil)
 
     let result = CompositeScorer.score(
-        standardization, sessionAlgorithmVersion: version, configuration: config
+        standardization, metrics: metrics(asymmetry: 0.20), sessionAlgorithmVersion: version, configuration: config
     )
     #expect(result.terms.contains { $0.term.rawValue.contains("symmetry") } == false)
     #expect(result.terms.count == 4)
@@ -207,8 +207,15 @@ private func scoreOf(_ metrics: GaitMetrics, against baseline: Baseline, session
     let high = try scoreOf(metrics(asymmetry: 0.40), against: baseline)
     let absent = try scoreOf(metrics(asymmetry: nil), against: baseline)
 
-    #expect(low.score == high.score)
-    #expect(low.score == absent.score)
+    // The index and the composite are identical. The breakdown legitimately
+    // differs — asymmetry is still measured and displayed, just never scored
+    // (docs/decisions.md entries 2 and 13).
+    #expect(low.score?.relativeIndex == high.score?.relativeIndex)
+    #expect(low.score?.relativeIndex == absent.score?.relativeIndex)
+    #expect(low.score?.compositeZ == high.score?.compositeZ)
+    #expect(low.score?.compositeZ == absent.score?.compositeZ)
+    // And the breakdown does carry the difference, so it is not being dropped.
+    #expect(low.score?.breakdown != high.score?.breakdown)
 }
 
 @Test func theTrunkTermAveragesItsTwoAxes() throws {
@@ -245,7 +252,7 @@ private func scoreOf(_ metrics: GaitMetrics, against baseline: Baseline, session
     )
 
     let result = CompositeScorer.score(
-        partial, sessionAlgorithmVersion: version, configuration: config
+        partial, metrics: metrics(), sessionAlgorithmVersion: version, configuration: config
     )
 
     #expect(result.score == nil)
@@ -268,7 +275,7 @@ private func scoreOf(_ metrics: GaitMetrics, against baseline: Baseline, session
         )
     )
 
-    let result = CompositeScorer.score(partial, sessionAlgorithmVersion: version, configuration: config)
+    let result = CompositeScorer.score(partial, metrics: metrics(), sessionAlgorithmVersion: version, configuration: config)
     #expect(result.score == nil)
     #expect(result.unavailability == .missingCompositeTerm)
 }

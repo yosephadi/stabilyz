@@ -69,7 +69,7 @@ private func summarize(
     )
     return SessionSummaryGenerator.summary(
         mode: mode, metrics: current, standardization: standardization,
-        score: SessionScore(relativeIndex: index, compositeZ: 0, algorithmVersion: config.version),
+        relativeIndex: index,
         recentSessions: recent, configuration: config
     )
 }
@@ -260,7 +260,7 @@ private func recentIdentical() -> [GaitSession] {
     // summary with nothing to compare against would be the static string
     // [PRD] rules out.
     let summary = SessionSummaryGenerator.summary(
-        mode: .quickTest, metrics: metrics(), standardization: nil, score: nil,
+        mode: .quickTest, metrics: metrics(), standardization: nil, relativeIndex: nil,
         recentSessions: recentIdentical(), configuration: config
     )
     #expect(summary == nil)

@@ -46,6 +46,7 @@ enum SessionSummaryGenerator {
     }
 
     /// - Parameters:
+    ///   - relativeIndex: the score's index, or nil before a baseline exists.
     ///   - recentSessions: history in any order. Filtered here to **valid
     ///     same-mode** sessions, so a caller cannot accidentally compare across
     ///     modes [PRD OQ-5].
@@ -57,11 +58,11 @@ enum SessionSummaryGenerator {
         mode: TestMode,
         metrics: GaitMetrics,
         standardization: SessionStandardization?,
-        score: SessionScore?,
+        relativeIndex: Int?,
         recentSessions: [GaitSession],
         configuration: AlgorithmConfiguration
     ) -> Summary? {
-        guard let standardization, let score else { return nil }
+        guard let standardization, let relativeIndex else { return nil }
 
         let recent = recentSameModeMetrics(
             from: recentSessions, mode: mode, configuration: configuration
@@ -74,8 +75,8 @@ enum SessionSummaryGenerator {
 
         let margin = configuration.summary.aroundBaselineIndexMargin
         let centre = Int(configuration.composite.indexCenter)
-        let isAbove = score.relativeIndex > centre + margin
-        let isBelow = score.relativeIndex < centre - margin
+        let isAbove = relativeIndex > centre + margin
+        let isBelow = relativeIndex < centre - margin
 
         // Strongest true claim wins, and every branch below is reachable only
         // when its evidence exists.

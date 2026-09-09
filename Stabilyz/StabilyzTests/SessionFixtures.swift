@@ -73,3 +73,39 @@ extension UserProfile {
         )
     }
 }
+
+extension PartialSessionScore {
+    /// What the pipeline produces, for tests that do not run it.
+    static func fixture(
+        relativeIndex: Int = 112,
+        compositeZ: Double = 0.12,
+        algorithmVersion: String = AlgorithmConfiguration.v1.version,
+        breakdown: [MetricBreakdown] = [],
+        standardization: SessionStandardization? = nil
+    ) -> PartialSessionScore {
+        PartialSessionScore(
+            relativeIndex: relativeIndex,
+            compositeZ: compositeZ,
+            algorithmVersion: algorithmVersion,
+            breakdown: breakdown,
+            standardization: standardization ?? SessionStandardization(
+                mode: .quickTest, algorithmVersion: algorithmVersion,
+                standardized: [], rawOnly: [], unmeasured: []
+            )
+        )
+    }
+}
+
+extension SessionScore {
+    /// A complete score. There is deliberately no way to build a partial one
+    /// here — that is the point of the two types.
+    static func fixture(
+        relativeIndex: Int = 112,
+        summaryLine: String = "This Quick Test was about usual for you."
+    ) -> SessionScore {
+        SessionScore(
+            completing: .fixture(relativeIndex: relativeIndex),
+            summaryLine: summaryLine
+        )
+    }
+}

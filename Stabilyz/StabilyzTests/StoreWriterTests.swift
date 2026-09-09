@@ -18,7 +18,7 @@ private func makeStore() throws -> (ModelContainer, StoreWriter) {
 
 @Test func sessionsAreWrittenAndReadBackIntact() async throws {
     let (container, writer) = try makeStore()
-    let session = GaitSession.fixtureValid(mode: .fullTest, score: SessionScore(relativeIndex: 112))
+    let session = GaitSession.fixtureValid(mode: .fullTest, score: SessionScore.fixture(relativeIndex: 112))
 
     try await writer.save(session)
 
@@ -32,7 +32,7 @@ private func makeStore() throws -> (ModelContainer, StoreWriter) {
     let id = UUID()
 
     try await writer.save(.fixtureValid(id: id, mode: .quickTest))
-    try await writer.save(.fixtureValid(id: id, mode: .quickTest, score: SessionScore(relativeIndex: 108)))
+    try await writer.save(.fixtureValid(id: id, mode: .quickTest, score: SessionScore.fixture(relativeIndex: 108)))
 
     let rows = try readContext(container).fetch(FetchDescriptor<GaitSessionEntity>())
     #expect(rows.count == 1)

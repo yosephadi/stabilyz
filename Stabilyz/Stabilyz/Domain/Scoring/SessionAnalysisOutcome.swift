@@ -36,8 +36,9 @@ struct ProcessingProgress: Sendable, Equatable {
 /// the noisy screen explains itself with it.
 enum SessionAnalysisOutcome: Sendable, Equatable {
     /// Scoreable. `score` is present only when a same-mode baseline existed
-    /// [PRD §7]; stages 7-8 skip when it did not.
-    case valid(metrics: GaitMetrics, validWalkingDuration: Duration, score: SessionScore?)
+    /// [PRD §7]; stages 7-8 skip when it did not. It is **partial** — the
+    /// commit step completes it with a summary line (entry 20).
+    case valid(metrics: GaitMetrics, validWalkingDuration: Duration, score: PartialSessionScore?)
     /// Not scoreable, and never scored [PRD AC].
     case invalid(reason: InvalidReason, validWalkingDuration: Duration)
 

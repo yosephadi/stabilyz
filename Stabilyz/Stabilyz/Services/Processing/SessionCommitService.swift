@@ -63,9 +63,17 @@ struct SessionCommitService: Sendable {
     }
 
     /// Commits a session, establishing the mode's baseline if this is the fifth
-    /// valid one.
+    /// valid one and attaching a score if the mode's baseline already existed.
+    ///
+    /// - Parameter partialScore: what the pipeline computed, when it could. A
+    ///   score is completed and stored **only** if the mode's baseline existed
+    ///   before this commit — the fifth valid session establishes the baseline
+    ///   and carries no score itself [PRD §7, docs/09 §9.5].
     @discardableResult
-    func commit(_ session: GaitSession) async throws -> SessionCommitResult {
+    func commit(
+        _ session: GaitSession,
+        partialScore: PartialSessionScore? = nil
+    ) async throws -> SessionCommitResult {
         let mode = session.mode
 
         // Invalid sessions are persisted for diagnostics but never advance the
@@ -76,11 +84,12 @@ struct SessionCommitService: Sendable {
         }
 
         // Frozen: once a baseline exists, later sessions never touch it
-        // [PRD §6]. Checked before any calculation, so session 6 onward costs
-        // nothing extra.
+        // [PRD §6]. This is also the scoring gate — a pre-existing baseline is
+        // exactly what makes a session the sixth or later.
         if try await baselines.baseline(mode: mode) != nil {
-            try await writer.save(session)
-            return try await result(for: session, outcome: .alreadyEstablished, mode: mode)
+            let scored = try await complete(session, partialScore: partialScore, mode: mode)
+            try await writer.save(scored)
+            return try await result(for: scored, outcome: .alreadyEstablished, mode: mode)
         }
 
         let alreadyStored = try await reader.earliestValidSessions(
@@ -120,6 +129,47 @@ struct SessionCommitService: Sendable {
                 mode: mode
             )
         }
+    }
+
+    /// Completes a partial score and attaches it, or returns the session
+    /// unchanged.
+    ///
+    /// **Compute first:** history is read and the summary generated before
+    /// anything is written, so a session whose summary cannot be produced is
+    /// discovered while the store is untouched.
+    private func complete(
+        _ session: GaitSession,
+        partialScore: PartialSessionScore?,
+        mode: TestMode
+    ) async throws -> GaitSession {
+        guard let partialScore else { return session }
+
+        // The N most recent valid same-mode sessions, this one excluded. The
+        // generator filters again by mode and validity — defence in depth, since
+        // a comparison that reached across modes is exactly what [PRD OQ-5]
+        // forbids.
+        let history = try await reader.recentValidSessions(
+            mode: mode,
+            excluding: session.id,
+            limit: configuration.summary.recentSessionCount
+        )
+
+        guard let metrics = session.metrics,
+              let summary = SessionSummaryGenerator.summary(
+                  mode: mode,
+                  metrics: metrics,
+                  standardization: partialScore.standardization,
+                  relativeIndex: partialScore.relativeIndex,
+                  recentSessions: history,
+                  configuration: configuration
+              )
+        else { return session }
+
+        // Returns nil for an invalid session; unreachable here, and refusing
+        // rather than forcing keeps the rule in one place.
+        return session.scored(
+            SessionScore(completing: partialScore, summaryLine: summary.text)
+        ) ?? session
     }
 
     /// Rebuilds every mode's state from the store.

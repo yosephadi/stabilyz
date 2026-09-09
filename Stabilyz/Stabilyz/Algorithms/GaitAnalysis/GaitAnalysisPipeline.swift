@@ -85,10 +85,11 @@ struct GaitAnalysisPipeline: GaitScoringAlgorithm {
         )
         progress(ProcessingProgress(stage: .normalization, fraction: 11 / 12))
 
-        var score: SessionScore?
+        var score: PartialSessionScore?
         if let standardization {
             let scored = CompositeScorer.score(
                 standardization,
+                metrics: metrics,
                 sessionAlgorithmVersion: configuration.version,
                 configuration: configuration
             )

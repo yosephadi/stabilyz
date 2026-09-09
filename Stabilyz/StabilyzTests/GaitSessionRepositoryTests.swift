@@ -72,7 +72,7 @@ private let base = Date(timeIntervalSince1970: 1_700_000_000)
 
 @Test func sessionLookupByIDRoundTrips() async throws {
     let repository = try makeRepository()
-    let session = GaitSession.fixtureValid(mode: .fullTest, score: SessionScore(relativeIndex: 112))
+    let session = GaitSession.fixtureValid(mode: .fullTest, score: SessionScore.fixture(relativeIndex: 112))
     try await repository.save(session)
 
     #expect(try await repository.session(id: session.id) == session)

@@ -53,6 +53,28 @@ actor StoreReader {
         return try modelContext.fetch(descriptor).map(EntityMapping.session(from:))
     }
 
+    /// The most recent valid sessions of a mode, newest first, excluding one.
+    ///
+    /// The exclusion exists because the summary compares a session against its
+    /// *history*: including the session being committed would let it improve
+    /// against itself. Fetches one extra so removing it cannot leave the caller
+    /// short.
+    func recentValidSessions(mode: TestMode, excluding excluded: UUID, limit: Int) throws -> [GaitSession] {
+        let modeRaw = mode.rawValue
+        let validColumn = SessionValidity.valid
+
+        var descriptor = FetchDescriptor<GaitSessionEntity>(
+            predicate: #Predicate { $0.mode == modeRaw && $0.validity == validColumn },
+            sortBy: [SortDescriptor(\.startedAt, order: .reverse)]
+        )
+        descriptor.fetchLimit = limit + 1
+
+        return try modelContext.fetch(descriptor)
+            .filter { $0.id != excluded }
+            .prefix(limit)
+            .map(EntityMapping.session(from:))
+    }
+
     /// Valid sessions of that mode only — the number the baseline state machine
     /// derives "Session X of 5" from. Invalid sessions never count
     /// [PRD §6, §7, docs/09 §9.4].

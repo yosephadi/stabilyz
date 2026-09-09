@@ -20,7 +20,8 @@ enum CompositeScorer {
     }
 
     struct ScoringResult: Sendable, Equatable {
-        let score: SessionScore?
+        /// Complete only once the commit step adds a summary line.
+        let score: PartialSessionScore?
         let unavailability: ScoreUnavailability?
         /// The four terms that fed the composite, for the breakdown in
         /// Task 6.2.3. Empty when no score was produced.
@@ -36,10 +37,13 @@ enum CompositeScorer {
         var contribution: Double { adjustedZ * weight }
     }
 
-    /// - Parameter sessionAlgorithmVersion: the version this session's metrics
-    ///   were computed under. Compared against the baseline's.
+    /// - Parameters:
+    ///   - metrics: this session's metrics, for the breakdown.
+    ///   - sessionAlgorithmVersion: the version this session's metrics were
+    ///     computed under. Compared against the baseline's.
     static func score(
         _ standardization: SessionStandardization,
+        metrics: GaitMetrics,
         sessionAlgorithmVersion: String,
         configuration: AlgorithmConfiguration
     ) -> ScoringResult {
@@ -64,10 +68,12 @@ enum CompositeScorer {
         let composite = terms.reduce(0) { $0 + $1.contribution }
 
         return ScoringResult(
-            score: SessionScore(
+            score: PartialSessionScore(
                 relativeIndex: configuration.composite.relativeIndex(forCompositeZ: composite),
                 compositeZ: composite,
-                algorithmVersion: standardization.algorithmVersion
+                algorithmVersion: standardization.algorithmVersion,
+                breakdown: MetricBreakdownBuilder.breakdown(from: standardization, metrics: metrics),
+                standardization: standardization
             ),
             unavailability: nil,
             terms: terms

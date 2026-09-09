@@ -890,3 +890,62 @@ summary. `SessionScore` is therefore left carrying `relativeIndex`, `compositeZ`
 and `algorithmVersion` only; attaching `breakdown` and `summaryLine` belongs to
 **Task 6.2.4**, at commit time, where the repository can supply recent same-mode
 sessions.
+
+---
+
+## 21. Score completion is structural
+
+**Date:** 2026-09-09 · **Task:** 6.2.4 · **Status:** Decided
+
+Entry 20 established that the pure pipeline cannot produce a complete score: the
+summary line needs recent same-mode history, and the pipeline has none. That
+boundary is now enforced by the type system rather than by discipline.
+
+### Two types, one direction
+
+- **`PartialSessionScore`** — what the pipeline computes: index, composite,
+  algorithm version, and the breakdown (pure, needing only the standardization
+  and the session's own metrics). Deliberately **not `Codable`**. There is no
+  encoder for it, so it cannot reach the store.
+- **`SessionScore`** — the persisted result. Its **only** initializer is
+  `init(completing:summaryLine:)`, so a stored score always carries everything
+  the Score screen and clinician summary need.
+
+`GaitSession.score` accepts only the complete type, and `GaitSession.scored(_:)`
+is the single path that attaches one after the fact — it returns nil for an
+invalid session, so "invalid sessions are never scored" [PRD AC] is enforced at
+the one place that could break it.
+
+The split proved itself immediately: every existing `SessionScore(relativeIndex:)`
+call site stopped compiling, which is exactly the accident the requirement was
+guarding against.
+
+### Scoring eligibility is the baseline-existence check
+
+A score is completed and stored only when the mode's baseline existed **before**
+this commit. That is the same condition that makes a session the sixth or later,
+so the [PRD §7] rule needs no separate counter: the fifth valid session
+establishes the baseline and carries no score, and pre-baseline sessions store
+metrics only.
+
+### The summary is frozen at commit
+
+It records what was true when the session was committed. Regenerating it later
+against different history would rewrite the past — the same reasoning that
+freezes the baseline [PRD §6]. A test adds three further sessions afterwards and
+asserts the stored line is unchanged.
+
+### Compute before write, and filter twice
+
+History is read and the summary generated before anything is persisted. The
+reader excludes the session being committed — otherwise it could improve against
+itself — and fetches one extra row so the exclusion cannot leave the caller
+short. The generator then filters by mode and validity again: defence in depth,
+because a comparison reaching across modes is what [PRD OQ-5] forbids.
+
+### Persistence shape
+
+`relativeIndex` is the scalar column History and the trend chart query;
+`breakdown` and `summaryLine` ride in the JSON blob (docs/05 §5.2). A test reads
+the raw entity to confirm the column is populated for the scored session and null
+for every other.

@@ -152,6 +152,27 @@ struct GaitSession: Sendable, Equatable, Identifiable {
         )
     }
 
+    /// A copy of this session carrying `score`.
+    ///
+    /// The score is attached at commit rather than at construction, because the
+    /// summary line needs history the pipeline does not have (entry 20).
+    ///
+    /// Returns nil for an invalid session. Invalid sessions are never scored
+    /// [PRD AC], and this is the only path that could attach one after the fact,
+    /// so the rule is enforced here rather than assumed.
+    func scored(_ score: SessionScore) -> GaitSession? {
+        guard outcome.isValid, let metrics else { return nil }
+        return GaitSession.valid(
+            id: id, mode: mode, startedAt: startedAt, endedAt: endedAt,
+            advertisedClockElapsed: advertisedClockElapsed,
+            validWalkingDuration: validWalkingDuration,
+            metrics: metrics, score: score, audioConfig: audioConfig,
+            algorithmVersion: algorithmVersion, appVersion: appVersion,
+            deviceModel: deviceModel, interruptionCount: interruptionCount,
+            gapInfo: gapInfo, pedometerAvailable: pedometerAvailable
+        )
+    }
+
     var isValid: Bool { outcome.isValid }
 
     /// Whether this session counts toward its mode's five-session baseline

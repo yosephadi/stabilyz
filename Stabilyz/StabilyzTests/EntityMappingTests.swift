@@ -19,7 +19,7 @@ import Testing
 @Test func validSessionRoundTripsThroughTheEntity() throws {
     let session = GaitSession.fixtureValid(
         mode: .fullTest,
-        score: SessionScore(relativeIndex: 112),
+        score: SessionScore.fixture(relativeIndex: 112),
         audioConfig: .metronome(bpm: 104),
         interruptionCount: 1,
         gapInfo: SessionGapInfo(gapCount: 1, totalGapDuration: .seconds(4), longestGapDuration: .seconds(4))
@@ -45,7 +45,7 @@ import Testing
 @Test func queriedFieldsAreScalarColumnsNotBlobFields() throws {
     // CLAUDE.md: scalar columns only for id, mode, startedAt, validity,
     // relativeIndex, algorithmVersion. Everything else rides in the blob.
-    let session = GaitSession.fixtureValid(mode: .fullTest, score: SessionScore(relativeIndex: 112))
+    let session = GaitSession.fixtureValid(mode: .fullTest, score: SessionScore.fixture(relativeIndex: 112))
     let entity = try EntityMapping.entity(from: session)
 
     #expect(entity.id == session.id)
@@ -102,7 +102,7 @@ import Testing
 
 @Test func anInvalidRowCarryingAScoreIsRejected() throws {
     // The store must not be able to smuggle a score onto a noisy session.
-    let entity = try EntityMapping.entity(from: .fixtureValid(score: SessionScore(relativeIndex: 112)))
+    let entity = try EntityMapping.entity(from: .fixtureValid(score: SessionScore.fixture(relativeIndex: 112)))
     entity.validity = "excessiveNoise"
 
     #expect(throws: EntityMapping.MappingError.outcomeMetricsMismatch) {
