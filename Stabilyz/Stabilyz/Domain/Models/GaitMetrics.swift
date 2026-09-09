@@ -39,6 +39,19 @@ struct GaitMetrics: Sendable, Equatable, Codable {
     let validStrideCount: Int
     /// Analysis provenance [REC].
     let windowCount: Int
+    /// Median observed step period, in seconds. Provenance [REC].
+    let observedStepPeriod: Double?
+    /// Median observed stride lag, in seconds. Provenance [REC].
+    ///
+    /// Kept beside the step period as a tripwire: it should be about twice it.
+    /// A stride lag that is not carries the docs/decisions.md entry 11 failure
+    /// mode — Ad1 and Ad2 anchored to each other's lag — up to the metric level,
+    /// where it is visible rather than hidden behind two plausible numbers.
+    let observedStrideLag: Double?
+    /// Which side the profile identifies as affected, when asymmetry is
+    /// reported. [PRD §7] requires the feature be *labelled*; a bare number
+    /// says nothing about which limb it refers to.
+    let asymmetryAffectedSide: AmputationSide?
 
     init(
         stepRegularity: Double,
@@ -51,7 +64,10 @@ struct GaitMetrics: Sendable, Equatable, Codable {
         steps: Int? = nil,
         distance: Double? = nil,
         validStrideCount: Int,
-        windowCount: Int
+        windowCount: Int,
+        observedStepPeriod: Double? = nil,
+        observedStrideLag: Double? = nil,
+        asymmetryAffectedSide: AmputationSide? = nil
     ) {
         self.stepRegularity = stepRegularity
         self.strideRegularity = strideRegularity
@@ -64,6 +80,9 @@ struct GaitMetrics: Sendable, Equatable, Codable {
         self.distance = distance
         self.validStrideCount = validStrideCount
         self.windowCount = windowCount
+        self.observedStepPeriod = observedStepPeriod
+        self.observedStrideLag = observedStrideLag
+        self.asymmetryAffectedSide = asymmetryAffectedSide
     }
 
     /// The raw value for a registry metric, or nil when this session does not

@@ -163,10 +163,13 @@ struct AsymmetryPolicy: Sendable, Equatable {
     /// [PRD §7, OQ-1] — this is a PRD rule, not a tunable.
     let requiresUnilateralProfile: Bool
     /// PROVISIONAL — pending device validation (Phase 12).
-    /// Both half-stride peaks must be prominent before a value is reported;
-    /// what counts as prominent is the feature stage's own peak criterion
-    /// (Task 5.2.4), not a separate threshold declared here.
+    /// Both half-stride peaks must be prominent before a value is reported.
     let requiresBothPeaksProminent: Bool
+    /// PROVISIONAL — pending device validation (Phase 12).
+    /// Normalised autocorrelation both peaks must reach. Below this the walk is
+    /// not periodic enough for the contrast between the peaks to mean anything,
+    /// and the honest answer is no value at all rather than a number.
+    let minimumPeakProminence: Double
     /// The affected side comes from the user's profile, not from guessing at
     /// the signal [PRD §7].
     let sideFromProfile: Bool
@@ -385,6 +388,8 @@ struct AlgorithmConfiguration: Sendable, Equatable {
             usesHalfStridePeakRatio: true,
             requiresUnilateralProfile: true,
             requiresBothPeaksProminent: true,
+            // PROVISIONAL — pending device validation (Phase 12).
+            minimumPeakProminence: 0.2,
             sideFromProfile: true
         ),
         normalization: NormalizationPolicy(

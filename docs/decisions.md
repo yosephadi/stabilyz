@@ -346,3 +346,78 @@ feature, sound-vs-prosthetic asymmetry, belongs to stage 6.
 per-axis trunk RMS. Aggregating those into session `GaitMetrics` is Task 5.2.5.
 Collapsing them here would destroy the across-window variability that step-time
 CV is computed from.
+
+---
+
+## 12. Metric assembly — aggregation statistics and the asymmetry reading
+
+**Date:** 2026-09-09 · **Task:** 5.2.5 · **Status:** Decided (statistics) / **Needs confirmation** (asymmetry formula reading)
+
+### Aggregation choices
+
+Per-window features become one session's metrics. Each choice, and why:
+
+| Metric | Statistic | Reasoning |
+|---|---|---|
+| Ad1, Ad2 | **Median** across windows | A window that caught a turn, a kerb or a stumble is an outlier, not a correction. Averaging lets one such window drag the session. |
+| `cadenceMean` | **60 ÷ median pooled step time** | The metronome takes its tempo from this. A handful of long steps at a turn must not slow the pace the user is later asked to walk to. The field name is the docs/05 §5.1 name; the statistic is a robust centre. |
+| `stepTimeCV` | CV **within** each window, then **median** across windows | CV is short-term variability, which is a within-window quantity. Pooling all step times first would fold between-window drift into it and inflate every session with more than one bout. |
+| Trunk ML / VT RMS | **Median** across windows | Same outlier reasoning as Ad1/Ad2. |
+| `steps`, `distance` | **Max** of pedometer events | Cumulative counters; the last reading is the total. Context only — a test asserts they change no measurement. |
+| `validStrideCount` | **Sum** | Windows are non-overlapping (entry 11), so summing cannot double-count. |
+| `observedStepPeriod`, `observedStrideLag` | **Median** | Provenance; carries the entry-11 tripwire to the metric level. |
+
+Median uses the average of the two central values for even counts, so a
+two-window session is not silently biased toward the later window.
+
+### The profile enters here and only here
+
+Stage 5 is profile-blind by construction; stage 6 is where the
+unilateral/bilateral distinction legitimately lives, because whether a
+sound-vs-prosthetic comparison is *meaningful* depends on the user having a
+sound side. A test asserts that changing the profile changes only the asymmetry
+value and its label — every other metric is byte-identical.
+
+### Absence is a result, not a gap
+
+`stepTimeAsymmetry` is nil — never zero — for bilateral profiles, for sessions
+with no profile, and for walks whose peaks are not prominent enough to contrast.
+Zero would claim perfect symmetry was *measured* [PRD §7]. Tests assert absence
+explicitly, including `!= 0`, for each case.
+
+`asymmetryAffectedSide` is added to `GaitMetrics` so the value is *labelled*, as
+[PRD §7] requires. It comes from the profile, never from guessing at the signal.
+
+### The concrete reading of the formula — NEEDS CONFIRMATION
+
+Entry 2 fixed the shape as `(P1 − P2) / (P1 + P2)` over "autocorrelation
+half-stride peaks". Two readings were available:
+
+1. **P1 and P2 as the peaks at one and two half-strides** — the step lag and the
+   stride lag. This is what is implemented: symmetric gait repeats equally well
+   over a step and a stride and gives ≈0; asymmetric gait repeats better over the
+   full stride and gives a negative value whose magnitude grows with asymmetry.
+2. **P1 and P2 as two distinct peaks flanking the half-stride lag**, one per
+   half-cycle. This detects *timing* asymmetry (unequal step durations) but
+   returns exactly zero for the amplitude asymmetry in the Task 5.2.4 fixture,
+   because both half-cycles there are the same length.
+
+Reading 1 was chosen because it is nonzero for both amplitude and timing
+asymmetry, and because the required test — the 5.2.4 asymmetric fixture yielding
+a nonzero value — is unsatisfiable under reading 2.
+
+**Consequence worth stating plainly:** under reading 1 the index is a monotone
+function of Ad1 and Ad2, so it adds no information the two regularity metrics do
+not already carry — it re-expresses their contrast on a bounded, signed scale.
+It also does not distinguish *which* limb differs; the sign follows the step/stride
+contrast, and the affected side comes from the profile label. If the intent was a
+literal sound-vs-prosthetic step-*duration* comparison, that is reading 2 plus a
+gait-event side-identification method, and both the formula and the Task 5.2.4
+fixture would need revisiting. docs/08 §8.2 still lists the asymmetry computation
+and the definition of "side reliably identifiable" as [OPEN].
+
+### New tunable
+
+| Parameter | Value | Reasoning |
+|---|---|---|
+| `AsymmetryPolicy.minimumPeakProminence` | 0.2 | **PROVISIONAL — pending device validation (Phase 12).** Normalised autocorrelation both peaks must reach. Below it the walk is not periodic enough for the contrast to mean anything, and the honest answer is no value rather than a number. Supersedes entry 1's note that no separate prominence threshold would be needed. |
