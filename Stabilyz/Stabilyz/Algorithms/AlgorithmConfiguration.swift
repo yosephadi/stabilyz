@@ -67,6 +67,16 @@ struct PreprocessingPolicy: Sendable, Equatable {
     let zeroPhaseFiltering: Bool
 }
 
+/// Baseline establishment (docs/09).
+struct BaselinePolicy: Sendable, Equatable {
+    /// PROVISIONAL — pending device validation (Phase 12).
+    /// How many of the five calibration sessions must carry an asymmetry value
+    /// before the baseline gets an asymmetry stat. Fewer is too thin a sample to
+    /// describe a user's normal, and the stat would be indistinguishable from a
+    /// well-supported one at every later comparison.
+    let minimumAsymmetrySessions: Int
+}
+
 /// Which stretches of a session count as walking (docs/08 stage 3).
 struct WalkingDetectionPolicy: Sendable, Equatable {
     /// PROVISIONAL — pending device validation (Phase 12).
@@ -315,6 +325,7 @@ struct AlgorithmConfiguration: Sendable, Equatable {
     let preprocessing: PreprocessingPolicy
     let walkingDetection: WalkingDetectionPolicy
     let featureExtraction: FeatureExtractionPolicy
+    let baseline: BaselinePolicy
     let orientation: OrientationPolicy
     let noise: NoisePolicy
     let trunkProxy: TrunkProxyPolicy
@@ -386,6 +397,10 @@ struct AlgorithmConfiguration: Sendable, Equatable {
             stepPeakProminenceSDs: 0.5,
             // PROVISIONAL — pending device validation (Phase 12).
             lagSearchTolerance: 0.15
+        ),
+        baseline: BaselinePolicy(
+            // PROVISIONAL — pending device validation (Phase 12).
+            minimumAsymmetrySessions: 3
         ),
         orientation: OrientationPolicy(
             verticalFromGravity: true,

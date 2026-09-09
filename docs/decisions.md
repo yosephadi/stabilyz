@@ -573,3 +573,80 @@ missing and the requirement could not be met without them:
 - `profile` added to `GaitScoringAlgorithm.analyze` and
   `SessionProcessor.process`. Asymmetry is profile-dependent (entry 13) and
   stage 6 cannot run without it; the 5.1.1 contract had no way to pass it.
+
+---
+
+## 16. Baseline calculation — where the SD floor is applied, and how
+
+**Date:** 2026-09-09 · **Task:** 6.1.1 · **Status:** Decided (method) / Provisional (values)
+
+### The SD floor is applied at baseline creation, not at scoring time
+
+`BaselineMetricStat.sd` stores the **floored** value; `sdFloorApplied` records
+that it was raised. Task 6.2.1 will divide by the stored `sd` directly and must
+not re-apply the floor.
+
+Three reasons:
+
+1. **docs/09 §9.1** describes the stat as "mean, sd, floor flag". A flag stored
+   at rest only means something if the floor was already applied to produce the
+   stored value.
+2. **The baseline is frozen** [PRD §6]. Applying the floor at scoring time would
+   let a later `AlgorithmConfiguration` change silently alter what an existing
+   frozen baseline means — two sessions scored under different app builds would
+   be incomparable despite carrying the same `algorithmVersion`.
+3. **The divisor becomes inspectable.** It is exported and shown in the clinician
+   summary as a fixed number, not a value recomputed on the fly.
+
+### Sample standard deviation, not population
+
+Divide by `n − 1`. The five calibration sessions are a *sample* of how this user
+walks, not the whole of it, so the Bessel-corrected estimator is the unbiased one
+for the underlying spread. At n = 5 the two forms differ by about 12%, which
+materially changes every later z-score, so this is not a rounding-level choice.
+A test pins the exact closed form and asserts the population value is *not* what
+comes out.
+
+### `cadenceBPM` is the arithmetic mean of the five session cadences
+
+docs/09 §9.2 [REC]. An arithmetic mean is right here where a median was right
+within a session (entry 14): these five values are already robust per-session
+summaries, so there are no outlier samples left to defend against, and five
+values have no stable median anyway.
+
+### Asymmetry stat requires at least three of five
+
+**PROVISIONAL — pending device validation (Phase 12).**
+`BaselinePolicy.minimumAsymmetrySessions = 3`.
+
+Asymmetry is the one metric that can legitimately be missing from some sessions
+(entry 13). Below the minimum the stat is **absent**, not zero and not a mean of
+whatever happened to be there — the same absence-versus-fabrication rule as the
+metric itself [PRD §7]. `n` records how many sessions actually contributed, so a
+thin stat is visible rather than indistinguishable from a well-supported one at
+every later comparison.
+
+### Refusals — defence in depth
+
+The service refuses a wrong count, a session from another mode, an invalid
+session, missing metrics, non-chronological or simultaneous sessions, duplicates,
+and **sessions computed under different algorithm versions** (docs/09 §9.6).
+
+Every one is a caller bug rather than a user-facing condition. They are checked
+anyway because a baseline built from the wrong sessions is silently wrong
+forever: every later score is measured against it, and v1 never recalibrates.
+Same stance as `SessionProcessor`'s baseline-mode check [PRD OQ-5].
+
+### Freezing is structural
+
+There is no update, merge or recalculate entry point, and every `Baseline`
+property is a `let`. A second calculation produces a *new* baseline and cannot
+alter an existing one; `StoreWriter.establish` then refuses to store it
+(Task 3.2.2). Freezing [PRD §6] holds at both layers without anyone having to
+remember a rule.
+
+### Version stamped from the sessions, not the configuration
+
+The baseline carries the `algorithmVersion` its source sessions were computed
+under, not whatever the current build is. Stamping the current version would
+produce a baseline claiming comparability it does not have.
