@@ -36,6 +36,23 @@ actor StoreReader {
         return try modelContext.fetch(descriptor).map(EntityMapping.session(from:))
     }
 
+    /// The earliest valid sessions of a mode, oldest first.
+    ///
+    /// The baseline is built from the **first** five (docs/09 §9.2), so this
+    /// query orders ascending rather than reversing a history query at the call
+    /// site, where the ordering would be easy to get wrong unnoticed.
+    func earliestValidSessions(mode: TestMode, limit: Int) throws -> [GaitSession] {
+        let modeRaw = mode.rawValue
+        let validColumn = SessionValidity.valid
+
+        var descriptor = FetchDescriptor<GaitSessionEntity>(
+            predicate: #Predicate { $0.mode == modeRaw && $0.validity == validColumn },
+            sortBy: [SortDescriptor(\.startedAt, order: .forward)]
+        )
+        descriptor.fetchLimit = limit
+        return try modelContext.fetch(descriptor).map(EntityMapping.session(from:))
+    }
+
     /// Valid sessions of that mode only — the number the baseline state machine
     /// derives "Session X of 5" from. Invalid sessions never count
     /// [PRD §6, §7, docs/09 §9.4].

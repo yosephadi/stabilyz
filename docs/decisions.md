@@ -650,3 +650,67 @@ remember a rule.
 The baseline carries the `algorithmVersion` its source sessions were computed
 under, not whatever the current build is. Stamping the current version would
 produce a baseline claiming comparability it does not have.
+
+---
+
+## 17. Baseline refusal on the fifth valid session
+
+**Date:** 2026-09-09 · **Task:** 6.1.2 · **Status:** Decided (behaviour) / **[OPEN]** (recovery policy)
+
+### What happens
+
+Five valid same-mode sessions exist, but `BaselineCalculationService` refuses to
+build a baseline from them — in practice because they were computed under
+different algorithm versions (docs/09 §9.6).
+
+The session is **committed alone**. It is a valid walk and the user's data; a
+calculation problem is no reason to discard it. The count stands at five,
+`BaselineState` reads `building(5)`, and `BaselineCommitOutcome.refused` carries
+the reason.
+
+**No silent fallback and no auto-restart.** No substitute baseline is invented
+from four sessions or from a different five, and calibration is not reset to
+"1 of 5" — a user who has walked five times has walked five times, and quietly
+restarting their progress would be both wrong and unexplainable. A later session
+retries against the same first five and refuses again, which is stable rather
+than oscillating.
+
+### The flag is currently ephemeral — [OPEN]
+
+The refusal is returned in `SessionCommitResult` and logged. It is **not
+persisted**: nothing in the schema records "this mode has five valid sessions and
+a baseline that could not be built".
+
+That is deliberate for now, because the recovery policy is itself deferred.
+docs/09 §9.6 leaves algorithm-version mismatch handling [OPEN] — re-baseline
+prompt, coexistence, or migration — and until that is decided there is nothing
+for a persisted flag to drive. v1 ships one algorithm version, so the case cannot
+arise in practice; the refusal path exists so that it fails visibly rather than
+silently if it ever does.
+
+**Phase 12 / post-v1:** deciding §9.6's policy also decides whether this flag
+needs persisting and what the user is told.
+
+### Ordering: compute, then write
+
+The pure calculation runs before anything is persisted, so a set that cannot
+produce a baseline is discovered while the store is untouched. The observable
+consequence, and what the test asserts, is that **no baseline row is ever created
+and then rolled back** on the refusal path.
+
+### Atomicity: session and baseline commit together
+
+`StoreWriter.commit(_:establishing:)` writes both in one transaction, with the
+create-only check *inside* it. Writing them separately would leave a window where
+the fifth valid session is stored and its baseline is not: the derived count
+would read five with nothing established, and the next commit would try to
+establish from a set that now includes a sixth session.
+
+A test forces the failure by pre-establishing a baseline, then asserts the store
+is byte-stable — no session row, no second baseline.
+
+### The counter stays derived
+
+Recounted from persisted valid sessions on every commit, never incremented
+(docs/09 §9.4). A test writes a session behind the service's back and confirms
+the next commit still counts correctly, which an accumulated counter could not.

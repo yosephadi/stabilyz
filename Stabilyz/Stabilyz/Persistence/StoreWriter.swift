@@ -34,6 +34,41 @@ actor StoreWriter {
         }
     }
 
+    /// Commits a session and, optionally, the baseline it establishes — as one
+    /// transaction (docs/06 §6.3).
+    ///
+    /// Both land or neither does. Writing them separately would leave a window
+    /// where the fifth valid session is stored but its baseline is not: the
+    /// count would read 5 with nothing established, and the next commit would
+    /// try to establish again from a set that now includes a sixth session.
+    func commit(_ session: GaitSession, establishing baseline: Baseline?) throws {
+        let sessionEntity = try EntityMapping.entity(from: session)
+        let id = session.id
+        let baselineEntity = try baseline.map(EntityMapping.entity(from:))
+        let mode = baseline?.mode
+        let modeRaw = mode?.rawValue
+
+        try transaction {
+            let existing = try modelContext.fetch(
+                FetchDescriptor<GaitSessionEntity>(predicate: #Predicate { $0.id == id })
+            )
+            for row in existing { modelContext.delete(row) }
+            modelContext.insert(sessionEntity)
+
+            guard let baselineEntity, let mode, let modeRaw else { return }
+
+            // Create-only, checked inside the same transaction so a concurrent
+            // establish cannot slip between the check and the insert.
+            let existingBaselines = try modelContext.fetch(
+                FetchDescriptor<BaselineEntity>(predicate: #Predicate { $0.mode == modeRaw })
+            )
+            guard existingBaselines.isEmpty else {
+                throw WriteError.baselineAlreadyExists(mode: mode)
+            }
+            modelContext.insert(baselineEntity)
+        }
+    }
+
     // MARK: - Baselines
 
     /// Creates a baseline for its mode.
