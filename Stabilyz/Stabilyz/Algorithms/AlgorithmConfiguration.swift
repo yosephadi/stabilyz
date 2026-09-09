@@ -26,6 +26,47 @@ struct OrientationPolicy: Sendable, Equatable {
     let computedPerSession: Bool
 }
 
+/// Filtering, resampling and orientation for pipeline stage 2 (docs/08).
+struct PreprocessingPolicy: Sendable, Equatable {
+    /// PROVISIONAL — pending device validation (Phase 12).
+    /// The uniform grid every later stage assumes. Matching the acquisition
+    /// rate keeps resampling to interpolation between neighbours rather than a
+    /// rate change.
+    let targetSampleRateHz: Double
+    /// PROVISIONAL — pending device validation (Phase 12).
+    /// Removes drift and any residual gravity. Below a slow walk's stride
+    /// frequency, so nothing gait-related is attenuated.
+    let highPassCutoffHz: Double
+    /// PROVISIONAL — pending device validation (Phase 12).
+    /// Removes energy above gait harmonics. Sits above the noise metric's 8 Hz
+    /// cutoff so the two measure different things: this one cleans the signal,
+    /// that one judges it.
+    let lowPassCutoffHz: Double
+    /// PROVISIONAL — pending device validation (Phase 12).
+    /// Used only when a capture has no gravity vector: gravity is then whatever
+    /// survives below this frequency.
+    let gravityEstimationCutoffHz: Double
+    /// PROVISIONAL — pending device validation (Phase 12).
+    /// A fragment shorter than this between two dropouts carries no usable
+    /// gait and would only add filter edge artefacts.
+    let minimumSegmentDuration: Duration
+
+    /// PROVISIONAL — pending device validation (Phase 12).
+    /// Cycles of the high-pass cutoff to reflect-pad each end with before
+    /// filtering. An IIR filter starts from rest, so without padding the first
+    /// samples carry a start-up transient rather than signal — and with
+    /// zero-phase filtering that artefact appears at both ends.
+    let filterEdgePaddingCycles: Double
+
+    /// Whether the band-pass is applied forward and then backward.
+    ///
+    /// Zero phase matters here: step times are measured off this signal, and a
+    /// one-sided filter shifts every peak by the same delay — harmless for
+    /// intervals, but it would misplace peaks against the pedometer and the
+    /// gap record, which are on the untouched timeline.
+    let zeroPhaseFiltering: Bool
+}
+
 /// How noise is measured and where the acceptable limit sits
 /// (docs/08 stage 4, PRD: "define threshold").
 struct NoisePolicy: Sendable, Equatable {
@@ -195,6 +236,7 @@ struct AlgorithmConfiguration: Sendable, Equatable {
     let version: String
     let motionAcquisition: MotionAcquisitionPolicy
     let gapDetection: GapDetectionPolicy
+    let preprocessing: PreprocessingPolicy
     let orientation: OrientationPolicy
     let noise: NoisePolicy
     let trunkProxy: TrunkProxyPolicy
@@ -225,6 +267,21 @@ struct AlgorithmConfiguration: Sendable, Equatable {
             // Three times the observed median interval: at least two consecutive
             // samples must be missing before anything counts as a dropout.
             toleranceMultiplier: 3
+        ),
+        preprocessing: PreprocessingPolicy(
+            // PROVISIONAL — pending device validation (Phase 12).
+            targetSampleRateHz: 100,
+            // PROVISIONAL — pending device validation (Phase 12).
+            highPassCutoffHz: 0.5,
+            // PROVISIONAL — pending device validation (Phase 12).
+            lowPassCutoffHz: 20,
+            // PROVISIONAL — pending device validation (Phase 12).
+            gravityEstimationCutoffHz: 0.5,
+            // PROVISIONAL — pending device validation (Phase 12).
+            minimumSegmentDuration: .seconds(2),
+            // PROVISIONAL — pending device validation (Phase 12).
+            filterEdgePaddingCycles: 3,
+            zeroPhaseFiltering: true
         ),
         orientation: OrientationPolicy(
             verticalFromGravity: true,

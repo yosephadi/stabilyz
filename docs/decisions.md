@@ -76,7 +76,7 @@ what the composite means for bilateral users.
 
 ## 3. Metrics with no decided direction
 
-**Date:** 2026-09-09 · **Task:** 5.1.2 · **Status:** Open
+**Date:** 2026-09-09 · **Task:** 5.1.2 · **Status:** Decided — no directions in v1
 
 `cadenceMean` and `stepTimeAsymmetry` are standardised against a baseline and get
 SD floors, but carry **no** `MetricID.Direction` in the configuration.
@@ -86,8 +86,11 @@ cadence is not self-evidently better, and asymmetry is signed by which side lead
 Asserting a direction would let the UI label a change "better" or "worse" on a
 judgement nobody has made.
 
-**Consequence:** the breakdown must show these two as values, not as
-improvements or regressions, until a direction is decided.
+Cadence is a value, not a verdict. Asymmetry's sign is meaningful — it says which
+side leads — but not better or worse.
+
+**Consequence:** the breakdown shows these two as values, never as improvements
+or regressions.
 
 ---
 
@@ -107,6 +110,10 @@ Below three intervals there is no meaningful median — with one interval the
 median *is* that interval, so nothing could exceed a multiple of itself and a
 lone dropout would go unreported. In that case the requested rate is the fallback.
 
+A single dropped sample going unreported is **accepted**: preprocessing resamples
+onto a uniform grid regardless, and a real suspension is seconds long, not one
+sample.
+
 ---
 
 ## 5. Deferred decisions
@@ -119,3 +126,42 @@ lone dropout would go unreported. In that case the requested rate is the fallbac
 | **Phone-placement** guidance copy | EPIC 8 | The orientation policy assumes no fixed placement, but the Session Setup screen still has to tell the user something. Wording is a product decision, not an algorithm one. |
 | **Device validation** of every value in entry 1 | Phase 12 | Simulators cannot produce realistic prosthetic gait (docs/19 §19.4). |
 | Algorithm-version **mismatch** handling | Post-v1 | docs/09 §9.6 — v1 ships one version so the case cannot arise; the data model already stamps versions. |
+| Score screen renders **asymmetry as a signed, side-labelled value**, never better/worse | EPIC 8 | Follows from entry 3: asymmetry has a meaningful sign but no direction. |
+
+---
+
+## 6. Preprocessing tunables
+
+**Date:** 2026-09-09 · **Task:** 5.2.1 · **Status:** Provisional
+
+Discovered while implementing pipeline stage 2. All live in
+`PreprocessingPolicy` inside `AlgorithmConfiguration`, each marked
+**PROVISIONAL — pending device validation (Phase 12)**.
+
+| Parameter | Value | Reasoning |
+|---|---|---|
+| `targetSampleRateHz` | 100 | Matches acquisition, so resampling interpolates between neighbours rather than changing rate |
+| `highPassCutoffHz` | 0.5 | Removes drift and residual gravity; below a slow walk's stride frequency, so no gait content is attenuated |
+| `lowPassCutoffHz` | 20 | Above gait harmonics. Deliberately above the noise metric's 8 Hz cutoff — this one *cleans* the signal, that one *judges* it |
+| `gravityEstimationCutoffHz` | 0.5 | Only used for accelerometer-only captures with no gravity vector |
+| `minimumSegmentDuration` | 2 s | A shorter fragment between two dropouts carries no usable gait and only contributes filter edge artefacts |
+| `filterEdgePaddingCycles` | 3 | Cycles of the high-pass cutoff to reflect-pad with; ~3 time constants is where an IIR has settled |
+| `zeroPhaseFiltering` | true | Forward-backward, so peaks stay where they happened |
+
+**Two non-tunable implementation decisions worth recording:**
+
+- **Zero-phase filtering.** Step times are measured off this signal. A one-sided
+  filter delays every peak equally — harmless for intervals between peaks, but it
+  would misplace them against the pedometer stream and the gap record, which sit
+  on the untouched timeline. Forward-backward filtering costs a second pass and
+  removes the question.
+
+- **Mean removal and reflect-padding before filtering.** Both were added after
+  tests caught real artefacts: a large DC offset made the high-pass start from a
+  step and ring for roughly a second, and the un-padded filter's start-up
+  transient landed on real gait data at both ends. Neither is a tuning choice;
+  handing an IIR a step and then measuring the ringing is simply wrong.
+
+**Filter form:** second-order Butterworth biquads (Q = 1/√2), written out rather
+than taken from Accelerate. The filter is the part of the pipeline most worth
+being able to read and check by hand, and at 36k samples the cost is irrelevant.
