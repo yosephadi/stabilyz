@@ -49,4 +49,20 @@ actor StoreReader {
             )
         )
     }
+
+    // MARK: - Baselines
+
+    /// There is no mode-less baseline query, by design: cross-mode comparison
+    /// is a compile-time impossibility rather than a convention (docs/09 §9.3).
+    func baseline(mode: TestMode) throws -> Baseline? {
+        let modeRaw = mode.rawValue
+        let descriptor = FetchDescriptor<BaselineEntity>(predicate: #Predicate { $0.mode == modeRaw })
+        guard let entity = try modelContext.fetch(descriptor).first else { return nil }
+        return try EntityMapping.baseline(from: entity)
+    }
+
+    /// Both modes' baselines, for the clinician summary and export.
+    func allBaselines() throws -> [Baseline] {
+        try modelContext.fetch(FetchDescriptor<BaselineEntity>()).map(EntityMapping.baseline(from:))
+    }
 }
