@@ -85,7 +85,9 @@ private struct FixtureClock: Clock {
     }
 
     #expect(received.count == fixture.samples.count)
-    #expect(received.map(\.deviceTimestamp) == fixture.samples.map(\.t))
+    // Capture timestamps are offset onto the live uptime timebase.
+    let anchorUptime = FixtureClock().uptime
+    #expect(received.map(\.deviceTimestamp) == fixture.samples.map { anchorUptime + $0.t })
     #expect(zip(received, received.dropFirst()).allSatisfy { $0.deviceTimestamp < $1.deviceTimestamp })
 }
 

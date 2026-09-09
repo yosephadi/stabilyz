@@ -28,9 +28,13 @@ enum StabilyzError: Error, Equatable {
         case midSessionFailure
     }
 
-    /// Interruption and gap outcomes (docs/07 §7.7).
+    /// Interruption and gap outcomes (docs/07 §7.7), plus recorder lifecycle
+    /// misuse. The lifecycle cases are caller bugs rather than conditions a
+    /// user can cause, but they still get calm copy — a crash would be worse.
     enum Recording: Equatable {
         case unrecoverableInterruption
+        case alreadyRecording
+        case notRecording
     }
 
     /// Pipeline validity outcomes (docs/08 stages 3-5).

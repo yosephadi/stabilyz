@@ -51,20 +51,30 @@ actor FixtureSensorService: MotionSensorService {
         let (stream, continuation) = AsyncStream<SensorSample>.makeStream(bufferingPolicy: .unbounded)
         self.continuation = continuation
 
-        replayTask = Task {
-            var previous: TimeInterval?
-            for sample in samples {
-                if Task.isCancelled { break }
-                if pacing == .realTime, let previous {
-                    let delay = sample.deviceTimestamp - previous
-                    if delay > 0 {
-                        try? await Task.sleep(for: .seconds(delay))
-                    }
-                }
-                previous = sample.deviceTimestamp
-                continuation.yield(sample)
-            }
+        switch pacing {
+        case .immediate:
+            // Yield everything before returning, so the whole capture is
+            // buffered by the time recording starts. Anything lazier races the
+            // caller's stop() and silently truncates the replay.
+            for sample in samples { continuation.yield(sample) }
             continuation.finish()
+
+        case .realTime:
+            replayTask = Task {
+                var previous: TimeInterval?
+                for sample in samples {
+                    if Task.isCancelled { break }
+                    if let previous {
+                        let delay = sample.deviceTimestamp - previous
+                        if delay > 0 {
+                            try? await Task.sleep(for: .seconds(delay))
+                        }
+                    }
+                    previous = sample.deviceTimestamp
+                    continuation.yield(sample)
+                }
+                continuation.finish()
+            }
         }
 
         return stream

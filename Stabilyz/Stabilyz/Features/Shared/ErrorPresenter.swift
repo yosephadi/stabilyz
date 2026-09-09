@@ -50,6 +50,17 @@ enum ErrorPresenter {
                 reassuresDataUnchanged: true
             )
 
+        case .recording(.alreadyRecording):
+            ErrorPresentation(
+                message: "A session is already running.",
+                isRecoverable: true
+            )
+        case .recording(.notRecording):
+            ErrorPresentation(
+                message: "There's no session running to stop.",
+                isRecoverable: true
+            )
+
         case .recording(.unrecoverableInterruption):
             ErrorPresentation(
                 message: "That session was interrupted, so there wasn't enough clean walking to measure. Try again when you can walk without stopping.",

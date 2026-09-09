@@ -128,10 +128,14 @@ struct GaitFixture: Codable, Equatable, Sendable {
         return last.t - first.t
     }
 
+    /// Capture timestamps are relative to the start of the capture. Replaying
+    /// places them on the live uptime timebase by offsetting from the anchor,
+    /// so a fixture is indistinguishable from hardware delivering now
+    /// (docs/07 §7.4).
     func sensorSamples(anchoredAt anchor: TimeAnchor) -> [SensorSample] {
         samples.map { sample in
             SensorSample(
-                deviceTimestamp: sample.t,
+                deviceTimestamp: anchor.uptime + sample.t,
                 anchor: anchor,
                 acceleration: Vector3(x: sample.ax, y: sample.ay, z: sample.az),
                 gravity: sample.gx.flatMap { gx in
