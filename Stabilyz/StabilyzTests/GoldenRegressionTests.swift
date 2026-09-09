@@ -168,6 +168,63 @@ private extension SessionAnalysisOutcome {
 @Test func goldenPausedSession() async throws { try await verify("paused-walk-quick") }
 @Test func goldenGappedSession() async throws { try await verify("gapped-walk-quick") }
 
+/// The only golden that exercises scoring, so it runs its own comparison rather
+/// than going through `verify`, which assumes no baseline.
+@Test func goldenScoredSixthSession() async throws {
+    let golden = try GoldenStore.load("scored-sixth-session-quick")
+    let calibration = try #require(golden.calibration)
+    let config = AlgorithmConfiguration.v1
+    let pipeline = GaitAnalysisPipeline(configuration: config)
+
+    let baseline = try await GoldenSignal.baseline(
+        from: calibration, mode: golden.testMode,
+        profile: golden.profile.profile, configuration: config
+    )
+
+    // Derived: a calibration session scored against its own baseline sits at the
+    // centre by construction, because every metric equals its own mean.
+    let calibrationOutcome = try await pipeline.analyze(
+        buffer: GoldenSignal.buffer(for: calibration, mode: golden.testMode),
+        baseline: baseline, profile: golden.profile.profile, progress: { _ in }
+    )
+    guard case .valid(_, _, let calibrationScore) = calibrationOutcome else {
+        Issue.record("calibration session should be valid")
+        return
+    }
+    #expect(try #require(calibrationScore).relativeIndex == 100)
+    #expect(golden.expected.calibrationRelativeIndex == 100)
+
+    // Recorded: the scored session's index has no closed form at signal level.
+    let outcome = try await pipeline.analyze(
+        buffer: GoldenSignal.buffer(for: golden.signal, mode: golden.testMode),
+        baseline: baseline, profile: golden.profile.profile, progress: { _ in }
+    )
+    guard case .valid(let metrics, _, let score) = outcome else {
+        Issue.record("scored session should be valid")
+        return
+    }
+    let actual = try #require(score)
+
+    #expect(actual.relativeIndex == golden.expected.relativeIndex)
+    expectClose(actual.compositeZ, golden.expected.compositeZ, relative: Tolerance.relative, "scored: compositeZ")
+    #expect(actual.algorithmVersion == baseline.algorithmVersion)
+    // The metrics are still there alongside the score.
+    #expect(metrics.validStrideCount > 0)
+}
+
+@Test func aPreBaselineSessionCarriesMetricsButNoScore() async throws {
+    // [PRD §7] no relative score before the sixth valid session.
+    let golden = try GoldenStore.load("clean-walk-quick")
+    let (result, _) = try await runPipeline(golden)
+
+    guard case .valid(let metrics, _, let score) = result.outcome else {
+        Issue.record("expected a valid session")
+        return
+    }
+    #expect(score == nil)
+    #expect(metrics.validStrideCount > 0)
+}
+
 // MARK: - Cross-cutting assertions the individual cases cannot make
 
 @Test func theSameWalkPassesQuickAndFailsFull() async throws {
@@ -222,7 +279,7 @@ private extension SessionAnalysisOutcome {
         "clean-walk-quick", "jittered-steps-quick", "amplitude-asymmetry-quick",
         "timing-asymmetry-unilateral-quick", "timing-asymmetry-bilateral-quick",
         "vibration-quick", "hundred-second-walk-quick", "hundred-second-walk-full",
-        "paused-walk-quick", "gapped-walk-quick"
+        "paused-walk-quick", "gapped-walk-quick", "scored-sixth-session-quick"
     ] {
         let golden = try GoldenStore.load(name)
         #expect(golden.name == name)

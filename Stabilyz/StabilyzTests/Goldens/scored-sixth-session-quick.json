@@ -1,0 +1,48 @@
+{
+  "calibration" : {
+    "firstAmplitude" : 1,
+    "firstHalf" : 0.55,
+    "mediolateralAlternates" : true,
+    "secondAmplitude" : 1,
+    "secondHalf" : 0.55,
+    "seconds" : 120,
+    "stepJitter" : 0,
+    "vibrationAmplitude" : 0,
+    "vibrationHz" : 35
+  },
+  "expected" : {
+    "asymmetryReported" : true,
+    "cadenceMean" : 115.38461538461539,
+    "calibrationRelativeIndex" : 100,
+    "compositeZ" : 0.022684381029135718,
+    "exceededNoiseLimit" : false,
+    "gapCount" : 0,
+    "highFrequencyPowerRatio" : 0.04234274607811697,
+    "relativeIndex" : 102,
+    "stepRegularity" : 0.9475136856870934,
+    "stepTimeAsymmetry" : 0,
+    "stepTimeCV" : 4.2700885562506037e-16,
+    "strideRegularity" : 0.895027371374187,
+    "trunkMotionML" : 0.1311977137646995,
+    "trunkMotionVT" : 0.303098144177859,
+    "valid" : true,
+    "validStrideCount" : 109,
+    "validWalkingSeconds" : 118,
+    "windowCount" : 12
+  },
+  "mode" : "quickTest",
+  "name" : "scored-sixth-session-quick",
+  "notes" : "Five identical calibration walks build a real baseline; a sixth walk with a faster stride is scored against it. Pins the whole path from raw buffer to relative index. A calibration session scored against its own baseline sits at exactly 100 by construction.",
+  "profile" : "unilateral",
+  "signal" : {
+    "firstAmplitude" : 1,
+    "firstHalf" : 0.52,
+    "mediolateralAlternates" : true,
+    "secondAmplitude" : 1,
+    "secondHalf" : 0.52,
+    "seconds" : 120,
+    "stepJitter" : 0,
+    "vibrationAmplitude" : 0,
+    "vibrationHz" : 35
+  }
+}

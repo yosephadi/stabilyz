@@ -716,3 +716,57 @@ is byte-stable — no session row, no second baseline.
 Recounted from persisted valid sessions on every commit, never incremented
 (docs/09 §9.4). A test writes a session behind the service's back and confirms
 the next commit still counts correctly, which an accumulated counter could not.
+
+---
+
+## 18. Composite scoring and the relative index
+
+**Date:** 2026-09-09 · **Task:** 6.2.2 · **Status:** Decided
+
+### No renormalisation when a term is missing
+
+If any of the four composite terms lacks a standardized value, **no score is
+produced at all** — the session stays valid with raw metrics and
+`ScoreUnavailability.missingCompositeTerm` is recorded.
+
+Spreading the missing term's weight across the survivors was considered and
+rejected. It would present a three-term score on the same 100-centred scale as a
+four-term one: the number would look identical and mean something different, and
+nothing on screen could distinguish them. A missing term also means half a trunk
+proxy is not a trunk proxy — both ML and VT are required for that term.
+
+The path is defensive in v1. Every valid session carries all six standardizable
+metrics, and a baseline that reached five sessions has stats for all of them.
+
+### Version validity
+
+A session and baseline computed under different algorithm versions produce no
+score, recorded as `algorithmVersionMismatch`. Same class as the baseline's own
+mixed-version refusal (entry 17) and defensive for the same reason: v1 ships one
+version, and a cross-version comparison would yield a number that looks fine and
+means nothing (docs/09 §9.6).
+
+### The score records the baseline's version
+
+Not the session's. The comparison is only meaningful within the version the
+baseline was built under, so that is what travels with the result.
+
+### Stages 7 and 8 wired into the pipeline
+
+`GaitAnalysisPipeline` now runs normalization and scoring when a same-mode
+baseline is supplied. Before that it returns metrics with no score, which is
+both the pre-baseline shape [PRD §7] and what every existing golden asserts —
+they were re-verified as byte-identical after the change.
+
+### Golden extension
+
+`scored-sixth-session-quick` builds a real baseline from five calibration walks
+through the same services the app uses, then scores a sixth. It pins two things:
+
+- **Derived:** a calibration session scored against its own baseline gives
+  **exactly 100** — every metric equals its own mean, so every z is zero.
+- **Recorded:** the sixth session's index (102) and composite. A signal-level
+  deviation has no closed form through the full DSP, so this is a regression
+  anchor.
+
+All ten pre-existing golden files were verified unchanged by the regeneration.

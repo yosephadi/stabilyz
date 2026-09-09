@@ -5,11 +5,9 @@ import Foundation
 /// Pure Swift, no Apple frameworks beyond Foundation. `SessionProcessor` is its
 /// only caller, and view models never see the stages [PRD Rule 12].
 ///
-/// Stages 7 and 8 — baseline normalisation and composite scoring — are EPIC 6.
-/// Until they land, a valid session returns metrics with no score, which is the
-/// same shape a pre-baseline session has permanently: docs/08 stage 7 skips
-/// when no baseline exists, and [PRD §7] shows no relative score before the
-/// sixth valid session anyway.
+/// Stages 7 and 8 run only when a same-mode baseline exists. Before that, a
+/// valid session returns metrics with no score — docs/08 stage 7 skips, and
+/// [PRD §7] shows no relative score until the sixth valid session anyway.
 struct GaitAnalysisPipeline: GaitScoringAlgorithm {
     let configuration: AlgorithmConfiguration
 
@@ -75,13 +73,33 @@ struct GaitAnalysisPipeline: GaitScoringAlgorithm {
         ) else {
             return .invalid(reason: .insufficientValidWalking, validWalkingDuration: quality.validWalkingDuration)
         }
-        progress(ProcessingProgress(stage: .metrics, fraction: 1))
+        progress(ProcessingProgress(stage: .metrics, fraction: 5 / 6))
+
+        // Stages 7 and 8. Absent a baseline there is nothing to compare
+        // against, and inventing a comparison would be worse than showing none.
+        let standardization = try BaselineNormalization.standardize(
+            metrics: metrics,
+            mode: buffer.mode,
+            against: baseline,
+            configuration: configuration
+        )
+        progress(ProcessingProgress(stage: .normalization, fraction: 11 / 12))
+
+        var score: SessionScore?
+        if let standardization {
+            let scored = CompositeScorer.score(
+                standardization,
+                sessionAlgorithmVersion: configuration.version,
+                configuration: configuration
+            )
+            score = scored.score
+        }
+        progress(ProcessingProgress(stage: .scoring, fraction: 1))
 
         return .valid(
             metrics: metrics,
             validWalkingDuration: quality.validWalkingDuration,
-            // Stages 7-8 are EPIC 6.
-            score: nil
+            score: score
         )
     }
 }

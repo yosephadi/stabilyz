@@ -18,6 +18,7 @@ struct GoldenRegeneration {
             notes: "Steady 1.1 s stride, equal halves and amplitudes. Pins cadence and high regularity for an unremarkable good session.",
             mode: "quickTest", profile: .unilateral,
             signal: GoldenSignalSpec(seconds: 120),
+            calibration: nil,
             expected: .placeholder
         ),
         GoldenCase(
@@ -25,6 +26,7 @@ struct GoldenRegeneration {
             notes: "Same walk with step times wobbling by 100 ms. Pins that variability rises and step regularity falls.",
             mode: "quickTest", profile: .unilateral,
             signal: GoldenSignalSpec(seconds: 120, stepJitter: 0.1),
+            calibration: nil,
             expected: .placeholder
         ),
         GoldenCase(
@@ -32,6 +34,7 @@ struct GoldenRegeneration {
             notes: "One footfall lands harder. Pins Ad2 above Ad1 while step-time asymmetry stays near zero — the two features are distinct (entry 13).",
             mode: "quickTest", profile: .unilateral,
             signal: GoldenSignalSpec(seconds: 120, firstAmplitude: 1.0, secondAmplitude: 0.45),
+            calibration: nil,
             expected: .placeholder
         ),
         GoldenCase(
@@ -39,6 +42,7 @@ struct GoldenRegeneration {
             notes: "Half-cycles of 0.50 s and 0.60 s with alternating trunk lean. Pins asymmetry near the analytic 0.091.",
             mode: "quickTest", profile: .unilateral,
             signal: GoldenSignalSpec(seconds: 120, firstHalf: 0.50, secondHalf: 0.60),
+            calibration: nil,
             expected: .placeholder
         ),
         GoldenCase(
@@ -46,6 +50,7 @@ struct GoldenRegeneration {
             notes: "The identical signal under a bilateral profile. Pins that asymmetry is absent, never zero [PRD §7].",
             mode: "quickTest", profile: .bilateral,
             signal: GoldenSignalSpec(seconds: 120, firstHalf: 0.50, secondHalf: 0.60),
+            calibration: nil,
             expected: .placeholder
         ),
         GoldenCase(
@@ -53,6 +58,7 @@ struct GoldenRegeneration {
             notes: "Good walking under heavy 35 Hz vibration. Pins that noise is judged before the cleaning low-pass (entry 8) — the channels look fine, the session does not.",
             mode: "quickTest", profile: .unilateral,
             signal: GoldenSignalSpec(seconds: 120, vibrationAmplitude: 2.0),
+            calibration: nil,
             expected: .placeholder
         ),
         GoldenCase(
@@ -60,6 +66,7 @@ struct GoldenRegeneration {
             notes: "105 s of clean walking judged as a Quick Test. Passes [PRD OQ-3].",
             mode: "quickTest", profile: .unilateral,
             signal: GoldenSignalSpec(seconds: 105),
+            calibration: nil,
             expected: .placeholder
         ),
         GoldenCase(
@@ -67,6 +74,7 @@ struct GoldenRegeneration {
             notes: "The identical walk judged as a Full Test. Fails: 240 s required.",
             mode: "fullTest", profile: .unilateral,
             signal: GoldenSignalSpec(seconds: 105),
+            calibration: nil,
             expected: .placeholder
         ),
         GoldenCase(
@@ -74,6 +82,15 @@ struct GoldenRegeneration {
             notes: "Walk, 40 s standing still, walk. Pins that the pause is excluded from valid walking even though the clock ran [PRD §6].",
             mode: "quickTest", profile: .unilateral,
             signal: GoldenSignalSpec(seconds: 200, walkBeforePause: 80, pauseSeconds: 40),
+            calibration: nil,
+            expected: .placeholder
+        ),
+        GoldenCase(
+            name: "scored-sixth-session-quick",
+            notes: "Five identical calibration walks build a real baseline; a sixth walk with a faster stride is scored against it. Pins the whole path from raw buffer to relative index. A calibration session scored against its own baseline sits at exactly 100 by construction.",
+            mode: "quickTest", profile: .unilateral,
+            signal: GoldenSignalSpec(seconds: 120, firstHalf: 0.52, secondHalf: 0.52),
+            calibration: GoldenSignalSpec(seconds: 120),
             expected: .placeholder
         ),
         GoldenCase(
@@ -81,6 +98,7 @@ struct GoldenRegeneration {
             notes: "Walk with a 20 s sensor dropout. Pins that the gap is detected and not bridged, and the walking either side still counts.",
             mode: "quickTest", profile: .unilateral,
             signal: GoldenSignalSpec(seconds: 200, walkBeforeGap: 80, gapSeconds: 20),
+            calibration: nil,
             expected: .placeholder
         )
     ]
@@ -93,9 +111,18 @@ struct GoldenRegeneration {
             let buffer = GoldenSignal.buffer(for: definition.signal, mode: definition.testMode)
 
             let pipeline = GaitAnalysisPipeline(configuration: config)
+
+            var builtBaseline: Baseline?
+            if let calibration = definition.calibration {
+                builtBaseline = try await GoldenSignal.baseline(
+                    from: calibration, mode: definition.testMode,
+                    profile: definition.profile.profile, configuration: config
+                )
+            }
+
             let outcome = try await pipeline.analyze(
                 buffer: buffer,
-                baseline: nil,
+                baseline: builtBaseline,
                 profile: definition.profile.profile,
                 progress: { _ in }
             )
@@ -116,6 +143,7 @@ struct GoldenRegeneration {
                 stepRegularity: nil, strideRegularity: nil, stepTimeCV: nil,
                 trunkMotionML: nil, trunkMotionVT: nil,
                 validStrideCount: nil, windowCount: nil,
+                calibrationRelativeIndex: nil, relativeIndex: nil, compositeZ: nil,
                 exceededNoiseLimit: quality.exceededNoiseLimit,
                 highFrequencyPowerRatio: quality.highFrequencyPowerRatio,
                 gapCount: quality.gapInfo.gapCount
@@ -124,7 +152,7 @@ struct GoldenRegeneration {
             switch outcome {
             case .invalid(let reason, _):
                 expected.invalidReason = reason.rawValue
-            case .valid(let metrics, _, _):
+            case .valid(let metrics, _, let score):
                 expected.cadenceMean = metrics.cadenceMean
                 expected.stepTimeAsymmetry = metrics.stepTimeAsymmetry
                 expected.asymmetryReported = metrics.stepTimeAsymmetry != nil
@@ -135,6 +163,21 @@ struct GoldenRegeneration {
                 expected.trunkMotionVT = metrics.trunkMotionVT
                 expected.validStrideCount = metrics.validStrideCount
                 expected.windowCount = metrics.windowCount
+                expected.relativeIndex = score?.relativeIndex
+                expected.compositeZ = score?.compositeZ
+            }
+
+            // A calibration session scored against its own baseline sits at the
+            // centre by construction — derived, not recorded.
+            if let builtBaseline, let calibration = definition.calibration {
+                let calibrationBuffer = GoldenSignal.buffer(for: calibration, mode: definition.testMode)
+                let calibrationOutcome = try await pipeline.analyze(
+                    buffer: calibrationBuffer, baseline: builtBaseline,
+                    profile: definition.profile.profile, progress: { _ in }
+                )
+                if case .valid(_, _, let calibrationScore) = calibrationOutcome {
+                    expected.calibrationRelativeIndex = calibrationScore?.relativeIndex
+                }
             }
 
             var golden = definition
@@ -156,6 +199,7 @@ private extension GoldenExpectation {
         stepRegularity: nil, strideRegularity: nil, stepTimeCV: nil,
         trunkMotionML: nil, trunkMotionVT: nil,
         validStrideCount: nil, windowCount: nil,
+        calibrationRelativeIndex: nil, relativeIndex: nil, compositeZ: nil,
         exceededNoiseLimit: false, highFrequencyPowerRatio: 0, gapCount: 0
     )
 }

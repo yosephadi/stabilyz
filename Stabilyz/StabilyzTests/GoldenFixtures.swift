@@ -172,6 +172,9 @@ struct GoldenCase: Codable, Equatable {
     var mode: String
     var profile: GoldenProfile
     var signal: GoldenSignalSpec
+    /// When present, five sessions are generated from this spec and a real
+    /// baseline is built from them before `signal` is scored against it.
+    var calibration: GoldenSignalSpec?
     var expected: GoldenExpectation
 
     var testMode: TestMode { TestMode(rawValue: mode) ?? .quickTest }
@@ -196,6 +199,14 @@ struct GoldenExpectation: Codable, Equatable {
     var trunkMotionVT: Double?
     var validStrideCount: Int?
     var windowCount: Int?
+    /// Derived: a calibration session scored against its own baseline sits at
+    /// the centre by construction.
+    var calibrationRelativeIndex: Int?
+    /// Recorded: the scored session's index. The signal-level deviation has no
+    /// closed form, so this is a regression anchor.
+    var relativeIndex: Int?
+    /// Recorded: the composite the index was mapped from.
+    var compositeZ: Double?
     /// Quality facts.
     var exceededNoiseLimit: Bool
     var highFrequencyPowerRatio: Double
@@ -232,4 +243,50 @@ enum GoldenStore {
     static var isRegenerating: Bool {
         ProcessInfo.processInfo.environment["STABILYZ_REGENERATE_GOLDENS"] == "1"
     }
+}
+
+// MARK: - Scored cases
+
+extension GoldenSignal {
+    /// Builds a real baseline by running five calibration sessions through the
+    /// pipeline and the calculation service — the same path the app takes.
+    static func baseline(
+        from spec: GoldenSignalSpec,
+        mode: TestMode,
+        profile: UserProfile?,
+        configuration: AlgorithmConfiguration
+    ) async throws -> Baseline {
+        let pipeline = GaitAnalysisPipeline(configuration: configuration)
+        var sessions: [GaitSession] = []
+
+        for index in 0..<Baseline.requiredValidSessionCount {
+            let session = buffer(for: spec, mode: mode)
+            let outcome = try await pipeline.analyze(
+                buffer: session, baseline: nil, profile: profile, progress: { _ in }
+            )
+            guard case .valid(let metrics, let walking, _) = outcome else {
+                throw GoldenError.calibrationSessionInvalid
+            }
+            // Distinct start times so the set is chronological and distinct.
+            let start = anchor.wallClock.addingTimeInterval(Double(index) * 86_400)
+            sessions.append(
+                GaitSession.valid(
+                    id: UUID(), mode: mode, startedAt: start,
+                    endedAt: start.addingTimeInterval(spec.seconds),
+                    advertisedClockElapsed: mode.advertisedDuration,
+                    validWalkingDuration: walking, metrics: metrics,
+                    audioConfig: .none, algorithmVersion: configuration.version,
+                    appVersion: "1.0", deviceModel: "iPhone17,1"
+                )
+            )
+        }
+
+        return try BaselineCalculationService.calculate(
+            from: sessions, mode: mode,
+            establishedAt: anchor.wallClock.addingTimeInterval(500_000),
+            configuration: configuration
+        )
+    }
+
+    enum GoldenError: Error { case calibrationSessionInvalid }
 }
