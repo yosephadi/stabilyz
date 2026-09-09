@@ -2,14 +2,11 @@ import Foundation
 
 /// When a spacing between samples counts as a gap rather than jitter.
 ///
-/// [REC — tunable, not a PRD value.] Sensor delivery jitters by a fraction of
-/// the sample interval under normal load, so a small multiple avoids counting
-/// ordinary scheduling noise as a dropout. `toleranceMultiplier` of 3 means a
-/// gap is only recorded once at least two consecutive samples are missing.
-///
-/// The real value must be validated on device against thermal throttling and
-/// backgrounding behaviour (docs/21); it moves into the versioned
-/// `AlgorithmConfiguration` in Task 5.1.2.
+/// The multiplier is supplied by `AlgorithmConfiguration` and declared nowhere
+/// else. It is applied to the **observed median interval**, not the nominal
+/// sample rate: thermal throttling and background pressure make real delivery
+/// slower than requested, and measuring against the nominal rate would then
+/// report ordinary spacing as a stream of dropouts.
 struct GapDetectionPolicy: Sendable, Equatable {
     let toleranceMultiplier: Double
 
@@ -17,11 +14,9 @@ struct GapDetectionPolicy: Sendable, Equatable {
         self.toleranceMultiplier = toleranceMultiplier
     }
 
-    static let recommendedDefault = GapDetectionPolicy(toleranceMultiplier: 3)
-
-    /// Spacing above which a jump counts as a gap, for a given sample rate.
-    func gapThreshold(sampleRateHz: Double) -> TimeInterval {
-        toleranceMultiplier / sampleRateHz
+    /// Spacing above which a jump counts as a gap.
+    func gapThreshold(medianInterval: TimeInterval) -> TimeInterval {
+        toleranceMultiplier * medianInterval
     }
 }
 
@@ -39,7 +34,7 @@ enum SampleIngestion {
     static func align(
         _ samples: [SensorSample],
         sampleRateHz: Double,
-        policy: GapDetectionPolicy = .recommendedDefault
+        policy: GapDetectionPolicy
     ) -> AlignedSampleSeries {
         guard !samples.isEmpty else {
             return AlignedSampleSeries(samples: [], gaps: [])
@@ -56,7 +51,17 @@ enum SampleIngestion {
             deduplicated.append(sample)
         }
 
-        let threshold = policy.gapThreshold(sampleRateHz: sampleRateHz)
+        // Measure against what the sensor actually delivered.
+        //
+        // Below three intervals there is no median worth the name — with one
+        // interval the median *is* that interval, so nothing could ever exceed
+        // a multiple of itself and a lone dropout would go unreported. In that
+        // case the requested rate is the only reference available.
+        let intervals = zip(deduplicated, deduplicated.dropFirst())
+            .map { $1.deviceTimestamp - $0.deviceTimestamp }
+            .sorted()
+        let medianInterval = intervals.count < 3 ? 1 / sampleRateHz : intervals[intervals.count / 2]
+        let threshold = policy.gapThreshold(medianInterval: medianInterval)
         var gaps: [SensorGap] = []
         for (previous, current) in zip(deduplicated, deduplicated.dropFirst())
         where current.deviceTimestamp - previous.deviceTimestamp > threshold {

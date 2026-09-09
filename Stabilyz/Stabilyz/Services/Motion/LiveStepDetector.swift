@@ -15,22 +15,8 @@ struct LiveStepEvent: Sendable, Equatable {
 
 /// Tunables for live step detection (docs/10 §10.3).
 ///
-/// Both values are **[OPEN]** in the design docs and are carried here as
-/// clearly-labelled placeholders rather than resolved:
-///
-/// - `confidenceThreshold` — docs/10 §10.3 states the threshold lives in
-///   versioned config and marks the *value* [OPEN] with no recommendation.
-///   `placeholderConfidenceThreshold` is a stand-in so the pipeline is
-///   testable; it is **not** a decision.
-/// - `refractory` — docs/10 §10.3 gives ≈300 ms as [REC] for a typical
-///   0.5–0.7 s step interval, with the value itself [OPEN].
-///
-/// Both move into the versioned `AlgorithmConfiguration` in Task 5.1.2 and need
-/// device validation against real prosthetic gait (docs/21).
+/// Values come from `AlgorithmConfiguration` and are declared nowhere else.
 struct LiveStepDetectionPolicy: Sendable, Equatable {
-    /// [OPEN — placeholder, not a decision.]
-    static let placeholderConfidenceThreshold = 0.5
-
     let confidenceThreshold: Double
     let refractory: Duration
     /// How many standard deviations above the running mean counts as full
@@ -42,12 +28,6 @@ struct LiveStepDetectionPolicy: Sendable, Equatable {
         self.refractory = refractory
         self.fullConfidenceSigma = fullConfidenceSigma
     }
-
-    /// Provisional values. See the type documentation — neither is settled.
-    static let provisional = LiveStepDetectionPolicy(
-        confidenceThreshold: placeholderConfidenceThreshold,
-        refractory: .milliseconds(300)
-    )
 }
 
 /// Detects footfalls sample by sample for audio feedback (docs/07 §7.2, §7.9).
@@ -75,7 +55,7 @@ struct LiveStepDetector {
     private var previousTimestamp: TimeInterval?
     private var lastEmittedTimestamp: TimeInterval?
 
-    init(policy: LiveStepDetectionPolicy = .provisional, smoothing: Double = 0.02) {
+    init(policy: LiveStepDetectionPolicy, smoothing: Double = 0.02) {
         self.policy = policy
         self.smoothing = smoothing
     }

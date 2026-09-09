@@ -101,7 +101,7 @@ private actor InMemoryBaselineRepository: BaselineRepository {
     ])
 
     var received: [SensorSample] = []
-    for await sample in try await service.start(policy: .recommendedDefault) {
+    for await sample in try await service.start(policy: AlgorithmConfiguration.v1.motionAcquisition) {
         received.append(sample)
     }
 

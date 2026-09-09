@@ -79,7 +79,7 @@ private extension AppDependencies {
     #expect(await service.authorizationStatus == .notDetermined)
 
     await #expect(throws: DependencyNotWired.self) {
-        _ = try await service.start(policy: .recommendedDefault)
+        _ = try await service.start(policy: AlgorithmConfiguration.v1.motionAcquisition)
     }
 }
 

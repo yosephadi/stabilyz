@@ -16,7 +16,9 @@ Stabilyz/
 │   ├── Settings/               # Container + About/Disclaimer access
 │   └── Backup/                 # Export wizard, Restore flow, conflict dialog
 ├── Domain/                     # Pure Swift — no Apple frameworks
-│   ├── Models/                 # GaitSession, Baseline, TestMode, GaitMetrics, UserProfile…
+│   ├── Models/                 # GaitSession, Baseline, TestMode, GaitMetrics, UserProfile,
+│   │                           # RawSessionBuffer + sample-series value types (§3: the
+│   │                           # pipeline contract names them, so they cannot sit in Services)
 │   ├── Baseline/               # BaselineCalculationService, BaselineState
 │   ├── Scoring/                # GaitScoringAlgorithm contract, score types
 │   ├── Policies/               # SessionPolicy / DataQualityPolicy value types (tunable)
@@ -33,7 +35,7 @@ Stabilyz/
 │   └── AlgorithmConfiguration  # Versioned tunables (thresholds, floors, weights)
 ├── Services/                   # Protocol-fronted Apple framework adapters
 │   ├── Motion/                 # CoreMotion sensor + pedometer services, LiveStepDetector
-│   ├── Recording/              # SessionRecorder actor, RawSessionBuffer, gap policy
+│   ├── Recording/              # SessionRecorder actor, sample buffer, interruption observer
 │   ├── Processing/             # SessionProcessor actor (orchestrates Algorithms)
 │   ├── Audio/                  # AudioFeedbackService (tones, step ticks, metronome)
 │   ├── Archive/                # SecureArchiveService (export/import/restore orchestration)

@@ -31,7 +31,7 @@ private func footfalls(
 
 private func detect(
     _ samples: [SensorSample],
-    policy: LiveStepDetectionPolicy = .provisional
+    policy: LiveStepDetectionPolicy = AlgorithmConfiguration.v1.liveStepFeedback
 ) -> [LiveStepEvent] {
     var detector = LiveStepDetector(policy: policy)
     return samples.compactMap { detector.process($0) }
@@ -46,7 +46,7 @@ private func detect(
 
     #expect(events.count >= 5)
     #expect(events.count <= 9)
-    #expect(events.allSatisfy { $0.confidence >= LiveStepDetectionPolicy.provisional.confidenceThreshold })
+    #expect(events.allSatisfy { $0.confidence >= AlgorithmConfiguration.v1.liveStepFeedback.confidenceThreshold })
 }
 
 @Test func aFlatSignalProducesNoSteps() {
@@ -84,7 +84,7 @@ private func detect(
         samples.append(sample(t: Double(index) / 100, magnitude: magnitude))
     }
 
-    let strict = detect(samples, policy: .provisional)
+    let strict = detect(samples, policy: AlgorithmConfiguration.v1.liveStepFeedback)
     let permissive = detect(
         samples,
         policy: LiveStepDetectionPolicy(confidenceThreshold: 0.5, refractory: .milliseconds(50))
@@ -126,7 +126,7 @@ private func detect(
 // MARK: - Reuse
 
 @Test func resettingClearsAdaptationBetweenSessions() {
-    var detector = LiveStepDetector()
+    var detector = LiveStepDetector(policy: AlgorithmConfiguration.v1.liveStepFeedback)
     for sample in footfalls(stepsPerSecond: 2, seconds: 2) { _ = detector.process(sample) }
 
     detector.reset()

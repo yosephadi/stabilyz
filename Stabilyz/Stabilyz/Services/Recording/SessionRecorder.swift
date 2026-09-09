@@ -23,9 +23,8 @@ actor SessionRecorder {
     private let clock: Clock
     private let logService: LogService
     private let fileIO: FileIO
-    private let acquisitionPolicy: MotionAcquisitionPolicy
-    private let gapPolicy: GapDetectionPolicy
-    private let stepPolicy: LiveStepDetectionPolicy
+    /// Every tunable the recorder needs, from the one place they are declared.
+    private let configuration: AlgorithmConfiguration
 
     /// Live footfalls for audio feedback (docs/07 §7.2). Long-lived and shared,
     /// so the audio layer subscribes once rather than per session. Audio
@@ -68,9 +67,7 @@ actor SessionRecorder {
         clock: Clock,
         logService: LogService,
         fileIO: FileIO,
-        acquisitionPolicy: MotionAcquisitionPolicy = .recommendedDefault,
-        gapPolicy: GapDetectionPolicy = .recommendedDefault,
-        stepPolicy: LiveStepDetectionPolicy = .provisional
+        configuration: AlgorithmConfiguration = .v1
     ) {
         self.motionSensor = motionSensor
         self.pedometer = pedometer
@@ -80,9 +77,7 @@ actor SessionRecorder {
         self.clock = clock
         self.logService = logService
         self.fileIO = fileIO
-        self.acquisitionPolicy = acquisitionPolicy
-        self.gapPolicy = gapPolicy
-        self.stepPolicy = stepPolicy
+        self.configuration = configuration
 
         let (stream, continuation) = AsyncStream<LiveStepEvent>.makeStream(bufferingPolicy: .bufferingNewest(8))
         stepEvents = stream
@@ -115,7 +110,7 @@ actor SessionRecorder {
         self.audioConfig = audioConfig
         sampleBuffer = SessionSampleBuffer(fileIO: fileIO, logService: logService)
         if audioConfig == .stepFeedback {
-            stepDetector = LiveStepDetector(policy: stepPolicy)
+            stepDetector = LiveStepDetector(policy: configuration.liveStepFeedback)
         }
 
         // The anchor is stamped before any sample can arrive, so every sample
@@ -126,7 +121,7 @@ actor SessionRecorder {
 
         let sampleStream: AsyncStream<SensorSample>
         do {
-            sampleStream = try await motionSensor.start(policy: acquisitionPolicy)
+            sampleStream = try await motionSensor.start(policy: configuration.motionAcquisition)
         } catch {
             // Nothing was recorded, so leave no half-started session behind.
             resetSessionState()
@@ -226,8 +221,8 @@ actor SessionRecorder {
         let frozenSamples = sampleBuffer?.freeze(anchor: anchor) ?? []
         let series = SampleIngestion.align(
             frozenSamples,
-            sampleRateHz: acquisitionPolicy.sampleRateHz,
-            policy: gapPolicy
+            sampleRateHz: configuration.motionAcquisition.sampleRateHz,
+            policy: configuration.gapDetection
         )
 
         let buffer = RawSessionBuffer(
@@ -321,11 +316,14 @@ actor SessionRecorder {
     private func ingest(_ sample: SensorSample) {
         guard state == .recording else { return }
 
-        // A live gap notice for the UI. The authoritative list is recomputed at
-        // freeze time, so a missed notice cannot change the outcome.
+        // A live gap notice for the UI, measured against the requested rate
+        // because no median exists yet mid-stream. The authoritative list is
+        // recomputed from the observed median at freeze time, so a missed or
+        // spurious live notice cannot change the outcome.
         if let previous = lastSampleTimestamp {
             let spacing = sample.deviceTimestamp - previous
-            if spacing > gapPolicy.gapThreshold(sampleRateHz: acquisitionPolicy.sampleRateHz) {
+            let nominalInterval = 1 / configuration.motionAcquisition.sampleRateHz
+            if spacing > configuration.gapDetection.gapThreshold(medianInterval: nominalInterval) {
                 eventContinuation?.yield(.gapDetected(SensorGap(start: previous, end: sample.deviceTimestamp)))
                 logService.log(.warning, .motion, "sensor gap observed")
             }

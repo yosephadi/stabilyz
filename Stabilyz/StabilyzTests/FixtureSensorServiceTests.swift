@@ -80,7 +80,7 @@ private struct FixtureClock: Clock {
     let service = FixtureSensorService(fixture: fixture, clock: FixtureClock())
 
     var received: [SensorSample] = []
-    for await sample in try await service.start(policy: .recommendedDefault) {
+    for await sample in try await service.start(policy: AlgorithmConfiguration.v1.motionAcquisition) {
         received.append(sample)
     }
 
@@ -97,7 +97,7 @@ private struct FixtureClock: Clock {
     let service = FixtureSensorService(fixture: .steadyWalk, clock: clock)
 
     var anchors: Set<TimeAnchor> = []
-    for await sample in try await service.start(policy: .recommendedDefault) {
+    for await sample in try await service.start(policy: AlgorithmConfiguration.v1.motionAcquisition) {
         anchors.insert(sample.anchor)
     }
 
@@ -108,7 +108,7 @@ private struct FixtureClock: Clock {
     let service = FixtureSensorService(fixture: .walkWithSensorGap, clock: FixtureClock())
 
     var timestamps: [TimeInterval] = []
-    for await sample in try await service.start(policy: .recommendedDefault) {
+    for await sample in try await service.start(policy: AlgorithmConfiguration.v1.motionAcquisition) {
         timestamps.append(sample.deviceTimestamp)
     }
 
@@ -132,7 +132,7 @@ private struct FixtureClock: Clock {
     let service = FixtureSensorService(fixture: empty, clock: FixtureClock())
 
     await #expect(throws: StabilyzError.sensor(.unavailable)) {
-        _ = try await service.start(policy: .recommendedDefault)
+        _ = try await service.start(policy: AlgorithmConfiguration.v1.motionAcquisition)
     }
 }
 
@@ -140,7 +140,7 @@ private struct FixtureClock: Clock {
     let service = FixtureSensorService(fixture: .steadyWalk, clock: FixtureClock())
 
     var sawGravity = false
-    for await sample in try await service.start(policy: .recommendedDefault) {
+    for await sample in try await service.start(policy: AlgorithmConfiguration.v1.motionAcquisition) {
         if sample.gravity != nil { sawGravity = true }
     }
     #expect(sawGravity)

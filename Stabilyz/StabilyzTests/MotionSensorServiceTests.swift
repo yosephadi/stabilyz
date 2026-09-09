@@ -39,7 +39,7 @@ private func makeService() -> CoreMotionSensorService {
 
     if !available {
         await #expect(throws: StabilyzError.sensor(.unavailable)) {
-            _ = try await service.start(policy: .recommendedDefault)
+            _ = try await service.start(policy: AlgorithmConfiguration.v1.motionAcquisition)
         }
     }
 }
@@ -49,7 +49,7 @@ private func makeService() -> CoreMotionSensorService {
     let service = makeService()
 
     do {
-        _ = try await service.start(policy: .recommendedDefault)
+        _ = try await service.start(policy: AlgorithmConfiguration.v1.motionAcquisition)
         // Hardware present: stop cleanly so the test leaves nothing running.
         await service.stop()
     } catch let error as StabilyzError {

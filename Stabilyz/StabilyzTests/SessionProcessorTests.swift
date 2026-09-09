@@ -65,7 +65,7 @@ private func makeBuffer(mode: TestMode = .quickTest, sampleCount: Int = 100) -> 
         mode: mode,
         audioConfig: .none,
         anchor: anchor,
-        series: SampleIngestion.align(samples, sampleRateHz: 100),
+        series: SampleIngestion.align(samples, sampleRateHz: 100, policy: AlgorithmConfiguration.v1.gapDetection),
         pedometerEvents: [],
         startedAt: anchor.wallClock,
         endedAt: anchor.wallClock.addingTimeInterval(120),

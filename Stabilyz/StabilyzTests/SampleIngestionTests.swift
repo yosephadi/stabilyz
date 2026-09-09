@@ -3,6 +3,7 @@ import Testing
 @testable import Stabilyz
 
 private let anchor = TimeAnchor(wallClock: Date(timeIntervalSince1970: 1_700_000_000), uptime: 0)
+private let gapPolicy = AlgorithmConfiguration.v1.gapDetection
 
 private func sample(_ t: TimeInterval) -> SensorSample {
     SensorSample(deviceTimestamp: t, anchor: anchor, acceleration: Vector3(x: 0, y: 0, z: 1))
@@ -22,13 +23,13 @@ private func run(from start: TimeInterval, to end: TimeInterval, rate: Double = 
 // MARK: - Ordering and de-duplication (docs/08 stage 1)
 
 @Test func samplesAreOrderedByDeviceTimestamp() {
-    let series = SampleIngestion.align([sample(0.3), sample(0.1), sample(0.2)], sampleRateHz: 10)
+    let series = SampleIngestion.align([sample(0.3), sample(0.1), sample(0.2)], sampleRateHz: 10, policy: gapPolicy)
 
     #expect(series.samples.map(\.deviceTimestamp) == [0.1, 0.2, 0.3])
 }
 
 @Test func repeatedTimestampsAreTreatedAsRedeliveryNotAsMeasurements() {
-    let series = SampleIngestion.align([sample(0.1), sample(0.1), sample(0.2)], sampleRateHz: 10)
+    let series = SampleIngestion.align([sample(0.1), sample(0.1), sample(0.2)], sampleRateHz: 10, policy: gapPolicy)
 
     #expect(series.samples.count == 2)
     #expect(series.samples.map(\.deviceTimestamp) == [0.1, 0.2])
@@ -37,7 +38,7 @@ private func run(from start: TimeInterval, to end: TimeInterval, rate: Double = 
 @Test func anEmptySeriesProducesNoGapsRatherThanFailing() {
     // docs/08 stage 1 maps an empty buffer to invalid sensorFailure, which is
     // the pipeline's call; ingestion itself just reports emptiness.
-    let series = SampleIngestion.align([], sampleRateHz: 100)
+    let series = SampleIngestion.align([], sampleRateHz: 100, policy: gapPolicy)
 
     #expect(series.samples.isEmpty)
     #expect(series.gaps.isEmpty)
@@ -50,7 +51,7 @@ private func run(from start: TimeInterval, to end: TimeInterval, rate: Double = 
 @Test func normalJitterIsNotReportedAsAGap() {
     // Spacing under the tolerance is ordinary scheduling noise.
     let samples = [sample(0), sample(0.010), sample(0.021), sample(0.029)]
-    let series = SampleIngestion.align(samples, sampleRateHz: 100)
+    let series = SampleIngestion.align(samples, sampleRateHz: 100, policy: gapPolicy)
 
     #expect(series.gaps.isEmpty)
     #expect(series.gapInfo.gapCount == 0)
@@ -59,7 +60,7 @@ private func run(from start: TimeInterval, to end: TimeInterval, rate: Double = 
 @Test func aSuspensionIsDetectedAsOneGap() {
     // docs/07 §7.7: a suspension delivers nothing, leaving a timestamp jump.
     let samples = run(from: 0, to: 1) + run(from: 3, to: 4)
-    let series = SampleIngestion.align(samples, sampleRateHz: 100)
+    let series = SampleIngestion.align(samples, sampleRateHz: 100, policy: gapPolicy)
 
     #expect(series.gaps.count == 1)
     let gap = try! #require(series.gaps.first)
@@ -70,7 +71,7 @@ private func run(from start: TimeInterval, to end: TimeInterval, rate: Double = 
 
 @Test func multipleGapsAreReportedIndependently() {
     let samples = run(from: 0, to: 1) + run(from: 2, to: 3) + run(from: 6, to: 7)
-    let series = SampleIngestion.align(samples, sampleRateHz: 100)
+    let series = SampleIngestion.align(samples, sampleRateHz: 100, policy: gapPolicy)
 
     #expect(series.gaps.count == 2)
     #expect(series.gapInfo.gapCount == 2)
@@ -79,22 +80,36 @@ private func run(from start: TimeInterval, to end: TimeInterval, rate: Double = 
     #expect(series.gapInfo.totalGapDuration > .seconds(3.9))
 }
 
-@Test func gapThresholdScalesWithSampleRate() {
-    // The same absolute jump is a gap at 100 Hz and ordinary spacing at 10 Hz.
+@Test func gapThresholdIsRelativeToTheObservedInterval() {
+    // With a single interval there is no median, so the requested rate is the
+    // fallback: the same jump is a gap at 100 Hz and ordinary spacing at 10 Hz.
     let jump = [sample(0), sample(0.05)]
 
-    #expect(SampleIngestion.align(jump, sampleRateHz: 100).gaps.count == 1)
-    #expect(SampleIngestion.align(jump, sampleRateHz: 10).gaps.isEmpty)
+    #expect(SampleIngestion.align(jump, sampleRateHz: 100, policy: gapPolicy).gaps.count == 1)
+    #expect(SampleIngestion.align(jump, sampleRateHz: 10, policy: gapPolicy).gaps.isEmpty)
 
-    #expect(GapDetectionPolicy.recommendedDefault.gapThreshold(sampleRateHz: 100) == 0.03)
-    #expect(GapDetectionPolicy.recommendedDefault.gapThreshold(sampleRateHz: 50) == 0.06)
+    #expect(gapPolicy.gapThreshold(medianInterval: 0.01) == 0.03)
+    #expect(gapPolicy.gapThreshold(medianInterval: 0.02) == 0.06)
+}
+
+@Test func aThrottledStreamIsNotReportedAsContinuousDropouts() {
+    // Delivery running at half the requested rate is slow, not broken. Judging
+    // it against the nominal rate would report every sample as a dropout.
+    let throttled = (0..<50).map { sample(Double($0) * 0.02) }
+    let series = SampleIngestion.align(throttled, sampleRateHz: 100, policy: gapPolicy)
+
+    #expect(series.gaps.isEmpty)
+
+    // A real dropout inside that throttled stream is still caught.
+    let withDropout = throttled + [sample(50 * 0.02 + 1.0)]
+    #expect(SampleIngestion.align(withDropout, sampleRateHz: 100, policy: gapPolicy).gaps.count == 1)
 }
 
 @Test func aStricterPolicyDetectsMoreGapsWithoutChangingTheData() {
     // The threshold is tunable and moves into AlgorithmConfiguration in 5.1.2.
     let samples = [sample(0), sample(0.015), sample(0.030)]
 
-    let lenient = SampleIngestion.align(samples, sampleRateHz: 100, policy: .recommendedDefault)
+    let lenient = SampleIngestion.align(samples, sampleRateHz: 100, policy: gapPolicy)
     let strict = SampleIngestion.align(
         samples,
         sampleRateHz: 100,
@@ -112,7 +127,7 @@ private func run(from start: TimeInterval, to end: TimeInterval, rate: Double = 
     // Elapsed clock time and time the sensor was delivering are different
     // quantities, and neither is "valid walking" — stages 3 and 4 decide that.
     let samples = run(from: 0, to: 1) + run(from: 3, to: 4)
-    let series = SampleIngestion.align(samples, sampleRateHz: 100)
+    let series = SampleIngestion.align(samples, sampleRateHz: 100, policy: gapPolicy)
 
     #expect(series.recordedSpan > .seconds(3.9))
     #expect(series.coveredDuration < .seconds(2.1))
@@ -123,7 +138,7 @@ private func run(from start: TimeInterval, to end: TimeInterval, rate: Double = 
     // [PRD §6] a suspended session must never look like clean walking.
     let before = run(from: 0, to: 1)
     let after = run(from: 3, to: 4)
-    let series = SampleIngestion.align(before + after, sampleRateHz: 100)
+    let series = SampleIngestion.align(before + after, sampleRateHz: 100, policy: gapPolicy)
 
     // No samples were manufactured to bridge the gap.
     #expect(series.samples.count == before.count + after.count)
@@ -138,11 +153,11 @@ private func run(from start: TimeInterval, to end: TimeInterval, rate: Double = 
     let service = FixtureSensorService(fixture: .walkWithSensorGap, clock: clock)
 
     var samples: [SensorSample] = []
-    for await sample in try await service.start(policy: .recommendedDefault) {
+    for await sample in try await service.start(policy: AlgorithmConfiguration.v1.motionAcquisition) {
         samples.append(sample)
     }
 
-    let series = SampleIngestion.align(samples, sampleRateHz: 100)
+    let series = SampleIngestion.align(samples, sampleRateHz: 100, policy: gapPolicy)
     #expect(series.gaps.count == 1)
     #expect(series.gapInfo.longestGapDuration > .seconds(1.9))
 }
