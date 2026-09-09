@@ -122,7 +122,13 @@ enum GoldenSignal {
         }
     }
 
-    static func buffer(for spec: GoldenSignalSpec, mode: TestMode) -> RawSessionBuffer {
+    /// `audioConfig` is a parameter only so Task 7.2.3 can vary it and show it
+    /// changes nothing. Every golden case uses the default.
+    static func buffer(
+        for spec: GoldenSignalSpec,
+        mode: TestMode,
+        audioConfig: SessionAudioConfig = .none
+    ) -> RawSessionBuffer {
         let raw = samples(for: spec)
         let aligned = SampleIngestion.align(
             raw,
@@ -131,7 +137,7 @@ enum GoldenSignal {
         )
         return RawSessionBuffer(
             mode: mode,
-            audioConfig: .none,
+            audioConfig: audioConfig,
             anchor: anchor,
             series: aligned,
             pedometerEvents: [],

@@ -43,6 +43,7 @@ iOS app for prosthetic limb users to self-measure walking stability. Local-only,
 - If the simulator name fails, list available simulators with `xcrun simctl list devices available` and use one of those.
 - Run tests after every change. NEVER end a session with the build or tests broken.
 - If the full suite fails at ~0 s with crash symbols, re-run once before diagnosing — known simulator flakiness; a reproducing failure is real, a one-off is infrastructure.
+- `-only-testing` filters that match nothing report TEST SUCCEEDED — verify filters by executed-test count, not the result.
 - New `.swift` files in the source/test folders should compile automatically (Xcode 16 synchronized folders). If a new file is not being compiled, ASK THE USER to add it to the target in Xcode — never edit `.xcodeproj`.
 
 ## Workflow

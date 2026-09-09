@@ -346,3 +346,53 @@ private enum SourceTree {
         #expect(lines.contains { line in Self.stepSymbols.contains { line.contains($0) } })
     }
 }
+
+// MARK: - Scoring cannot see the audio config (Task 7.2.3)
+
+/// [PRD §7 AC, docs/10 §10.4] The audio layer must be incapable of altering the
+/// batch outcome.
+///
+/// `RawSessionBuffer` **carries** `audioConfig` — it is persisted with the
+/// session for transparency — and the pipeline is handed that whole buffer. So
+/// "the scoring math ignores it" is not structural on its own: nothing but this
+/// scan stops a future stage from reading `buffer.audioConfig` and, say,
+/// widening a tolerance for metronome-paced walks. The byte-identity tests would
+/// catch that on the cases they cover; this catches it everywhere.
+@Suite struct ScoringIndependenceGuardTests {
+    static let audioSymbols = [
+        "audioConfig", "SessionAudioConfig", "AudioFeedback", "Metronome",
+        "MetronomeCue", "StepTick", "stepFeedback", "playStepTick", "LiveStepEvent"
+    ]
+
+    @Test func noAlgorithmReadsAnythingAboutAudio() {
+        let files = SourceTree.swiftFiles(in: "Algorithms")
+        #expect(files.isEmpty == false, "the Algorithms scan found no files — the scan itself is broken")
+
+        for file in files {
+            guard let source = try? String(contentsOf: file.url, encoding: .utf8) else {
+                Issue.record("could not read \(file.path)")
+                continue
+            }
+
+            for line in StepFeedbackSchedulingGuardTests.codeLines(in: source) {
+                for symbol in Self.audioSymbols {
+                    #expect(
+                        line.contains(symbol) == false,
+                        "\(file.path) refers to \(symbol) — scoring must be incapable of seeing how the walk was paced [PRD §7 AC]"
+                    )
+                }
+            }
+        }
+    }
+
+    @Test func theScanWouldCatchAnAlgorithmReadingTheAudioConfig() {
+        let offending = """
+        // Reading audioConfig in a comment is fine.
+        let paced = buffer.audioConfig != .none
+        """
+        let lines = StepFeedbackSchedulingGuardTests.codeLines(in: offending)
+
+        #expect(lines.count == 1)
+        #expect(lines.contains { line in Self.audioSymbols.contains { line.contains($0) } })
+    }
+}
