@@ -6,7 +6,7 @@ import Foundation
 /// Every query takes an explicit `TestMode` — the segregation key [PRD OQ-5].
 /// Invalid sessions are retained locally for diagnostics but are excluded from
 /// History, baseline counting and export; callers opt into them explicitly.
-nonisolated protocol GaitSessionRepository: Sendable {
+protocol GaitSessionRepository: Sendable {
     func save(_ session: GaitSession) async throws
 
     func session(id: UUID) async throws -> GaitSession?

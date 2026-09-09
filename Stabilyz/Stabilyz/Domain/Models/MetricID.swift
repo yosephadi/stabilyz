@@ -9,7 +9,7 @@
 /// **gait consistency** and must never call them "symmetry" or "asymmetry" —
 /// that term is reserved for `stepTimeAsymmetry`, the unilateral step-time
 /// comparison.
-nonisolated enum MetricID: String, Sendable, CaseIterable, Codable {
+enum MetricID: String, Sendable, CaseIterable, Codable {
     /// Ad1 — autocorrelation-derived step regularity. Computed identically for
     /// every user regardless of amputation type [PRD OQ-1].
     case stepRegularity
@@ -48,7 +48,7 @@ nonisolated enum MetricID: String, Sendable, CaseIterable, Codable {
 /// silently resolve it and could invert a metric's contribution to the score
 /// without anyone noticing. Task 5.1.2 supplies the real mapping; until then
 /// callers must state one explicitly.
-nonisolated struct MetricDirections: Sendable, Equatable {
+struct MetricDirections: Sendable, Equatable {
     private let directions: [MetricID: MetricID.Direction]
 
     init(_ directions: [MetricID: MetricID.Direction]) {

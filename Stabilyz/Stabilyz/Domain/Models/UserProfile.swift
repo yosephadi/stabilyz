@@ -1,7 +1,7 @@
 import Foundation
 
 /// Amputation level [PRD §5].
-nonisolated enum AmputationLevel: String, Sendable, CaseIterable, Codable {
+enum AmputationLevel: String, Sendable, CaseIterable, Codable {
     case transtibial
     case transfemoral
     case bilateral
@@ -12,14 +12,14 @@ nonisolated enum AmputationLevel: String, Sendable, CaseIterable, Codable {
 }
 
 /// Affected side [PRD §5].
-nonisolated enum AmputationSide: String, Sendable, CaseIterable, Codable {
+enum AmputationSide: String, Sendable, CaseIterable, Codable {
     case left
     case right
     case both
 }
 
 /// Medicare functional classification [PRD §5 — optional field].
-nonisolated enum KLevel: String, Sendable, CaseIterable, Codable {
+enum KLevel: String, Sendable, CaseIterable, Codable {
     case k0, k1, k2, k3, k4
 }
 
@@ -29,8 +29,8 @@ nonisolated enum KLevel: String, Sendable, CaseIterable, Codable {
 /// is non-optional because the disclaimer is a hard gate before Home [PRD §7] —
 /// a profile cannot exist without it. The in-progress wizard uses
 /// `OnboardingDraft` (docs/05 §5.3), not this type.
-nonisolated struct UserProfile: Sendable, Equatable, Identifiable {
-    nonisolated enum ValidationError: Error, Equatable {
+struct UserProfile: Sendable, Equatable, Identifiable {
+    enum ValidationError: Error, Equatable {
         /// A bilateral amputation must record `both` [PRD AC; consistency rule REC].
         case bilateralRequiresBothSides(actual: AmputationSide)
         /// A unilateral amputation must record a single side.

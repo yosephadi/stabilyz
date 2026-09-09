@@ -11,7 +11,7 @@ import SwiftData
 /// the guarantee docs/15 §15.1 makes for the persistence category.
 @ModelActor
 actor StoreWriter {
-    nonisolated enum WriteError: Error, Equatable {
+    enum WriteError: Error, Equatable {
         /// A baseline already exists for that mode. Baselines are create-only
         /// and frozen in v1 [PRD §6, docs/09 §9.3].
         case baselineAlreadyExists(mode: TestMode)

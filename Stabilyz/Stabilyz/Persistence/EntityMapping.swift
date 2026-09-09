@@ -5,8 +5,8 @@ import Foundation
 /// Mapping failures are real: a blob can fail to decode, a raw value can be
 /// unknown after a bad migration. Those surface as `StabilyzError.persistence`
 /// rather than crashing or silently producing a wrong-looking session.
-nonisolated enum EntityMapping {
-    nonisolated enum MappingError: Error, Equatable {
+enum EntityMapping {
+    enum MappingError: Error, Equatable {
         case unknownTestMode(String)
         case unknownValidity(String)
         case unknownAmputationLevel(String)

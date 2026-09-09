@@ -9,7 +9,7 @@ import Foundation
 /// [OPEN/REC] Sample rate: docs/07 §7.2 recommends 100 Hz but requires empirical
 /// validation (docs/21). `recommendedDefault` carries that recommendation and is
 /// NOT a resolved decision.
-nonisolated struct MotionAcquisitionPolicy: Sendable, Equatable {
+struct MotionAcquisitionPolicy: Sendable, Equatable {
     let sampleRateHz: Double
     /// Device-motion updates supply the gravity vector used for orientation handling.
     let deviceMotionEnabled: Bool
@@ -25,7 +25,7 @@ nonisolated struct MotionAcquisitionPolicy: Sendable, Equatable {
 
 /// Motion & Fitness authorization, surfaced as a domain value so the Feature
 /// layer never sees CoreMotion types (docs/07 §7.6, docs/03 boundary rule 4).
-nonisolated enum MotionAuthorizationStatus: Sendable, Equatable {
+enum MotionAuthorizationStatus: Sendable, Equatable {
     case notDetermined
     case authorized
     case denied

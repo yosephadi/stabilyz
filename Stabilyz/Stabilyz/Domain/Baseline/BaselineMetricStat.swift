@@ -1,7 +1,7 @@
 /// Per-metric baseline statistics (docs/05 §5.1, docs/09 §9.1).
 ///
 /// Persisted as part of the `BaselineEntity` JSON blob (docs/05 §5.2).
-nonisolated struct BaselineMetricStat: Sendable, Equatable, Codable {
+struct BaselineMetricStat: Sendable, Equatable, Codable {
     let metricID: MetricID
     let mean: Double
     /// Standard deviation, after the minimum-SD floor has been considered.

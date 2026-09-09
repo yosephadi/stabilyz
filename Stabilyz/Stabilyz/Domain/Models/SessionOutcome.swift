@@ -2,7 +2,7 @@
 ///
 /// Raw values are persisted (docs/05 §5.2) and recorded on the session record so
 /// a tester's "bad session" is self-explanatory in diagnostics (docs/20).
-nonisolated enum InvalidReason: String, Sendable, CaseIterable, Codable {
+enum InvalidReason: String, Sendable, CaseIterable, Codable {
     /// Valid walking fell below the mode's `SessionPolicy` minimum, even if the
     /// advertised clock length elapsed [PRD OQ-3].
     case insufficientValidWalking
@@ -16,7 +16,7 @@ nonisolated enum InvalidReason: String, Sendable, CaseIterable, Codable {
 
 /// The result of processing a session [PRD §5]. A session is one or the other —
 /// never both, never neither (docs/11 §11.3).
-nonisolated enum SessionOutcome: Sendable, Equatable, Codable {
+enum SessionOutcome: Sendable, Equatable, Codable {
     case valid
     case invalid(reason: InvalidReason)
 
@@ -41,7 +41,7 @@ nonisolated enum SessionOutcome: Sendable, Equatable, Codable {
 /// Modeled as an enum so the BPM cannot be present without the metronome, or
 /// absent with it. Step Feedback is pre-baseline only and the Metronome is
 /// post-baseline only [PRD §5]; that gating lives in Session Setup, not here.
-nonisolated enum SessionAudioConfig: Sendable, Equatable, Codable {
+enum SessionAudioConfig: Sendable, Equatable, Codable {
     case none
     case stepFeedback
     case metronome(bpm: Double)
@@ -49,7 +49,7 @@ nonisolated enum SessionAudioConfig: Sendable, Equatable, Codable {
 
 /// Sensor gap record, kept to explain noise and validity decisions
 /// [REC — docs/05 §5.1, docs/07 §7.7].
-nonisolated struct SessionGapInfo: Sendable, Equatable, Codable {
+struct SessionGapInfo: Sendable, Equatable, Codable {
     let gapCount: Int
     let totalGapDuration: Duration
     let longestGapDuration: Duration

@@ -5,7 +5,7 @@ import SwiftData
 ///
 /// Reads go through `StoreReader`, writes through the background
 /// `StoreWriter` — the split docs/14 §14.2 asks for.
-nonisolated struct SwiftDataGaitSessionRepository: GaitSessionRepository {
+struct SwiftDataGaitSessionRepository: GaitSessionRepository {
     private let reader: StoreReader
     private let writer: StoreWriter
 

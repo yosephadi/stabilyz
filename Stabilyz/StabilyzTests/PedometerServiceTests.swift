@@ -11,14 +11,32 @@ private final class SilentPedometerLog: LogService {
     func endInterval(_ interval: SignpostInterval) {}
 }
 
-// NOTE: no test here touches CMPedometer. Any call into it — including
-// `CMPedometer.isStepCountingAvailable()` — terminates the process with
-// "attempted to access privacy-sensitive data without a usage description"
-// until NSMotionUsageDescription is present in the app target's Info.plist.
-// That is an .xcodeproj change (INFOPLIST_KEY_NSMotionUsageDescription), which
-// CLAUDE.md reserves for the user. Availability, priming and streaming
-// behaviour stay untested until then; docs/19 §19.4 already classes the
-// pedometer as device-only validation.
+@Test func pedometerReportsAvailabilityAndRefusesToStartWithout() async {
+    // Availability is a device fact. On the simulator step counting is absent,
+    // which is a legitimate outcome, not a failure — it is the path the
+    // degraded Start button copy depends on (docs/07 §7.6, docs/19 §19.4).
+    let service = CoreMotionPedometerService(logService: SilentPedometerLog())
+    let available = await service.isAvailable
+
+    if available {
+        let stream = try? await service.start()
+        #expect(stream != nil)
+        await service.stop()
+    } else {
+        await #expect(throws: StabilyzError.sensor(.unavailable)) {
+            _ = try await service.start()
+        }
+        await #expect(throws: StabilyzError.sensor(.unavailable)) {
+            _ = try await service.events(from: Date(timeIntervalSinceNow: -60), to: Date())
+        }
+    }
+}
+
+@Test func pedometerStopIsSafeWhenNothingIsRunning() async {
+    let service = CoreMotionPedometerService(logService: SilentPedometerLog())
+    await service.stop()
+    await service.stop()
+}
 
 @Test func pedometerEventsMapOntoTheSessionTimeline() {
     // docs/07 §7.2, §7.4: pedometer events sit on the same timeline as samples,

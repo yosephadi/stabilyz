@@ -18,7 +18,7 @@ import SwiftData
 ///
 /// Tests build one of these from doubles; there is no singleton and no
 /// environment-wide service lookup.
-nonisolated struct AppDependencies: Sendable {
+struct AppDependencies: Sendable {
     // Observability
     let logService: LogService
 

@@ -17,6 +17,7 @@ iOS app for prosthetic limb users to self-measure walking stability. Local-only,
 - All baseline queries and scoring calls take an explicit `TestMode` parameter.
 - Persist metrics as JSON blobs; scalar columns only for queried fields (`id`, `mode`, `startedAt`, `validity`, `relativeIndex`, `algorithmVersion`).
 - No custom cryptography. AES-GCM via CryptoKit, PBKDF2 via CommonCrypto only.
+- Default actor isolation is `nonisolated` — every `@Observable` view model must be explicitly `@MainActor`.
 - User-facing copy says "gait consistency" — never "symmetry/asymmetry" for the autocorrelation output (that term is reserved for the unilateral step-time comparison).
 - Invalid/noisy sessions: never scored, never baseline-counted, never shown in history, never exported.
 

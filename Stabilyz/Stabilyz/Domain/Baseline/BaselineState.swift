@@ -4,7 +4,7 @@
 /// One source of truth for the Score screen, audio selector, Home and the
 /// Clinician Summary [PRD §5, §7]. Derivation lives in `BaselineStateMachine`
 /// (Task 2.2.1).
-nonisolated enum BaselineState: Sendable, Equatable {
+enum BaselineState: Sendable, Equatable {
     /// No valid sessions in this mode yet.
     case notStarted
     /// Between 1 and 4 valid sessions — the "Session X of 5" state [PRD §5].

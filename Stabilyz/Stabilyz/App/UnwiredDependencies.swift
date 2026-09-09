@@ -7,7 +7,7 @@ import Foundation
 /// which would push `if let` noise into every call site permanently — they are
 /// filled with conformances that fail loudly and name the task that replaces
 /// them. Nothing calls these yet; the app launches to a placeholder screen.
-nonisolated struct DependencyNotWired: Error, Equatable, CustomStringConvertible {
+struct DependencyNotWired: Error, Equatable, CustomStringConvertible {
     /// The protocol that has no live implementation.
     let dependency: String
     /// The task in docs/23-engineering-task-breakdown.md that supplies it.
@@ -23,7 +23,7 @@ nonisolated struct DependencyNotWired: Error, Equatable, CustomStringConvertible
 /// Reports the hardware as unavailable, which is the honest state before
 /// Task 4.1.1 lands: Session Setup already treats "no sensor" as a degraded
 /// Start (docs/07 §7.6).
-nonisolated struct UnwiredMotionSensorService: MotionSensorService {
+struct UnwiredMotionSensorService: MotionSensorService {
     var isAvailable: Bool { get async { false } }
     var authorizationStatus: MotionAuthorizationStatus { get async { .notDetermined } }
 
@@ -36,7 +36,7 @@ nonisolated struct UnwiredMotionSensorService: MotionSensorService {
     func stop() async {}
 }
 
-nonisolated struct UnwiredPedometerService: PedometerService {
+struct UnwiredPedometerService: PedometerService {
     var isAvailable: Bool { get async { false } }
 
     func start() async throws -> AsyncStream<PedometerEvent> {
@@ -56,7 +56,7 @@ nonisolated struct UnwiredPedometerService: PedometerService {
 /// surfaced only as silent degradation and can never fail a session
 /// (docs/10 §10.4). This is also the preview/test double in docs/12 §12.2, so it
 /// stays useful after Task 7.1.1 supplies the AVAudioEngine implementation.
-nonisolated struct SilentAudioFeedbackService: AudioFeedbackService {
+struct SilentAudioFeedbackService: AudioFeedbackService {
     var events: AsyncStream<AudioFeedbackEvent> {
         AsyncStream { $0.finish() }
     }
@@ -77,13 +77,13 @@ nonisolated struct SilentAudioFeedbackService: AudioFeedbackService {
 /// Deliberately not backed by a stand-in RNG or KDF. Substituting a non-vetted
 /// primitive here — even temporarily — is the exact failure the PRD's
 /// "no custom cryptography" rule exists to prevent.
-nonisolated struct UnwiredRandomSource: RandomSource {
+struct UnwiredRandomSource: RandomSource {
     func bytes(count: Int) throws -> [UInt8] {
         throw DependencyNotWired(dependency: "RandomSource", owningTask: "10.1.1")
     }
 }
 
-nonisolated struct UnwiredKeyDerivation: KeyDerivation {
+struct UnwiredKeyDerivation: KeyDerivation {
     func deriveKey(passphrase: [UInt8], salt: [UInt8], iterations: Int, keyByteCount: Int) throws -> [UInt8] {
         throw DependencyNotWired(dependency: "KeyDerivation", owningTask: "10.1.1")
     }
@@ -94,7 +94,7 @@ nonisolated struct UnwiredKeyDerivation: KeyDerivation {
     }
 }
 
-nonisolated struct UnwiredSecureArchiveCoding: SecureArchiveCoding {
+struct UnwiredSecureArchiveCoding: SecureArchiveCoding {
     func seal(payload: Data, passphrase: [UInt8]) async throws -> Data {
         throw DependencyNotWired(dependency: "SecureArchiveCoding", owningTask: "10.1.2")
     }
@@ -109,7 +109,7 @@ nonisolated struct UnwiredSecureArchiveCoding: SecureArchiveCoding {
 /// Reads throw rather than returning empty results: an empty read would look
 /// like "no data yet" and could route the app through onboarding or report a
 /// baseline as missing, which is worse than a loud failure.
-nonisolated struct UnwiredUserProfileRepository: UserProfileRepository {
+struct UnwiredUserProfileRepository: UserProfileRepository {
     func fetchProfile() async throws -> UserProfile? {
         throw DependencyNotWired(dependency: "UserProfileRepository", owningTask: "3.2.3")
     }
@@ -119,7 +119,7 @@ nonisolated struct UnwiredUserProfileRepository: UserProfileRepository {
     }
 }
 
-nonisolated struct UnwiredGaitSessionRepository: GaitSessionRepository {
+struct UnwiredGaitSessionRepository: GaitSessionRepository {
     private var notWired: DependencyNotWired {
         DependencyNotWired(dependency: "GaitSessionRepository", owningTask: "3.2.1")
     }
@@ -134,7 +134,7 @@ nonisolated struct UnwiredGaitSessionRepository: GaitSessionRepository {
     func validSessionCount(mode: TestMode) async throws -> Int { throw notWired }
 }
 
-nonisolated struct UnwiredBaselineRepository: BaselineRepository {
+struct UnwiredBaselineRepository: BaselineRepository {
     private var notWired: DependencyNotWired {
         DependencyNotWired(dependency: "BaselineRepository", owningTask: "3.2.2")
     }

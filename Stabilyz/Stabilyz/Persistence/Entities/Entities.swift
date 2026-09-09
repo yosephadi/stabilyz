@@ -7,13 +7,14 @@ import SwiftData
 /// Query needs are narrow — mode, date, validity, score — so blobs avoid a
 /// 30-column table and keep metric evolution schema-light. Accepted trade-off:
 /// individual metrics are not queryable, and no PRD requirement queries them.
+///
+/// Uniqueness uses `@Attribute(.unique)` rather than the `#Unique` macro, which
+/// is iOS 18+; this app targets iOS 17 [PRD].
 
 @Model
-nonisolated final class UserProfileEntity {
+final class UserProfileEntity {
     /// Uniqueness invariant: exactly one profile (docs/06 §6.3).
-    #Unique<UserProfileEntity>([\.id])
-
-    var id: UUID = UUID()
+    @Attribute(.unique) var id: UUID = UUID()
     var amputationLevel: String = ""
     var side: String = ""
     var timeSinceAmputationMonths: Int = 0
@@ -44,10 +45,8 @@ nonisolated final class UserProfileEntity {
 }
 
 @Model
-nonisolated final class GaitSessionEntity {
-    #Unique<GaitSessionEntity>([\.id])
-
-    var id: UUID = UUID()
+final class GaitSessionEntity {
+    @Attribute(.unique) var id: UUID = UUID()
     /// `TestMode.rawValue` — the segregation key on every query [PRD OQ-5].
     var mode: String = ""
     var startedAt: Date = Date.distantPast
@@ -79,13 +78,11 @@ nonisolated final class GaitSessionEntity {
 }
 
 @Model
-nonisolated final class BaselineEntity {
+final class BaselineEntity {
+    var id: UUID = UUID()
     /// One baseline per mode, enforced at the store as well as in the
     /// repository — belt and braces for [PRD OQ-5] (docs/06 §6.3).
-    #Unique<BaselineEntity>([\.mode])
-
-    var id: UUID = UUID()
-    var mode: String = ""
+    @Attribute(.unique) var mode: String = ""
     var cadenceBPM: Double = 0
     var establishedAt: Date = Date.distantPast
     var algorithmVersion: String = ""

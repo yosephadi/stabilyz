@@ -3,7 +3,7 @@
 /// Thrown from services and domain code, and translated at the view-model
 /// boundary by `ErrorPresenter`. Technical detail is carried for logging and is
 /// **never shown to the user** [PRD rule: do not expose technical errors].
-nonisolated enum StabilyzError: Error, Equatable {
+enum StabilyzError: Error, Equatable {
     case permission(Permission)
     case sensor(Sensor)
     case recording(Recording)
@@ -16,25 +16,25 @@ nonisolated enum StabilyzError: Error, Equatable {
     case crypto(Crypto)
 
     /// Motion & Fitness authorization (docs/15 §15.1).
-    nonisolated enum Permission: Equatable {
+    enum Permission: Equatable {
         case motionDenied
         case motionRestricted
     }
 
     /// Sensor availability and lifecycle (docs/07 §7.3, §7.6).
-    nonisolated enum Sensor: Equatable {
+    enum Sensor: Equatable {
         case unavailable
         case primingTimeout
         case midSessionFailure
     }
 
     /// Interruption and gap outcomes (docs/07 §7.7).
-    nonisolated enum Recording: Equatable {
+    enum Recording: Equatable {
         case unrecoverableInterruption
     }
 
     /// Pipeline validity outcomes (docs/08 stages 3-5).
-    nonisolated enum Processing: Equatable {
+    enum Processing: Equatable {
         case noWalkingDetected
         case insufficientValidWalking
         case tooFewStrides
@@ -44,12 +44,12 @@ nonisolated enum StabilyzError: Error, Equatable {
         case cancelled
     }
 
-    nonisolated enum Persistence: Equatable {
+    enum Persistence: Equatable {
         case saveFailed
         case storeCorruption
     }
 
-    nonisolated enum Export: Equatable {
+    enum Export: Equatable {
         case keyDerivationFailed
         case fileWriteFailed
         case shareFailed
@@ -57,24 +57,24 @@ nonisolated enum StabilyzError: Error, Equatable {
 
     /// Import failures. The key-check value is what lets a wrong passphrase be
     /// distinguished from a corrupted file [PRD; docs/13 §13.4].
-    nonisolated enum ArchiveImport: Equatable {
+    enum ArchiveImport: Equatable {
         case wrongPassphrase
         case corruptedArchive
         case notAStabilyzArchive
     }
 
-    nonisolated enum SchemaCompatibility: Equatable {
+    enum SchemaCompatibility: Equatable {
         case futureSchema(version: Int)
         case unsupportedEnvelope(version: Int)
     }
 
-    nonisolated enum Audio: Equatable {
+    enum Audio: Equatable {
         case routeLost
         case interrupted
         case engineFailure
     }
 
-    nonisolated enum Crypto: Equatable {
+    enum Crypto: Equatable {
         case tagVerificationFailed
         case randomGenerationFailed
     }

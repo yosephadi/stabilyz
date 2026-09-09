@@ -3,7 +3,7 @@
 /// Held as a versioned value rather than as properties on `TestMode` so the
 /// thresholds can be tuned without a schema change and without touching call
 /// sites [REC]. `SessionPolicy` is passed in; nothing reads a global.
-nonisolated struct SessionPolicy: Sendable, Equatable {
+struct SessionPolicy: Sendable, Equatable {
     /// Bumped whenever a threshold changes, so a stored session can be read
     /// back against the policy it was judged under.
     let version: Int

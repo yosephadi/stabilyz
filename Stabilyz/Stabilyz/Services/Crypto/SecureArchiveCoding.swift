@@ -9,7 +9,7 @@ import Foundation
 ///
 /// The passphrase crosses this boundary as bytes, not a `String`, so it can be
 /// zeroed after derivation (docs/13 §13.3).
-nonisolated protocol KeyDerivation: Sendable {
+protocol KeyDerivation: Sendable {
     func deriveKey(passphrase: [UInt8], salt: [UInt8], iterations: Int, keyByteCount: Int) throws -> [UInt8]
 
     /// Iteration count calibrated on-device to the target derivation time and
@@ -26,7 +26,7 @@ nonisolated protocol KeyDerivation: Sendable {
 /// `open` performs decryption ONLY. Schema/version/integrity validation and any
 /// local data mutation happen after it returns, in the fixed order required by
 /// docs/13 §13.4 — nothing local is touched before validation completes.
-nonisolated protocol SecureArchiveCoding: Sendable {
+protocol SecureArchiveCoding: Sendable {
     /// Returns the complete archive: plaintext header + ciphertext. No plaintext
     /// temp file is ever written (docs/13 §13.2 step 5).
     func seal(payload: Data, passphrase: [UInt8]) async throws -> Data

@@ -1,7 +1,7 @@
 import Foundation
 
 /// Log subsystem categories (docs/20-observability-logging-diagnostics.md).
-nonisolated enum LogCategory: String, Sendable, CaseIterable {
+enum LogCategory: String, Sendable, CaseIterable {
     case app
     case session
     case motion
@@ -13,7 +13,7 @@ nonisolated enum LogCategory: String, Sendable, CaseIterable {
 }
 
 /// Severity, mapped onto `os.Logger` levels by the production implementation.
-nonisolated enum LogLevel: String, Sendable, CaseIterable {
+enum LogLevel: String, Sendable, CaseIterable {
     case debug
     case info
     case warning
@@ -22,7 +22,7 @@ nonisolated enum LogLevel: String, Sendable, CaseIterable {
 
 /// A signpost interval opened by `LogService.beginInterval`, to be passed back
 /// to `endInterval`. Opaque: callers hold it and return it, nothing more.
-nonisolated struct SignpostInterval: Sendable, Hashable {
+struct SignpostInterval: Sendable, Hashable {
     let name: StaticString
     let category: LogCategory
     let id: UInt64
@@ -45,7 +45,7 @@ nonisolated struct SignpostInterval: Sendable, Hashable {
 /// log counts and statuses only (docs/20, docs/15 §15.2). The signature takes a
 /// plain `String` precisely so every call site is an explicit, auditable
 /// decision about what is safe to record.
-nonisolated protocol LogService: Sendable {
+protocol LogService: Sendable {
     func log(_ level: LogLevel, _ category: LogCategory, _ message: String)
 
     /// Opens a signpost interval for a pipeline stage (docs/20).

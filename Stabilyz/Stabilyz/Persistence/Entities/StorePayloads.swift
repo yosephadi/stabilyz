@@ -1,7 +1,7 @@
 import Foundation
 
 /// The non-queried half of a session, stored as one JSON blob (docs/05 §5.2).
-nonisolated struct GaitSessionPayload: Codable, Equatable {
+struct GaitSessionPayload: Codable, Equatable {
     let endedAt: Date
     let advertisedClockElapsed: Duration
     let validWalkingDuration: Duration
@@ -15,14 +15,14 @@ nonisolated struct GaitSessionPayload: Codable, Equatable {
 }
 
 /// The non-queried half of a baseline (docs/05 §5.2).
-nonisolated struct BaselinePayload: Codable, Equatable {
+struct BaselinePayload: Codable, Equatable {
     let stats: [BaselineMetricStat]
     let sourceSessionIDs: [UUID]
 }
 
 /// The stored form of `SessionOutcome`, flattened into the queryable `validity`
 /// column so History and baseline counting can filter without decoding a blob.
-nonisolated enum SessionValidity {
+enum SessionValidity {
     static let valid = "valid"
 
     static func column(for outcome: SessionOutcome) -> String {

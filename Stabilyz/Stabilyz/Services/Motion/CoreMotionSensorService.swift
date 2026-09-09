@@ -1,6 +1,5 @@
 import CoreMotion
 import Foundation
-import Synchronization
 
 /// Production `MotionSensorService` over `CMMotionManager`
 /// (docs/07-motion-sensor-architecture.md §7.2, §7.3, §7.6).
@@ -9,10 +8,10 @@ import Synchronization
 /// not be started or stopped concurrently. Raw CoreMotion values are converted
 /// to `SensorSample` here and never leak upward (docs/03 boundary rule 4).
 /// Set from the CoreMotion callback queue, read by the priming wait.
-/// A reference box because `Mutex` is noncopyable and cannot be captured by an
-/// escaping callback directly.
+/// A reference box so the escaping CoreMotion callback and the priming wait
+/// share one flag.
 private final class SampleArrivalFlag: Sendable {
-    private let flag = Mutex(false)
+    private let flag = Locked(false)
 
     func markArrived() { flag.withLock { $0 = true } }
     var hasArrived: Bool { flag.withLock { $0 } }

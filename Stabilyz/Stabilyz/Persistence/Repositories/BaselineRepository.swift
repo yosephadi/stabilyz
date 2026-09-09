@@ -5,7 +5,7 @@ import Foundation
 /// Uniqueness invariant: at most one baseline per `TestMode`, enforced by a
 /// store-level constraint and a repository-level assertion — a structural
 /// guarantee of [PRD OQ-5]. Baselines are frozen once established in v1.
-nonisolated protocol BaselineRepository: Sendable {
+protocol BaselineRepository: Sendable {
     func baseline(mode: TestMode) async throws -> Baseline?
 
     /// Throws if a baseline already exists for that mode.

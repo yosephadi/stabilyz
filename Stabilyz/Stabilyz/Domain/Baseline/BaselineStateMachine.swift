@@ -7,8 +7,8 @@
 /// Every entry point takes an explicit `TestMode`. A baseline belonging to a
 /// different mode is rejected rather than tolerated: cross-mode mixing is the
 /// one thing the PRD forbids outright [PRD OQ-5].
-nonisolated enum BaselineStateMachine {
-    nonisolated enum StateError: Error, Equatable {
+enum BaselineStateMachine {
+    enum StateError: Error, Equatable {
         /// A baseline for a different mode was supplied — a caller bug that
         /// would otherwise silently blend the two modes.
         case baselineModeMismatch(expected: TestMode, actual: TestMode)

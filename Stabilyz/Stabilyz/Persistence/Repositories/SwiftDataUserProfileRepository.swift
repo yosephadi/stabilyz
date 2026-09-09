@@ -5,7 +5,7 @@ import SwiftData
 ///
 /// A nil profile is the signal that onboarding has not completed — the router
 /// reads it that way at launch (docs/11 §11.1).
-nonisolated struct SwiftDataUserProfileRepository: UserProfileRepository {
+struct SwiftDataUserProfileRepository: UserProfileRepository {
     private let reader: StoreReader
     private let writer: StoreWriter
 

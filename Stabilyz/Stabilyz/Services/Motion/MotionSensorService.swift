@@ -6,7 +6,7 @@ import Foundation
 /// The production implementation wraps `CMMotionManager`; tests and previews use
 /// a fixture replay service (docs/12 §12.2). Raw CoreMotion types are converted
 /// to `SensorSample` here and never leak upward (docs/03 boundary rule 4).
-nonisolated protocol MotionSensorService: Sendable {
+protocol MotionSensorService: Sendable {
     /// Whether the hardware exists on this device (docs/07 §7.6).
     ///
     /// Async because the production implementation is an actor guarding

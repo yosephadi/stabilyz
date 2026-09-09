@@ -7,7 +7,7 @@ import Foundation
 
 
 /// Placeholder — full definition in Tasks 6.2.2/6.2.3 (docs/05 §5.1).
-nonisolated struct SessionScore: Sendable, Equatable, Codable {
+struct SessionScore: Sendable, Equatable, Codable {
     let relativeIndex: Int
 
     init(relativeIndex: Int) {

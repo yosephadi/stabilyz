@@ -2,7 +2,7 @@ import Foundation
 
 /// Route and interruption notifications from the audio session, surfaced as
 /// domain values (docs/10-audio-feedback-architecture.md §10.3).
-nonisolated enum AudioFeedbackEvent: Sendable, Equatable {
+enum AudioFeedbackEvent: Sendable, Equatable {
     case routeChanged
     case interrupted
     case interruptionEnded
@@ -18,7 +18,7 @@ nonisolated enum AudioFeedbackEvent: Sendable, Equatable {
 /// degradation, and can never fail a session (docs/10 §10.4, docs/15 §15.1).
 /// This service subscribes to step events; it never writes to the sample buffer
 /// and never calls the processing pipeline (docs/10 §10.4).
-nonisolated protocol AudioFeedbackService: Sendable {
+protocol AudioFeedbackService: Sendable {
     var events: AsyncStream<AudioFeedbackEvent> { get }
 
     func playStartTone() async

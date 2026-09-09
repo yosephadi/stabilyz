@@ -11,7 +11,7 @@ import Foundation
 /// structurally: the memberwise initializer is private, and the only two ways to
 /// build a session are `valid(...)`, which requires metrics, and `invalid(...)`,
 /// which accepts neither metrics nor a score.
-nonisolated struct GaitSession: Sendable, Equatable, Identifiable {
+struct GaitSession: Sendable, Equatable, Identifiable {
     let id: UUID
     /// Stored with the session [PRD AC] and the key for every comparison [PRD OQ-5].
     let mode: TestMode

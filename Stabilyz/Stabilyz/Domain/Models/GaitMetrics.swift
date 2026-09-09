@@ -6,7 +6,7 @@
 /// The composite score is built from **independent** signals: the regularity
 /// metrics, step-time variability and the trunk-motion proxy are separate
 /// inputs, and gait consistency is never the sole basis of a score [PRD §7].
-nonisolated struct GaitMetrics: Sendable, Equatable, Codable {
+struct GaitMetrics: Sendable, Equatable, Codable {
     // Baseline-standardizable metrics
     /// Ad1.
     let stepRegularity: Double

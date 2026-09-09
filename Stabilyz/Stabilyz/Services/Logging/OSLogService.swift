@@ -1,5 +1,4 @@
 import Foundation
-import Synchronization
 import os
 
 /// Production `LogService`: one `os.Logger` and one `OSSignposter` per category
@@ -7,14 +6,14 @@ import os
 ///
 /// No analytics, no network, no file sink — the PRD contains no analytics
 /// requirement and none is added.
-nonisolated final class OSLogService: LogService {
+final class OSLogService: LogService {
     private let loggers: [LogCategory: Logger]
     private let signposters: [LogCategory: OSSignposter]
 
     /// `OSSignpostIntervalState` has to be handed back to `endInterval`, so open
     /// intervals are parked here between the two calls.
-    private let openIntervals = Mutex<[UInt64: OSSignpostIntervalState]>([:])
-    private let nextIntervalID = Mutex<UInt64>(1)
+    private let openIntervals = Locked<[UInt64: OSSignpostIntervalState]>([:])
+    private let nextIntervalID = Locked<UInt64>(1)
 
     init(subsystem: String = Bundle.main.bundleIdentifier ?? "Stabilyz") {
         var loggers: [LogCategory: Logger] = [:]

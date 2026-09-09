@@ -1,5 +1,5 @@
 /// What the user is shown for a failure (docs/15 §15.1).
-nonisolated struct ErrorPresentation: Sendable, Equatable {
+struct ErrorPresentation: Sendable, Equatable {
     /// Plain-language, action-oriented, calm. Never technical [PRD §6].
     let message: String
     /// Whether retrying is worth offering.
@@ -28,7 +28,7 @@ nonisolated struct ErrorPresentation: Sendable, Equatable {
 ///
 /// Returning nil means **show nothing**: audio failures degrade silently and
 /// must never interrupt a session [PRD §6, docs/10 §10.4].
-nonisolated enum ErrorPresenter {
+enum ErrorPresenter {
     static func presentation(for error: StabilyzError) -> ErrorPresentation? {
         switch error {
         case .permission(.motionDenied):

@@ -9,12 +9,12 @@ import Foundation
 ///
 /// Deliberately **not** `Codable`: synthesized decoding would bypass the
 /// initializer's invariant check. Export DTOs (Task 10.1.3) convert explicitly.
-nonisolated struct Baseline: Sendable, Equatable, Identifiable {
+struct Baseline: Sendable, Equatable, Identifiable {
     /// Valid same-mode sessions required before a baseline is established
     /// [PRD OQ-5 — locked in].
     static let requiredValidSessionCount = 5
 
-    nonisolated enum ValidationError: Error, Equatable {
+    enum ValidationError: Error, Equatable {
         /// A baseline must be derived from exactly five valid same-mode sessions.
         case wrongSourceSessionCount(expected: Int, actual: Int)
         /// The five source sessions must be distinct.

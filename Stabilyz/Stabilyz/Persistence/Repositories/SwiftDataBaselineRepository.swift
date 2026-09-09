@@ -6,7 +6,7 @@ import SwiftData
 /// Every API requires an explicit `TestMode`. Together with the store's unique
 /// constraint on `mode` and `StoreWriter.establish`'s create-only check, this is
 /// the three-layer anti-mixing guarantee in docs/09 §9.7.
-nonisolated struct SwiftDataBaselineRepository: BaselineRepository {
+struct SwiftDataBaselineRepository: BaselineRepository {
     private let reader: StoreReader
     private let writer: StoreWriter
 

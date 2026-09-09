@@ -4,7 +4,7 @@ import Foundation
 /// sandbox in tests (docs/12 §12.2).
 ///
 /// Used for export archives and the recorder's scratch file (docs/06 §6.1, §6.4).
-nonisolated protocol FileIO: Sendable {
+protocol FileIO: Sendable {
     func temporaryDirectory() -> URL
 
     func fileExists(at url: URL) -> Bool

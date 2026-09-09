@@ -8,7 +8,7 @@
 ///
 /// The raw value is persisted on session and baseline rows (docs/05 §5.2), so
 /// **these strings must not change**.
-nonisolated enum TestMode: String, Sendable, CaseIterable, Codable {
+enum TestMode: String, Sendable, CaseIterable, Codable {
     case quickTest
     case fullTest
 

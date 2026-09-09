@@ -1,5 +1,4 @@
 import Foundation
-import Synchronization
 import SwiftData
 import Testing
 @testable import Stabilyz
@@ -12,7 +11,7 @@ private final class CapturingLogService: LogService {
         let message: String
     }
 
-    private let state = Mutex<(entries: [Entry], open: Set<UInt64>, closed: [UInt64], next: UInt64)>(([], [], [], 1))
+    private let state = Locked<(entries: [Entry], open: Set<UInt64>, closed: [UInt64], next: UInt64)>(([], [], [], 1))
 
     var entries: [Entry] { state.withLock { $0.entries } }
     var openIntervalIDs: Set<UInt64> { state.withLock { $0.open } }

@@ -1,7 +1,7 @@
 import Foundation
 
 /// A 3-axis reading. Used for both acceleration and gravity components.
-nonisolated struct Vector3: Sendable, Equatable {
+struct Vector3: Sendable, Equatable {
     let x: Double
     let y: Double
     let z: Double
@@ -20,7 +20,7 @@ nonisolated struct Vector3: Sendable, Equatable {
 /// device uptime in seconds and is the primary, monotonic, gap-revealing clock.
 /// `wallClockAnchor` is the `Date` captured once at session start, so every
 /// sample's wall-clock time is `wallClockAnchor + (deviceTimestamp - anchorUptime)`.
-nonisolated struct SensorSample: Sendable, Equatable {
+struct SensorSample: Sendable, Equatable {
     let deviceTimestamp: TimeInterval
     let wallClockAnchor: Date
     let acceleration: Vector3
@@ -38,7 +38,7 @@ nonisolated struct SensorSample: Sendable, Equatable {
 /// One pedometer update, mapped onto the same timeline as `SensorSample`
 /// (docs/07 §7.2, §7.4). `distance` is carried for the context/reference metrics
 /// in docs/05 §5.1.
-nonisolated struct PedometerEvent: Sendable, Equatable {
+struct PedometerEvent: Sendable, Equatable {
     let steps: Int
     /// Steps per second, as reported by the platform. Nil when unavailable.
     let cadence: Double?
