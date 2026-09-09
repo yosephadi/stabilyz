@@ -1,4 +1,5 @@
 import Foundation
+import SwiftData
 
 /// The single composition root (docs/12-dependency-injection.md §12.1, §12.3).
 ///
@@ -68,14 +69,17 @@ nonisolated struct AppDependencies: Sendable {
 }
 
 extension AppDependencies {
-    /// The production graph.
+    /// The production graph, backed by the SwiftData store.
     ///
     /// Slots whose concrete implementation has not been built yet are filled
     /// with the conformances in `UnwiredDependencies.swift`, each naming the
     /// task that replaces it. As those tasks land, swap the value here — no
     /// call site changes.
-    static func live() -> AppDependencies {
-        AppDependencies(
+    static func live(container: ModelContainer) -> AppDependencies {
+        let reader = StoreReader(modelContainer: container)
+        let writer = StoreWriter(modelContainer: container)
+
+        return AppDependencies(
             logService: OSLogService(),
             clock: SystemClock(),
             fileIO: FileManagerFileIO(),
@@ -85,9 +89,37 @@ extension AppDependencies {
             audioFeedback: SilentAudioFeedbackService(),       // Task 7.1.1
             keyDerivation: UnwiredKeyDerivation(),             // Task 10.1.1
             secureArchive: UnwiredSecureArchiveCoding(),       // Task 10.1.2
-            userProfileRepository: UnwiredUserProfileRepository(),  // Task 3.2.3
-            gaitSessionRepository: UnwiredGaitSessionRepository(),  // Task 3.2.1
-            baselineRepository: UnwiredBaselineRepository()         // Task 3.2.2
+            userProfileRepository: SwiftDataUserProfileRepository(reader: reader, writer: writer),
+            gaitSessionRepository: SwiftDataGaitSessionRepository(reader: reader, writer: writer),
+            baselineRepository: SwiftDataBaselineRepository(reader: reader, writer: writer)
+        )
+    }
+
+    /// Builds the store and the production graph.
+    static func live() throws -> AppDependencies {
+        live(container: try StoreContainer.make())
+    }
+
+    /// The graph used when the store cannot be opened at launch.
+    ///
+    /// The app still runs; every repository call fails loudly rather than
+    /// reporting empty data, which would read as "no sessions yet" and could
+    /// misreport baseline progress. Surfacing this as a user-facing recovery
+    /// path belongs to app-level persistence error handling (docs/15 §15.1).
+    static func storeUnavailable() -> AppDependencies {
+        AppDependencies(
+            logService: OSLogService(),
+            clock: SystemClock(),
+            fileIO: FileManagerFileIO(),
+            randomSource: UnwiredRandomSource(),
+            motionSensor: UnwiredMotionSensorService(),
+            pedometer: UnwiredPedometerService(),
+            audioFeedback: SilentAudioFeedbackService(),
+            keyDerivation: UnwiredKeyDerivation(),
+            secureArchive: UnwiredSecureArchiveCoding(),
+            userProfileRepository: UnwiredUserProfileRepository(),
+            gaitSessionRepository: UnwiredGaitSessionRepository(),
+            baselineRepository: UnwiredBaselineRepository()
         )
     }
 }

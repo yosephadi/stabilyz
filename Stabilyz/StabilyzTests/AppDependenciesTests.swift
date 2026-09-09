@@ -1,4 +1,5 @@
 import Foundation
+import SwiftData
 import Testing
 @testable import Stabilyz
 
@@ -46,13 +47,17 @@ private extension AppDependencies {
     #expect(try dependencies.randomSource.bytes(count: 4) == [0xAB, 0xAB, 0xAB, 0xAB])
 }
 
-@Test func liveGraphSuppliesRealClockAndFileIO() {
-    let dependencies = AppDependencies.live()
+@Test func liveGraphSuppliesRealClockAndFileIO() throws {
+    let dependencies = AppDependencies.live(container: try StoreContainer.make(inMemory: true))
 
     #expect(dependencies.clock.uptime > 0)
     // Wall clock and uptime are independent timebases (docs/07 §7.4).
     #expect(dependencies.clock.now.timeIntervalSince1970 > 1_600_000_000)
     #expect(dependencies.fileIO.temporaryDirectory().isFileURL)
+    // EPIC 3 landed: the live graph now uses the SwiftData repositories.
+    #expect(dependencies.gaitSessionRepository is SwiftDataGaitSessionRepository)
+    #expect(dependencies.baselineRepository is SwiftDataBaselineRepository)
+    #expect(dependencies.userProfileRepository is SwiftDataUserProfileRepository)
 }
 
 // MARK: - Unwired slots fail loudly
@@ -68,8 +73,10 @@ private extension AppDependencies {
     }
 }
 
-@Test func unwiredRepositoriesThrowRatherThanReportingEmptyData() async throws {
-    let dependencies = AppDependencies.live()
+@Test func storeUnavailableRepositoriesThrowRatherThanReportingEmptyData() async throws {
+    // When the store cannot be opened the app runs degraded, but a repository
+    // read must fail loudly rather than look like "no sessions yet".
+    let dependencies = AppDependencies.storeUnavailable()
 
     // An empty read would be indistinguishable from "no sessions yet", which
     // would silently misreport baseline progress.
@@ -85,7 +92,7 @@ private extension AppDependencies {
 }
 
 @Test func unwiredCryptoNeverSubstitutesAStandInPrimitive() async throws {
-    let dependencies = AppDependencies.live()
+    let dependencies = AppDependencies.storeUnavailable()
 
     #expect(throws: DependencyNotWired.self) {
         _ = try dependencies.randomSource.bytes(count: 16)

@@ -1,5 +1,6 @@
 import Foundation
 import Synchronization
+import SwiftData
 import Testing
 @testable import Stabilyz
 
@@ -123,7 +124,7 @@ private struct StageFailure: Error {}
     service.endInterval(interval)
 }
 
-@Test func osLogServiceIsWiredIntoTheLiveGraph() {
-    let dependencies = AppDependencies.live()
+@Test func osLogServiceIsWiredIntoTheLiveGraph() throws {
+    let dependencies = AppDependencies.live(container: try StoreContainer.make(inMemory: true))
     #expect(dependencies.logService is OSLogService)
 }
