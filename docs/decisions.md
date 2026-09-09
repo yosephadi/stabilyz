@@ -351,7 +351,7 @@ CV is computed from.
 
 ## 12. Metric assembly — aggregation statistics and the asymmetry reading
 
-**Date:** 2026-09-09 · **Task:** 5.2.5 · **Status:** Decided (statistics) / **Needs confirmation** (asymmetry formula reading)
+**Date:** 2026-09-09 · **Task:** 5.2.5 · **Status:** Decided (statistics) · asymmetry formula superseded by entry 13
 
 ### Aggregation choices
 
@@ -388,36 +388,98 @@ explicitly, including `!= 0`, for each case.
 `asymmetryAffectedSide` is added to `GaitMetrics` so the value is *labelled*, as
 [PRD §7] requires. It comes from the profile, never from guessing at the signal.
 
-### The concrete reading of the formula — NEEDS CONFIRMATION
+### The concrete reading of the formula — SUPERSEDED
 
-Entry 2 fixed the shape as `(P1 − P2) / (P1 + P2)` over "autocorrelation
-half-stride peaks". Two readings were available:
-
-1. **P1 and P2 as the peaks at one and two half-strides** — the step lag and the
-   stride lag. This is what is implemented: symmetric gait repeats equally well
-   over a step and a stride and gives ≈0; asymmetric gait repeats better over the
-   full stride and gives a negative value whose magnitude grows with asymmetry.
-2. **P1 and P2 as two distinct peaks flanking the half-stride lag**, one per
-   half-cycle. This detects *timing* asymmetry (unequal step durations) but
-   returns exactly zero for the amplitude asymmetry in the Task 5.2.4 fixture,
-   because both half-cycles there are the same length.
-
-Reading 1 was chosen because it is nonzero for both amplitude and timing
-asymmetry, and because the required test — the 5.2.4 asymmetric fixture yielding
-a nonzero value — is unsatisfiable under reading 2.
-
-**Consequence worth stating plainly:** under reading 1 the index is a monotone
-function of Ad1 and Ad2, so it adds no information the two regularity metrics do
-not already carry — it re-expresses their contrast on a bounded, signed scale.
-It also does not distinguish *which* limb differs; the sign follows the step/stride
-contrast, and the affected side comes from the profile label. If the intent was a
-literal sound-vs-prosthetic step-*duration* comparison, that is reading 2 plus a
-gait-event side-identification method, and both the formula and the Task 5.2.4
-fixture would need revisiting. docs/08 §8.2 still lists the asymmetry computation
-and the definition of "side reliably identifiable" as [OPEN].
+This section proposed reading `P1`/`P2` as the autocorrelation peaks *at* one and
+two half-strides, making the index arithmetic on Ad1 and Ad2. **That reading was
+rejected in review — see entry 13.**
 
 ### New tunable
 
 | Parameter | Value | Reasoning |
 |---|---|---|
-| `AsymmetryPolicy.minimumPeakProminence` | 0.2 | **PROVISIONAL — pending device validation (Phase 12).** Normalised autocorrelation both peaks must reach. Below it the walk is not periodic enough for the contrast to mean anything, and the honest answer is no value rather than a number. Supersedes entry 1's note that no separate prominence threshold would be needed. |
+| `AsymmetryPolicy.minimumPeakProminence` | 0.2 | **PROVISIONAL — pending device validation (Phase 12).** Normalised autocorrelation a peak must reach for its position to mean anything. Supersedes entry 1's note that no separate prominence threshold would be needed. |
+
+---
+
+## 13. Step-time asymmetry is a timing comparison — reading 2
+
+**Date:** 2026-09-09 · **Task:** 5.2.5 (revised) · **Status:** Decided
+
+Supersedes the asymmetry formula in entry 12.
+
+### The decision
+
+`asymmetryIndex = (τ2 − τ1) / (τ1 + τ2)`, where τ1 < τ2 are the **positions** of
+the two autocorrelation peaks flanking the nominal half-stride. Unequal step
+durations split that peak; equal durations leave one, giving τ1 = τ2 and an index
+of exactly zero.
+
+### Why reading 2, on the ledger's own grounds
+
+[PRD OQ-1] reserves the name "step time asymmetry" for the literal
+sound-vs-prosthetic limb comparison, and requires the feature be presented as
+distinct from gait consistency. Reading 1 made the index arithmetic on Ad1 and
+Ad2 — a monotone function of the two regularity metrics. Under that reading
+"distinct from gait consistency" is **unsatisfiable**: the feature would be a
+restatement of the thing it is supposed to be distinct from. Between two readings
+of an ambiguous formula, the one that keeps a stated requirement non-vacuous wins.
+
+A test now pins the independence directly: the amplitude-asymmetric fixture and
+the timing-asymmetric fixture both show Ad2 above Ad1, yet only the second
+reports asymmetry. Under reading 1 that test could not have separated them.
+
+### Recorded: the ambiguity was an authoring error
+
+The entry 12 formula ("(P1 − P2)/(P1 + P2) from autocorrelation half-stride
+peaks") did not say whether P1 and P2 were peak *values* or peak *positions*, and
+the two readings measure different phenomena. The Task 5.2.5 test requirement
+compounded it by naming the Task 5.2.4 **amplitude**-asymmetric fixture as the
+case that must yield nonzero asymmetry — which is only satisfiable under the
+wrong reading. Caught in review. The lesson for later stages: when a formula and
+its acceptance test are written together, an ambiguity in one can be laundered
+into apparent correctness by the other.
+
+### Reliability gate — "side reliably identifiable", provisional
+
+Asymmetry is reported only when **mediolateral polarity alternates consistently**
+across detected footfalls, at or above `minimumPolarityAlternationRate`.
+Consecutive footfalls are opposite limbs, so a trunk that leans one way then the
+other is evidence the two half-cycles are distinguishable at all. Without it, a
+difference in step durations cannot honestly be attributed to limbs that were
+never told apart.
+
+Reconciliation worth noting: the instruction listed "split peaks present" as a
+gate condition, but also specified that a single unsplit peak is a genuine ≈0
+measurement. Those conflict literally, so "peaks present" is read as *peak
+structure prominent enough to locate* — one peak or two. One prominent peak gives
+zero; no prominent peak gives nil.
+
+`AsymmetryUnavailability` records which gate failed — bilateral profile, no
+profile, peaks not prominent, or side not reliably identifiable — so absence is a
+result with a cause rather than a blank.
+
+### Sign convention, and why limb attribution is [OPEN]
+
+The index is **longer-step minus shorter-step**, so it is non-negative and says
+how unequal the two step durations are. It does **not** say which limb is which.
+
+The obstacle is concrete: the mediolateral axis is derived per session by PCA
+(entry 1), and a principal component's sign is arbitrary — there is no world-frame
+anchor to say which direction is the user's left. Polarity *alternation* is
+sign-independent and therefore usable; absolute polarity is not. The profile's
+`side` is carried as **context only**.
+
+**[OPEN] — Phase 12 candidates for absolute limb attribution:** binding ML
+polarity under a known phone placement, or a one-time calibration step that
+anchors the axis. Neither is attempted in v1.
+
+### New tunables
+
+| Parameter | Value | Reasoning |
+|---|---|---|
+| `AsymmetryPolicy.halfStrideSearchTolerance` | 0.35 | **PROVISIONAL — pending device validation (Phase 12).** Fraction of the nominal half-stride searched either side; bounds the largest detectable asymmetry |
+| `AsymmetryPolicy.minimumPolarityAlternationRate` | 0.8 | **PROVISIONAL — pending device validation (Phase 12).** Fraction of consecutive footfalls whose ML polarity must flip |
+
+`usesHalfStridePeakRatio` is renamed `usesHalfStridePeakPositions`, so the policy
+name states which reading is in force.

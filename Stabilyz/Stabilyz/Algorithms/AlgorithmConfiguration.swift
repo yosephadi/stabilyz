@@ -155,10 +155,23 @@ struct TrunkProxyPolicy: Sendable, Equatable {
 /// (docs/08 §8.2, [PRD §7, OQ-1]).
 struct AsymmetryPolicy: Sendable, Equatable {
     /// PROVISIONAL — pending device validation (Phase 12).
-    /// (P1 − P2) / (P1 + P2) over the two autocorrelation half-stride peaks.
-    /// A signed, bounded ratio, so left- and right-dominant asymmetry are
-    /// distinguishable and the magnitude is comparable between users.
-    let usesHalfStridePeakRatio: Bool
+    /// `(τ2 − τ1) / (τ1 + τ2)` over the **positions** of the two
+    /// autocorrelation peaks flanking the nominal half-stride, τ1 < τ2.
+    ///
+    /// A timing comparison, which is what [PRD OQ-1] reserves the name
+    /// "step time asymmetry" for. Bounded, and zero when the peak does not
+    /// split — symmetric step durations (docs/decisions.md entry 13).
+    let usesHalfStridePeakPositions: Bool
+    /// PROVISIONAL — pending device validation (Phase 12).
+    /// Fraction of the nominal half-stride searched either side for the two
+    /// flanking peaks. Bounds the largest detectable asymmetry.
+    let halfStrideSearchTolerance: Double
+    /// PROVISIONAL — pending device validation (Phase 12).
+    /// Fraction of consecutive footfalls whose mediolateral polarity must
+    /// alternate before the two half-cycles are treated as belonging to
+    /// distinguishable limbs. This is the provisional operational meaning of
+    /// [PRD §7]'s "side reliably identifiable".
+    let minimumPolarityAlternationRate: Double
     /// Unilateral profiles only. Never fabricated for bilateral users
     /// [PRD §7, OQ-1] — this is a PRD rule, not a tunable.
     let requiresUnilateralProfile: Bool
@@ -385,7 +398,11 @@ struct AlgorithmConfiguration: Sendable, Equatable {
         ),
         trunkProxy: TrunkProxyPolicy(perAxisRMS: true),
         asymmetry: AsymmetryPolicy(
-            usesHalfStridePeakRatio: true,
+            usesHalfStridePeakPositions: true,
+            // PROVISIONAL — pending device validation (Phase 12).
+            halfStrideSearchTolerance: 0.35,
+            // PROVISIONAL — pending device validation (Phase 12).
+            minimumPolarityAlternationRate: 0.8,
             requiresUnilateralProfile: true,
             requiresBothPeaksProminent: true,
             // PROVISIONAL — pending device validation (Phase 12).

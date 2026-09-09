@@ -27,6 +27,22 @@ struct WindowFeatures: Sendable, Equatable {
     /// RMS of vertical acceleration over the window.
     let trunkRMSVertical: Double
 
+    /// Position of the earlier of the two autocorrelation peaks flanking the
+    /// nominal half-stride, in seconds. Nil when no prominent peak was found.
+    let firstHalfStrideLag: Double?
+    /// Position of the later peak. **Equal to `firstHalfStrideLag` when the peak
+    /// does not split**, which is symmetric step timing — a measurement of zero
+    /// asymmetry, not an absence of one.
+    let secondHalfStrideLag: Double?
+    /// Whether mediolateral polarity alternates consistently across detected
+    /// footfalls.
+    ///
+    /// Consecutive footfalls belong to opposite limbs, so a trunk that leans
+    /// one way then the other is evidence the two half-cycles are
+    /// distinguishable. Computed for every user; it is stage 6 that decides
+    /// whether a comparison may be reported.
+    let mediolateralPolarityAlternates: Bool
+
     var stepCount: Int { stepTimes.count + 1 }
     /// Two steps to a stride.
     var strideCount: Int { stepCount / 2 }
@@ -181,6 +197,13 @@ enum FeatureExtraction {
         let ad1 = peakValue(in: correlation, around: stepLag, tolerance: policy.lagSearchTolerance)
         let ad2 = peakValue(in: correlation, around: strideLag, tolerance: policy.lagSearchTolerance)
 
+        let halfStride = halfStridePeakLags(
+            correlation: correlation,
+            strideLag: ad2.lag,
+            zeroLag: zeroLag,
+            configuration: configuration
+        )
+
         return WindowFeatures(
             intervalIndex: intervalIndex,
             startTimestamp: startTimestamp,
@@ -193,8 +216,85 @@ enum FeatureExtraction {
             // TrunkProxyPolicy: per-axis RMS over steady walking. Transients are
             // already excluded by stage 3, so the window is steady-state.
             trunkRMSMediolateral: rms(mediolateral),
-            trunkRMSVertical: rms(vertical)
+            trunkRMSVertical: rms(vertical),
+            firstHalfStrideLag: halfStride.map { Double($0.first) / rate },
+            secondHalfStrideLag: halfStride.map { Double($0.second) / rate },
+            mediolateralPolarityAlternates: polarityAlternates(
+                mediolateral: mediolateral,
+                atPeaks: peaks,
+                configuration: configuration
+            )
         )
+    }
+
+    // MARK: - Half-stride peak positions
+
+    /// The two autocorrelation peaks flanking the nominal half-stride.
+    ///
+    /// Unequal step durations split the half-stride peak in two, at the shorter
+    /// and the longer half-cycle. Equal durations leave one peak, returned as a
+    /// pair of identical lags — symmetric timing, measured, not missing.
+    ///
+    /// Returns nil when no peak in the band is prominent enough for its position
+    /// to mean anything.
+    static func halfStridePeakLags(
+        correlation: [Double],
+        strideLag: Int,
+        zeroLag: Double,
+        configuration: AlgorithmConfiguration
+    ) -> (first: Int, second: Int)? {
+        let policy = configuration.asymmetry
+        let nominalHalf = Double(strideLag) / 2
+        let spread = nominalHalf * policy.halfStrideSearchTolerance
+
+        let lower = max(1, Int((nominalHalf - spread).rounded()))
+        let upper = min(correlation.count - 2, Int((nominalHalf + spread).rounded()))
+        guard lower < upper else { return nil }
+
+        let floor = policy.minimumPeakProminence * zeroLag
+        var maxima: [(lag: Int, value: Double)] = []
+        for lag in lower...upper
+        where correlation[lag] >= floor
+            && correlation[lag] > correlation[lag - 1]
+            && correlation[lag] >= correlation[lag + 1] {
+            maxima.append((lag, correlation[lag]))
+        }
+
+        guard let strongest = maxima.max(by: { $0.value < $1.value }) else { return nil }
+        guard let second = maxima
+            .filter({ $0.lag != strongest.lag })
+            .max(by: { $0.value < $1.value })
+        else {
+            // Unsplit peak: symmetric step timing.
+            return (strongest.lag, strongest.lag)
+        }
+
+        return strongest.lag < second.lag
+            ? (strongest.lag, second.lag)
+            : (second.lag, strongest.lag)
+    }
+
+    /// Whether mediolateral polarity flips from one footfall to the next.
+    ///
+    /// Consecutive footfalls are opposite limbs, so consistent alternation is
+    /// evidence the two half-cycles are distinguishable. The ML axis sign is
+    /// arbitrary (docs/decisions.md entry 13), but alternation does not depend
+    /// on it.
+    static func polarityAlternates(
+        mediolateral: [Double],
+        atPeaks peaks: [Int],
+        configuration: AlgorithmConfiguration
+    ) -> Bool {
+        let signs = peaks.compactMap { index -> Double? in
+            guard index < mediolateral.count else { return nil }
+            let value = mediolateral[index]
+            return value == 0 ? nil : (value < 0 ? -1 : 1)
+        }
+        guard signs.count >= 2 else { return false }
+
+        let flips = zip(signs, signs.dropFirst()).filter { $0 != $1 }.count
+        let rate = Double(flips) / Double(signs.count - 1)
+        return rate >= configuration.asymmetry.minimumPolarityAlternationRate
     }
 
     // MARK: - Step peaks

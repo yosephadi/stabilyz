@@ -15,7 +15,12 @@ enum MetricID: String, Sendable, CaseIterable, Codable {
     case stepRegularity
     /// Ad2 — autocorrelation-derived stride regularity [PRD OQ-1].
     case strideRegularity
-    /// Mean cadence over valid walking, steps/min. Also the metronome source.
+    /// Cadence over valid walking, steps/min. Also the metronome source.
+    ///
+    /// Computed as `60 / median` step time, not the arithmetic mean: the
+    /// metronome takes its tempo from this, and a few long steps at a turn must
+    /// not slow the pace the user is later asked to walk to. The name is the
+    /// docs/05 §5.1 field name and is unchanged (docs/decisions.md entry 12).
     case cadenceMean
     /// Step-time/cadence variability — an independent signal, never derived
     /// from the regularity metrics [PRD §7].

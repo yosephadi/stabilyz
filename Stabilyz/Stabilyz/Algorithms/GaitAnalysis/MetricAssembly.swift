@@ -68,48 +68,88 @@ enum MetricAssembly {
 
     // MARK: - Asymmetry [PRD §7, OQ-1]
 
-    /// The secondary sound-vs-prosthetic feature, or absence.
+    /// Why a session carries no asymmetry value.
     ///
-    /// **Absence is a result, not a gap.** For bilateral users, for sessions
-    /// with no profile, and for walks whose autocorrelation peaks are not
-    /// prominent enough to contrast, the answer is nil. Zero would claim perfect
-    /// symmetry was measured, which is exactly the fabrication [PRD §7] forbids.
+    /// Absence is a result with a cause, not a blank. The cause is recorded so
+    /// the clinician summary can say *why* rather than showing nothing.
+    enum AsymmetryUnavailability: String, Sendable, Equatable {
+        /// Bilateral amputation: there is no sound side to compare against.
+        case bilateralProfile
+        /// No profile was available for the session.
+        case noProfile
+        /// The walk was not periodic enough for the half-stride peak positions
+        /// to mean anything.
+        case peaksNotProminent
+        /// Mediolateral polarity did not alternate consistently across
+        /// footfalls, so the two half-cycles are not distinguishable limbs —
+        /// the provisional reading of "side reliably identifiable".
+        case sideNotReliablyIdentifiable
+    }
+
+    struct AsymmetryResult: Sendable, Equatable {
+        let value: Double?
+        /// Profile side, carried as **context only** — not an attribution of the
+        /// measurement to a limb (docs/decisions.md entry 13).
+        let side: AmputationSide?
+        let unavailability: AsymmetryUnavailability?
+    }
+
+    /// Step-time asymmetry: `(τ2 − τ1) / (τ1 + τ2)` over the positions of the
+    /// two autocorrelation peaks flanking the nominal half-stride, τ1 < τ2.
     ///
-    /// Formula per docs/decisions.md entry 2: `(P1 − P2) / (P1 + P2)` over the
-    /// two half-stride autocorrelation peaks — P1 at one half-stride (the step
-    /// lag) and P2 at two (the stride lag). Symmetric gait repeats equally well
-    /// over a step and a stride, giving zero; an asymmetric gait repeats better
-    /// over the full stride, giving a negative value whose magnitude grows with
-    /// the asymmetry.
+    /// This is a **timing** comparison, which is what [PRD OQ-1] reserves the
+    /// name "step time asymmetry" for, and it is measured independently of the
+    /// regularity metrics rather than derived from them
+    /// (docs/decisions.md entry 13).
+    ///
+    /// The result is non-negative by construction: τ2 is the longer half-cycle.
+    /// It says how unequal the two step durations are, **not which limb is
+    /// which** — see entry 13 for why absolute limb attribution is not currently
+    /// possible.
+    ///
+    /// **Absence is a result, not a gap.** Bilateral users, sessions without a
+    /// profile, walks whose peaks are not prominent, and walks whose
+    /// mediolateral polarity does not alternate all yield nil with a reason.
+    /// Zero would claim equal step durations were measured [PRD §7].
     static func stepTimeAsymmetry(
         windows: [WindowFeatures],
         profile: UserProfile?,
         configuration: AlgorithmConfiguration
-    ) -> (value: Double?, side: AmputationSide?) {
+    ) -> AsymmetryResult {
         let policy = configuration.asymmetry
 
-        // Unilateral profiles only. Never fabricated for bilateral users.
-        guard let profile, !policy.requiresUnilateralProfile || profile.supportsStepTimeAsymmetry else {
-            return (nil, nil)
+        guard let profile else {
+            return AsymmetryResult(value: nil, side: nil, unavailability: .noProfile)
+        }
+        // Never fabricated for bilateral users [PRD §7, OQ-1].
+        if policy.requiresUnilateralProfile && !profile.supportsStepTimeAsymmetry {
+            return AsymmetryResult(value: nil, side: nil, unavailability: .bilateralProfile)
         }
 
-        let perWindow = windows.compactMap { window -> Double? in
-            let p1 = window.ad1
-            let p2 = window.ad2
-            if policy.requiresBothPeaksProminent {
-                guard p1 >= policy.minimumPeakProminence,
-                      p2 >= policy.minimumPeakProminence else { return nil }
-            }
-            let total = p1 + p2
+        let side = policy.sideFromProfile ? profile.side : nil
+
+        // "Side reliably identifiable", provisionally: consecutive footfalls
+        // lean opposite ways, so the two half-cycles belong to limbs that can be
+        // told apart at all.
+        let alternating = windows.filter(\.mediolateralPolarityAlternates)
+        guard !alternating.isEmpty else {
+            return AsymmetryResult(value: nil, side: side, unavailability: .sideNotReliablyIdentifiable)
+        }
+
+        let perWindow = alternating.compactMap { window -> Double? in
+            guard let first = window.firstHalfStrideLag,
+                  let second = window.secondHalfStrideLag else { return nil }
+            let total = first + second
             guard total > 0 else { return nil }
-            return (p1 - p2) / total
+            // An unsplit peak gives first == second, so this is exactly zero:
+            // symmetric step timing, measured.
+            return (second - first) / total
         }
 
-        // Not enough clean windows to contrast: absence, not zero.
-        guard let value = median(perWindow) else { return (nil, nil) }
-
-        // The label comes from the profile, never from guessing at the signal.
-        return (value, policy.sideFromProfile ? profile.side : nil)
+        guard let value = median(perWindow) else {
+            return AsymmetryResult(value: nil, side: side, unavailability: .peaksNotProminent)
+        }
+        return AsymmetryResult(value: value, side: side, unavailability: nil)
     }
 
     // MARK: - Statistics

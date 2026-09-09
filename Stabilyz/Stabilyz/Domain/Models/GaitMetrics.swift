@@ -12,7 +12,8 @@ struct GaitMetrics: Sendable, Equatable, Codable {
     let stepRegularity: Double
     /// Ad2.
     let strideRegularity: Double
-    /// Steps per minute.
+    /// Steps per minute, from `60 / median` step time rather than the mean
+    /// (docs/decisions.md entry 12). Field name per docs/05 §5.1.
     let cadenceMean: Double
     /// Step-time coefficient of variation.
     let stepTimeCV: Double
@@ -24,10 +25,16 @@ struct GaitMetrics: Sendable, Equatable, Codable {
     let trunkMotionML: Double
     /// Vertical trunk-motion proxy. Same [OPEN] as `trunkMotionML`.
     let trunkMotionVT: Double
-    /// Sound-vs-prosthetic step-time asymmetry.
+    /// Sound-vs-prosthetic step-time asymmetry: how unequal the two step
+    /// durations are, from the positions of the two autocorrelation peaks
+    /// flanking the half-stride (docs/decisions.md entry 13).
+    ///
+    /// Non-negative. It says *how much* the two half-cycles differ, never which
+    /// limb is which — absolute limb attribution is [OPEN].
     ///
     /// Nil whenever the side is not reliably identifiable. **Never fabricated
     /// for bilateral users** [PRD §7, OQ-1] — nil is the correct value, not zero.
+    /// A measured zero means the step durations really were equal.
     let stepTimeAsymmetry: Double?
 
     // Context / provenance — not standardized against a baseline
@@ -48,9 +55,9 @@ struct GaitMetrics: Sendable, Equatable, Codable {
     /// mode — Ad1 and Ad2 anchored to each other's lag — up to the metric level,
     /// where it is visible rather than hidden behind two plausible numbers.
     let observedStrideLag: Double?
-    /// Which side the profile identifies as affected, when asymmetry is
-    /// reported. [PRD §7] requires the feature be *labelled*; a bare number
-    /// says nothing about which limb it refers to.
+    /// Which side the profile identifies as affected. **Context only** — this
+    /// is not an attribution of the measurement to a limb, which is not
+    /// currently possible (docs/decisions.md entry 13).
     let asymmetryAffectedSide: AmputationSide?
 
     init(
