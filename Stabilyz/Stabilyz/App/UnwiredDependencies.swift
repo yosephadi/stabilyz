@@ -24,7 +24,7 @@ nonisolated struct DependencyNotWired: Error, Equatable, CustomStringConvertible
 /// Task 4.1.1 lands: Session Setup already treats "no sensor" as a degraded
 /// Start (docs/07 §7.6).
 nonisolated struct UnwiredMotionSensorService: MotionSensorService {
-    var isAvailable: Bool { false }
+    var isAvailable: Bool { get async { false } }
     var authorizationStatus: MotionAuthorizationStatus { get async { .notDetermined } }
 
     func requestAuthorization() async -> MotionAuthorizationStatus { .notDetermined }
@@ -37,7 +37,7 @@ nonisolated struct UnwiredMotionSensorService: MotionSensorService {
 }
 
 nonisolated struct UnwiredPedometerService: PedometerService {
-    var isAvailable: Bool { false }
+    var isAvailable: Bool { get async { false } }
 
     func start() async throws -> AsyncStream<PedometerEvent> {
         throw DependencyNotWired(dependency: "PedometerService", owningTask: "4.1.2")

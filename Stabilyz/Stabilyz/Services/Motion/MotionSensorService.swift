@@ -8,7 +8,10 @@ import Foundation
 /// to `SensorSample` here and never leak upward (docs/03 boundary rule 4).
 nonisolated protocol MotionSensorService: Sendable {
     /// Whether the hardware exists on this device (docs/07 §7.6).
-    var isAvailable: Bool { get }
+    ///
+    /// Async because the production implementation is an actor guarding
+    /// `CMMotionManager`, which is not safe to touch from arbitrary contexts.
+    var isAvailable: Bool { get async }
 
     var authorizationStatus: MotionAuthorizationStatus { get async }
 

@@ -65,7 +65,7 @@ private extension AppDependencies {
 @Test func unwiredMotionServiceReportsUnavailableAndRefusesToStart() async throws {
     let service = UnwiredMotionSensorService()
 
-    #expect(service.isAvailable == false)
+    #expect(await service.isAvailable == false)
     #expect(await service.authorizationStatus == .notDetermined)
 
     await #expect(throws: DependencyNotWired.self) {

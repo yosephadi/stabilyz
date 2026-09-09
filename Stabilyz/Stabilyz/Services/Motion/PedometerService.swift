@@ -6,7 +6,7 @@ import Foundation
 /// The production implementation wraps `CMPedometer`; tests use a scripted
 /// event sequence (docs/12 §12.2).
 nonisolated protocol PedometerService: Sendable {
-    var isAvailable: Bool { get }
+    var isAvailable: Bool { get async }
 
     /// Begins live updates and returns the event stream.
     func start() async throws -> AsyncStream<PedometerEvent>
