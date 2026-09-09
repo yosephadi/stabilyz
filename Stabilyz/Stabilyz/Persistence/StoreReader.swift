@@ -65,4 +65,15 @@ actor StoreReader {
     func allBaselines() throws -> [Baseline] {
         try modelContext.fetch(FetchDescriptor<BaselineEntity>()).map(EntityMapping.baseline(from:))
     }
+
+    // MARK: - Profile
+
+    /// The single profile row, or nil before onboarding completes
+    /// (docs/06 §6.3).
+    func profile() throws -> UserProfile? {
+        guard let entity = try modelContext.fetch(FetchDescriptor<UserProfileEntity>()).first else {
+            return nil
+        }
+        return try EntityMapping.profile(from: entity)
+    }
 }
