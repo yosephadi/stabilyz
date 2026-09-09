@@ -32,6 +32,12 @@ private final class RecorderLog: LogService, @unchecked Sendable {
 }
 
 /// Records the order tones were played in, which is a PRD-specified sequence.
+///
+/// Since decisions.md entry 25 the recorder *requests* audio without awaiting
+/// it, so a tone arrives shortly after the call that asked for it rather than
+/// before that call returns. Order between tones is still guaranteed — they are
+/// requested in order, on one actor — but their arrival is not synchronous with
+/// `begin`/`stop`, so assertions wait for them via `waitForCalls`.
 private actor ToneSpy: AudioFeedbackService {
     private(set) var calls: [String] = []
     nonisolated var events: AsyncStream<AudioFeedbackEvent> { AsyncStream { $0.finish() } }
@@ -43,6 +49,20 @@ private actor ToneSpy: AudioFeedbackService {
     func stopMetronome() async { calls.append("metronomeOff") }
     func suspend() async {}
     func resume() async {}
+}
+
+extension ToneSpy {
+    /// Waits briefly for the expected tones, then returns whatever arrived.
+    ///
+    /// Bounded so a regression fails with the actual sequence rather than
+    /// hanging, and so "no tone at all" is still a failure rather than a wait.
+    func waitForCalls(_ expected: Int) async -> [String] {
+        for _ in 0..<100 {
+            if calls.count >= expected { return calls }
+            try? await Task.sleep(for: .milliseconds(20))
+        }
+        return calls
+    }
 }
 
 /// A motion service that refuses to prime, for the fail-fast path.
@@ -139,7 +159,8 @@ private func collect(_ events: AsyncStream<SessionRecordingEvent>) async -> [Ses
 
     let collected = await collector.value
     #expect(collected.first == .ready)
-    #expect(await audio.calls.first == "start")
+    // Readiness is signalled before the tone is even requested (docs/07 §7.3).
+    #expect(await audio.waitForCalls(1).first == "start")
 }
 
 @Test func beginStampsOneAnchorEverySampleResolvesAgainst() async throws {
@@ -291,14 +312,17 @@ private struct UndeterminedMotionService: MotionSensorService {
 
 // MARK: - Stop
 
-@Test func stopPlaysTheStopToneBeforeFreezing() async throws {
-    // docs/07 §7.3 order: stop tone, stop sensors, freeze, hand off.
+@Test func bothSessionTonesArePlayedInOrderWithoutTheDataPathWaiting() async throws {
+    // [PRD AC] A distinct start tone and a distinct, different stop tone both
+    // play. Since entry 25 the recorder does not await either: it requests them
+    // and gets on with freezing the buffer, so the assertion is that they
+    // arrive, in order — not that they have arrived by the time stop() returns.
     let (recorder, _, audio, _) = makeRecorder()
     _ = try await recorder.begin(mode: .quickTest, audioConfig: .none)
 
     _ = try await recorder.stop()
 
-    #expect(await audio.calls == ["start", "stop"])
+    #expect(await audio.waitForCalls(2) == ["start", "stop"])
 }
 
 @Test func stopWithoutBeginIsRefused() async {

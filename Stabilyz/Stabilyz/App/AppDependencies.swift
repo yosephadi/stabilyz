@@ -120,6 +120,7 @@ extension AppDependencies {
                 logService: logService,
                 fileIO: fileIO
             ),
+            onboardingDrafts: UserDefaultsOnboardingDraftStore(),
             userProfileRepository: SwiftDataUserProfileRepository(reader: reader, writer: writer),
             gaitSessionRepository: SwiftDataGaitSessionRepository(reader: reader, writer: writer),
             baselineRepository: SwiftDataBaselineRepository(reader: reader, writer: writer)
@@ -165,6 +166,9 @@ extension AppDependencies {
                 logService: logService,
                 fileIO: fileIO
             ),
+            // UserDefaults is unaffected by the store failing to open, so a
+            // half-finished wizard still survives the degraded launch.
+            onboardingDrafts: UserDefaultsOnboardingDraftStore(),
             userProfileRepository: UnwiredUserProfileRepository(),
             gaitSessionRepository: UnwiredGaitSessionRepository(),
             baselineRepository: UnwiredBaselineRepository()

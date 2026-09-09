@@ -42,6 +42,9 @@ private actor StubProfiles: UserProfileRepository {
 private struct StubDrafts: OnboardingDraftStore {
     let exists: Bool
     func hasDraft() async -> Bool { exists }
+    func load() async -> OnboardingDraft? { exists ? OnboardingDraft(step: .side) : nil }
+    func save(_ draft: OnboardingDraft) async {}
+    func clear() async {}
 }
 
 @MainActor

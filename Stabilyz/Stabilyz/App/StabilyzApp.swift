@@ -34,7 +34,8 @@ struct StabilyzApp: App {
                     profiles: dependencies.userProfileRepository,
                     drafts: dependencies.onboardingDrafts,
                     logService: dependencies.logService
-                )
+                ),
+                dependencies: dependencies
             )
         }
     }

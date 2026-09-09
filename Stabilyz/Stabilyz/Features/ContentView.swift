@@ -7,9 +7,11 @@ import SwiftUI
 /// in tests.
 struct ContentView: View {
     @State private var router: AppRouter
+    private let dependencies: AppDependencies
 
-    init(router: AppRouter) {
+    init(router: AppRouter, dependencies: AppDependencies) {
         _router = State(initialValue: router)
+        self.dependencies = dependencies
     }
 
     var body: some View {
@@ -25,8 +27,15 @@ struct ContentView: View {
                     router.beginOnboarding()
                 }
             case .onboarding:
-                // Task 8.1.2: the wizard, resumable, disclaimer-gated.
-                RootPlaceholder(name: "Onboarding")
+                OnboardingView(
+                    model: OnboardingViewModel(
+                        store: dependencies.onboardingDrafts,
+                        profiles: dependencies.userProfileRepository,
+                        clock: dependencies.clock,
+                        logService: dependencies.logService,
+                        onCompleted: { await router.resolve() }
+                    )
+                )
             case .main:
                 // Task 8.3.1: Home / History / Settings.
                 RootPlaceholder(name: "Home")

@@ -58,11 +58,16 @@ visually with the score itself.
 | `warning` | `#B7791B` | Noisy/insufficient-data screen, non-blocking alerts |
 | `danger` | `#B3261E` | "Replace with Backup" destructive confirm, permission-denied state |
 
-*Assumption: your monochrome-blue call was specifically about score trend
-color, so I kept a minimal amber/red pair for system states like the
-destructive restore-overwrite confirmation — that's standard iOS
-convention and distinct from how the score itself is rendered. Flag it if
-you'd rather those be navy too.*
+**Resolved (2026-09-10):** the amber/red pair stays exactly as specified.
+Amber carries noisy sessions and other non-blocking alerts; red is
+reserved for destructive confirmations and the permission-denied state,
+and appears nowhere else. The monochrome call in §2.4 governs **score
+rendering only** — a score is a relative index against the user's own
+baseline, never a pass or a fail, so it must never be tinted with the
+colors this app uses for "something went wrong". Keeping the two
+vocabularies separate is what lets red mean *destructive* everywhere it
+appears, which is the iOS convention this user base already reads
+fluently.
 
 ### 2.4 Score color scale (monochrome, no green/red)
 
