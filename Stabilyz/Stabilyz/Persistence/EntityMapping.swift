@@ -30,7 +30,8 @@ enum EntityMapping {
             appVersion: session.appVersion,
             deviceModel: session.deviceModel,
             interruptionCount: session.interruptionCount,
-            gapInfo: session.gapInfo
+            gapInfo: session.gapInfo,
+            pedometerAvailable: session.pedometerAvailable
         )
 
         return GaitSessionEntity(
@@ -72,7 +73,8 @@ enum EntityMapping {
                 appVersion: payload.appVersion,
                 deviceModel: payload.deviceModel,
                 interruptionCount: payload.interruptionCount,
-                gapInfo: payload.gapInfo
+                gapInfo: payload.gapInfo,
+                pedometerAvailable: payload.pedometerAvailable ?? true
             )
         case .invalid(let reason):
             // An invalid row carrying metrics or a score means the store was
@@ -93,7 +95,8 @@ enum EntityMapping {
                 appVersion: payload.appVersion,
                 deviceModel: payload.deviceModel,
                 interruptionCount: payload.interruptionCount,
-                gapInfo: payload.gapInfo
+                gapInfo: payload.gapInfo,
+                pedometerAvailable: payload.pedometerAvailable ?? true
             )
         }
     }

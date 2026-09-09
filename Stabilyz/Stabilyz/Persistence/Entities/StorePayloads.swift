@@ -12,6 +12,10 @@ struct GaitSessionPayload: Codable, Equatable {
     let deviceModel: String
     let interruptionCount: Int
     let gapInfo: SessionGapInfo
+    /// Optional so a row written before this field was added still decodes;
+    /// absent means the cross-check availability was not recorded, which is
+    /// read as available.
+    let pedometerAvailable: Bool?
 }
 
 /// The non-queried half of a baseline (docs/05 §5.2).

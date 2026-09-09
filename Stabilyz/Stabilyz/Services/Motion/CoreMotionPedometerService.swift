@@ -21,6 +21,10 @@ actor CoreMotionPedometerService: PedometerService {
         CMPedometer.isStepCountingAvailable()
     }
 
+    var authorizationStatus: MotionAuthorizationStatus {
+        CoreMotionSensorService.mapAuthorization(CMPedometer.authorizationStatus())
+    }
+
     func start() async throws -> AsyncStream<PedometerEvent> {
         guard CMPedometer.isStepCountingAvailable() else {
             logService.log(.error, .motion, "step counting unavailable")

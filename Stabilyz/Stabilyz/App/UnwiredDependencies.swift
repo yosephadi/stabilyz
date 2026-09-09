@@ -38,6 +38,7 @@ struct UnwiredMotionSensorService: MotionSensorService {
 
 struct UnwiredPedometerService: PedometerService {
     var isAvailable: Bool { get async { false } }
+    var authorizationStatus: MotionAuthorizationStatus { get async { .notDetermined } }
 
     func start() async throws -> AsyncStream<PedometerEvent> {
         throw DependencyNotWired(dependency: "PedometerService", owningTask: "4.1.2")

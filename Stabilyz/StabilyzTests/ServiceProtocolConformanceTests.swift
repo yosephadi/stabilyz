@@ -26,6 +26,7 @@ private struct FixtureMotionSensorService: MotionSensorService {
 private struct ScriptedPedometerService: PedometerService {
     let scripted: [PedometerEvent]
     var isAvailable: Bool { true }
+    var authorizationStatus: MotionAuthorizationStatus { .authorized }
 
     func start() async throws -> AsyncStream<PedometerEvent> {
         AsyncStream { continuation in

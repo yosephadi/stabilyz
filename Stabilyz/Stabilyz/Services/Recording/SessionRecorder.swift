@@ -31,6 +31,9 @@ actor SessionRecorder {
     private var mode: TestMode?
     private var audioConfig: SessionAudioConfig = .none
     private var interruptionCount = 0
+    /// Recorded on the session so later analysis knows the pedometer
+    /// cross-check was not available for it.
+    private var pedometerAvailable = true
 
     private var eventContinuation: AsyncStream<SessionRecordingEvent>.Continuation?
     private var sampleTask: Task<Void, Never>?
@@ -71,6 +74,12 @@ actor SessionRecorder {
             throw StabilyzError.recording(.alreadyRecording)
         }
 
+        // Pre-flight the permission before touching hardware. A denied
+        // Motion & Fitness permission stops a session outright — it is not a
+        // degradable condition (docs/07 §7.6, docs/15 §15.1). This is the error
+        // the Start-button pre-flight surfaces.
+        try await requirePermission()
+
         resetSessionState()
         self.mode = mode
         self.audioConfig = audioConfig
@@ -92,14 +101,22 @@ actor SessionRecorder {
         }
 
         // The pedometer is context and cross-check data (docs/05 §5.1), not the
-        // measurement. Losing it degrades segmentation hints; it must not fail
-        // a session that the accelerometer can still measure.
+        // measurement. Absent hardware degrades segmentation hints and must not
+        // fail a session the accelerometer can still measure. A *denied*
+        // permission is different and stops the session.
         var pedometerStream: AsyncStream<PedometerEvent>?
         do {
             pedometerStream = try await pedometer.start()
         } catch {
+            if let denial = await permissionDenial(of: pedometer.authorizationStatus) {
+                await motionSensor.stop()
+                resetSessionState()
+                logService.log(.error, .session, "session start refused: motion permission denied")
+                throw denial
+            }
             logService.log(.warning, .session, "pedometer unavailable; continuing without step context")
         }
+        pedometerAvailable = pedometerStream != nil
 
         let (events, continuation) = AsyncStream<SessionRecordingEvent>.makeStream(bufferingPolicy: .unbounded)
         eventContinuation = continuation
@@ -169,7 +186,8 @@ actor SessionRecorder {
             startedAt: startedAt,
             endedAt: clock.now,
             advertisedClockElapsed: elapsed,
-            interruptionCount: interruptionCount
+            interruptionCount: interruptionCount,
+            pedometerAvailable: pedometerAvailable
         )
 
         logService.log(
@@ -183,6 +201,27 @@ actor SessionRecorder {
         resetSessionState()
 
         return buffer
+    }
+
+    // MARK: - Permission
+
+    /// Refuses to start when Motion & Fitness is denied or restricted.
+    private func requirePermission() async throws {
+        if let denial = await permissionDenial(of: motionSensor.authorizationStatus) {
+            logService.log(.error, .session, "session start refused: motion permission denied")
+            throw denial
+        }
+    }
+
+    /// Maps an authorization state to the error that must stop a session, or
+    /// nil when recording may proceed. `notDetermined` is not a refusal: the
+    /// system prompt appears on first access.
+    private func permissionDenial(of status: MotionAuthorizationStatus) -> StabilyzError? {
+        switch status {
+        case .denied: .permission(.motionDenied)
+        case .restricted: .permission(.motionRestricted)
+        case .authorized, .notDetermined: nil
+        }
     }
 
     // MARK: - Ingestion
@@ -229,6 +268,7 @@ actor SessionRecorder {
         mode = nil
         audioConfig = .none
         interruptionCount = 0
+        pedometerAvailable = true
         lastSampleTimestamp = nil
         lastReportedSecond = -1
         eventContinuation = nil

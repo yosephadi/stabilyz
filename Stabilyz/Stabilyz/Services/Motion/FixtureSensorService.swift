@@ -105,6 +105,8 @@ actor FixturePedometerService: PedometerService {
 
     var isAvailable: Bool { true }
 
+    var authorizationStatus: MotionAuthorizationStatus { .authorized }
+
     func start() async throws -> AsyncStream<PedometerEvent> {
         continuation?.finish()
 

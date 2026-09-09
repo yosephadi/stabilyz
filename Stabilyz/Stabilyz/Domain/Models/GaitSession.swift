@@ -34,6 +34,10 @@ struct GaitSession: Sendable, Equatable, Identifiable {
     let deviceModel: String
     let interruptionCount: Int
     let gapInfo: SessionGapInfo
+    /// False when the pedometer cross-check was unavailable while recording.
+    /// Context metadata, kept alongside `gapInfo` to explain later analysis
+    /// [REC — docs/05 §5.1].
+    let pedometerAvailable: Bool
 
     private init(
         id: UUID,
@@ -50,7 +54,8 @@ struct GaitSession: Sendable, Equatable, Identifiable {
         appVersion: String,
         deviceModel: String,
         interruptionCount: Int,
-        gapInfo: SessionGapInfo
+        gapInfo: SessionGapInfo,
+        pedometerAvailable: Bool
     ) {
         self.id = id
         self.mode = mode
@@ -67,6 +72,7 @@ struct GaitSession: Sendable, Equatable, Identifiable {
         self.deviceModel = deviceModel
         self.interruptionCount = interruptionCount
         self.gapInfo = gapInfo
+        self.pedometerAvailable = pedometerAvailable
     }
 
     /// A session that passed quality validation. Metrics are required; a score
@@ -85,7 +91,8 @@ struct GaitSession: Sendable, Equatable, Identifiable {
         appVersion: String,
         deviceModel: String,
         interruptionCount: Int = 0,
-        gapInfo: SessionGapInfo = .none
+        gapInfo: SessionGapInfo = .none,
+        pedometerAvailable: Bool = true
     ) -> GaitSession {
         GaitSession(
             id: id,
@@ -102,7 +109,8 @@ struct GaitSession: Sendable, Equatable, Identifiable {
             appVersion: appVersion,
             deviceModel: deviceModel,
             interruptionCount: interruptionCount,
-            gapInfo: gapInfo
+            gapInfo: gapInfo,
+            pedometerAvailable: pedometerAvailable
         )
     }
 
@@ -121,7 +129,8 @@ struct GaitSession: Sendable, Equatable, Identifiable {
         appVersion: String,
         deviceModel: String,
         interruptionCount: Int = 0,
-        gapInfo: SessionGapInfo = .none
+        gapInfo: SessionGapInfo = .none,
+        pedometerAvailable: Bool = true
     ) -> GaitSession {
         GaitSession(
             id: id,
@@ -138,7 +147,8 @@ struct GaitSession: Sendable, Equatable, Identifiable {
             appVersion: appVersion,
             deviceModel: deviceModel,
             interruptionCount: interruptionCount,
-            gapInfo: gapInfo
+            gapInfo: gapInfo,
+            pedometerAvailable: pedometerAvailable
         )
     }
 

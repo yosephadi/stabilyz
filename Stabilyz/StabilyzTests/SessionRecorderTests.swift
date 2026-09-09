@@ -48,8 +48,9 @@ private actor ToneSpy: AudioFeedbackService {
 /// A motion service that refuses to prime, for the fail-fast path.
 private struct FailingMotionService: MotionSensorService {
     let error: StabilyzError
+    var authorization: MotionAuthorizationStatus = .authorized
     var isAvailable: Bool { get async { true } }
-    var authorizationStatus: MotionAuthorizationStatus { get async { .authorized } }
+    var authorizationStatus: MotionAuthorizationStatus { get async { authorization } }
     func requestAuthorization() async -> MotionAuthorizationStatus { .authorized }
     func start(policy: MotionAcquisitionPolicy) async throws -> AsyncStream<SensorSample> { throw error }
     func stop() async {}
@@ -57,7 +58,10 @@ private struct FailingMotionService: MotionSensorService {
 
 /// A pedometer that is unavailable, to prove it does not fail a session.
 private struct FailingPedometerService: PedometerService {
+    /// Absent hardware, permission untouched.
+    var authorization: MotionAuthorizationStatus = .authorized
     var isAvailable: Bool { get async { false } }
+    var authorizationStatus: MotionAuthorizationStatus { get async { authorization } }
     func start() async throws -> AsyncStream<PedometerEvent> { throw StabilyzError.sensor(.unavailable) }
     func stop() async {}
     func events(from start: Date, to end: Date) async throws -> PedometerEvent? { nil }
@@ -141,6 +145,96 @@ private func collect(_ events: AsyncStream<SessionRecordingEvent>) async -> [Ses
     #expect(buffer.samples.isEmpty == false)
     #expect(buffer.pedometerEvents.isEmpty)
     #expect(log.entries.withLock { $0.contains { $0.contains("pedometer unavailable") } })
+    // Recorded so later analysis knows the cross-check was missing, rather than
+    // having to infer it from an empty event list.
+    #expect(buffer.pedometerAvailable == false)
+}
+
+@Test func anAvailablePedometerIsRecordedAsAvailable() async throws {
+    let (recorder, _, _, _) = makeRecorder()
+
+    _ = try await recorder.begin(mode: .quickTest, audioConfig: .none)
+    let buffer = try await recorder.stop()
+
+    #expect(buffer.pedometerAvailable)
+    #expect(buffer.pedometerEvents.isEmpty == false)
+}
+
+// MARK: - Permission is not degradable
+
+@Test func aDeniedMotionPermissionRefusesToStart() async {
+    // [PRD] a denied Motion & Fitness permission means recording cannot
+    // proceed at all — this is the error the Start-button pre-flight surfaces.
+    let motion = FailingMotionService(error: .sensor(.unavailable), authorization: .denied)
+    let (recorder, _, audio, _) = makeRecorder(motion: motion)
+
+    await #expect(throws: StabilyzError.permission(.motionDenied)) {
+        _ = try await recorder.begin(mode: .quickTest, audioConfig: .none)
+    }
+
+    #expect(await recorder.isRecording == false)
+    #expect(await audio.calls.isEmpty)
+}
+
+@Test func aRestrictedMotionPermissionRefusesToStart() async {
+    let motion = FailingMotionService(error: .sensor(.unavailable), authorization: .restricted)
+    let (recorder, _, _, _) = makeRecorder(motion: motion)
+
+    await #expect(throws: StabilyzError.permission(.motionRestricted)) {
+        _ = try await recorder.begin(mode: .quickTest, audioConfig: .none)
+    }
+}
+
+@Test func notDeterminedIsNotARefusal() async throws {
+    // The system prompt appears on first access; refusing here would deny the
+    // user the chance to grant.
+    let clock = SteppableClock()
+    let recorder = SessionRecorder(
+        motionSensor: UndeterminedMotionService(fixture: .steadyWalk, clock: clock),
+        pedometer: FixturePedometerService(fixture: .steadyWalk, clock: clock),
+        audioFeedback: ToneSpy(),
+        clock: clock,
+        logService: RecorderLog()
+    )
+
+    _ = try await recorder.begin(mode: .quickTest, audioConfig: .none)
+    let buffer = try await recorder.stop()
+    #expect(buffer.samples.isEmpty == false)
+}
+
+@Test func aDeniedPedometerPermissionStopsTheSessionRatherThanDegrading() async {
+    // Distinct from absent hardware: a denial must not quietly become a
+    // session recorded without its cross-check.
+    let clock = SteppableClock()
+    let recorder = SessionRecorder(
+        motionSensor: FixtureSensorService(fixture: .steadyWalk, clock: clock),
+        pedometer: FailingPedometerService(authorization: .denied),
+        audioFeedback: ToneSpy(),
+        clock: clock,
+        logService: RecorderLog()
+    )
+
+    await #expect(throws: StabilyzError.permission(.motionDenied)) {
+        _ = try await recorder.begin(mode: .quickTest, audioConfig: .none)
+    }
+    #expect(await recorder.isRecording == false)
+}
+
+/// Reports notDetermined authorization but streams normally.
+private struct UndeterminedMotionService: MotionSensorService {
+    let fixture: GaitFixture
+    let clock: Clock
+    var isAvailable: Bool { get async { true } }
+    var authorizationStatus: MotionAuthorizationStatus { get async { .notDetermined } }
+    func requestAuthorization() async -> MotionAuthorizationStatus { .authorized }
+    func start(policy: MotionAcquisitionPolicy) async throws -> AsyncStream<SensorSample> {
+        let samples = fixture.sensorSamples(anchoredAt: TimeAnchor(clock: clock))
+        return AsyncStream { continuation in
+            for sample in samples { continuation.yield(sample) }
+            continuation.finish()
+        }
+    }
+    func stop() async {}
 }
 
 @Test func beginningTwiceIsRefused() async throws {
