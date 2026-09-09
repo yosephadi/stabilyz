@@ -1,0 +1,34 @@
+{
+  "expected" : {
+    "asymmetryReported" : true,
+    "cadenceMean" : 115.38461538461539,
+    "exceededNoiseLimit" : false,
+    "gapCount" : 0,
+    "highFrequencyPowerRatio" : 0.041766642883429544,
+    "stepRegularity" : 0.2765840234266299,
+    "stepTimeAsymmetry" : 0,
+    "stepTimeCV" : 0.26997560907867124,
+    "strideRegularity" : 0.23297560416745894,
+    "trunkMotionML" : 0.12754373772280048,
+    "trunkMotionVT" : 0.29494779249046255,
+    "valid" : true,
+    "validStrideCount" : 106,
+    "validWalkingSeconds" : 118,
+    "windowCount" : 12
+  },
+  "mode" : "quickTest",
+  "name" : "jittered-steps-quick",
+  "notes" : "Same walk with step times wobbling by 100 ms. Pins that variability rises and step regularity falls.",
+  "profile" : "unilateral",
+  "signal" : {
+    "firstAmplitude" : 1,
+    "firstHalf" : 0.55,
+    "mediolateralAlternates" : true,
+    "secondAmplitude" : 1,
+    "secondHalf" : 0.55,
+    "seconds" : 120,
+    "stepJitter" : 0.1,
+    "vibrationAmplitude" : 0,
+    "vibrationHz" : 35
+  }
+}

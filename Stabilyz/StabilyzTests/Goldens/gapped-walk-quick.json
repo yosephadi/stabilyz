@@ -1,0 +1,36 @@
+{
+  "expected" : {
+    "asymmetryReported" : true,
+    "cadenceMean" : 109.09090909090908,
+    "exceededNoiseLimit" : false,
+    "gapCount" : 1,
+    "highFrequencyPowerRatio" : 0.04182071785638284,
+    "stepRegularity" : 0.9445702471993125,
+    "stepTimeAsymmetry" : 0,
+    "stepTimeCV" : 2.0185873175002848e-16,
+    "strideRegularity" : 0.889130271714329,
+    "trunkMotionML" : 0.12719698501113674,
+    "trunkMotionVT" : 0.2966543677601476,
+    "valid" : true,
+    "validStrideCount" : 158,
+    "validWalkingSeconds" : 175.99,
+    "windowCount" : 18
+  },
+  "mode" : "quickTest",
+  "name" : "gapped-walk-quick",
+  "notes" : "Walk with a 20 s sensor dropout. Pins that the gap is detected and not bridged, and the walking either side still counts.",
+  "profile" : "unilateral",
+  "signal" : {
+    "firstAmplitude" : 1,
+    "firstHalf" : 0.55,
+    "gapSeconds" : 20,
+    "mediolateralAlternates" : true,
+    "secondAmplitude" : 1,
+    "secondHalf" : 0.55,
+    "seconds" : 200,
+    "stepJitter" : 0,
+    "vibrationAmplitude" : 0,
+    "vibrationHz" : 35,
+    "walkBeforeGap" : 80
+  }
+}

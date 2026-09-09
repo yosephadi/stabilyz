@@ -1,0 +1,34 @@
+{
+  "expected" : {
+    "asymmetryReported" : true,
+    "cadenceMean" : 109.09090909090908,
+    "exceededNoiseLimit" : false,
+    "gapCount" : 0,
+    "highFrequencyPowerRatio" : 0.04184097110979041,
+    "stepRegularity" : 0.9445621095455063,
+    "stepTimeAsymmetry" : 0,
+    "stepTimeCV" : 2.0185873175002848e-16,
+    "strideRegularity" : 0.8891242190910138,
+    "trunkMotionML" : 0.12719530242759597,
+    "trunkMotionVT" : 0.2966461128293948,
+    "valid" : true,
+    "validStrideCount" : 106,
+    "validWalkingSeconds" : 118,
+    "windowCount" : 12
+  },
+  "mode" : "quickTest",
+  "name" : "clean-walk-quick",
+  "notes" : "Steady 1.1 s stride, equal halves and amplitudes. Pins cadence and high regularity for an unremarkable good session.",
+  "profile" : "unilateral",
+  "signal" : {
+    "firstAmplitude" : 1,
+    "firstHalf" : 0.55,
+    "mediolateralAlternates" : true,
+    "secondAmplitude" : 1,
+    "secondHalf" : 0.55,
+    "seconds" : 120,
+    "stepJitter" : 0,
+    "vibrationAmplitude" : 0,
+    "vibrationHz" : 35
+  }
+}

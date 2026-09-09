@@ -1,0 +1,26 @@
+{
+  "expected" : {
+    "asymmetryReported" : false,
+    "exceededNoiseLimit" : false,
+    "gapCount" : 0,
+    "highFrequencyPowerRatio" : 0.04182639313359523,
+    "invalidReason" : "insufficientValidWalking",
+    "valid" : false,
+    "validWalkingSeconds" : 103
+  },
+  "mode" : "fullTest",
+  "name" : "hundred-second-walk-full",
+  "notes" : "The identical walk judged as a Full Test. Fails: 240 s required.",
+  "profile" : "unilateral",
+  "signal" : {
+    "firstAmplitude" : 1,
+    "firstHalf" : 0.55,
+    "mediolateralAlternates" : true,
+    "secondAmplitude" : 1,
+    "secondHalf" : 0.55,
+    "seconds" : 105,
+    "stepJitter" : 0,
+    "vibrationAmplitude" : 0,
+    "vibrationHz" : 35
+  }
+}

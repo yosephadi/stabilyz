@@ -34,8 +34,16 @@ enum MetricAssembly {
               let trunkML = median(windows.map(\.trunkRMSMediolateral)),
               let trunkVT = median(windows.map(\.trunkRMSVertical)) else { return nil }
 
-        let allStepTimes = windows.flatMap(\.stepTimes)
-        guard let medianStepTime = median(allStepTimes), medianStepTime > 0 else { return nil }
+        // Cadence comes from the stride period, not from step times.
+        //
+        // A stride contains exactly two steps by definition, so this is
+        // parity-free. Pooling step times and taking their median is not: when
+        // step durations alternate — which is the asymmetric gait this app
+        // exists to measure — the pooled median lands on the shorter duration,
+        // the longer one, or their average depending only on how many steps
+        // happened to be detected. A golden case caught it reporting 120 spm
+        // for a walk that is analytically 109.09 (docs/decisions.md entry 14).
+        guard let medianStrideLag = median(windows.map(\.strideLag)), medianStrideLag > 0 else { return nil }
 
         let asymmetry = stepTimeAsymmetry(
             windows: windows,
@@ -46,10 +54,9 @@ enum MetricAssembly {
         return GaitMetrics(
             stepRegularity: ad1,
             strideRegularity: ad2,
-            // Cadence from the median step time, not the mean: the metronome
-            // takes its tempo from this, and a handful of long steps at a turn
-            // must not slow the pace the user is later asked to walk to.
-            cadenceMean: 60 / medianStepTime,
+            // Two steps per stride. The metronome takes its tempo from this,
+            // so it has to be right for asymmetric walkers too.
+            cadenceMean: 120 / medianStrideLag,
             // CV is computed inside each window, where it means short-term
             // variability, then summarised across windows by median.
             stepTimeCV: median(windows.compactMap(coefficientOfVariation)) ?? 0,

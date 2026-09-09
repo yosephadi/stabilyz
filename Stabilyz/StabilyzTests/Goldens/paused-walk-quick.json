@@ -1,0 +1,36 @@
+{
+  "expected" : {
+    "asymmetryReported" : true,
+    "cadenceMean" : 109.09090909090908,
+    "exceededNoiseLimit" : false,
+    "gapCount" : 0,
+    "highFrequencyPowerRatio" : 0.041469719877853695,
+    "stepRegularity" : 0.9445616237818576,
+    "stepTimeAsymmetry" : 0,
+    "stepTimeCV" : 2.0185873175002848e-16,
+    "strideRegularity" : 0.8891232475637122,
+    "trunkMotionML" : 0.12719659034003306,
+    "trunkMotionVT" : 0.2966447872105681,
+    "valid" : true,
+    "validStrideCount" : 141,
+    "validWalkingSeconds" : 156.41,
+    "windowCount" : 16
+  },
+  "mode" : "quickTest",
+  "name" : "paused-walk-quick",
+  "notes" : "Walk, 40 s standing still, walk. Pins that the pause is excluded from valid walking even though the clock ran [PRD §6].",
+  "profile" : "unilateral",
+  "signal" : {
+    "firstAmplitude" : 1,
+    "firstHalf" : 0.55,
+    "mediolateralAlternates" : true,
+    "pauseSeconds" : 40,
+    "secondAmplitude" : 1,
+    "secondHalf" : 0.55,
+    "seconds" : 200,
+    "stepJitter" : 0,
+    "vibrationAmplitude" : 0,
+    "vibrationHz" : 35,
+    "walkBeforePause" : 80
+  }
+}

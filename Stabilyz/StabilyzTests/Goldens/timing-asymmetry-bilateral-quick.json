@@ -1,0 +1,33 @@
+{
+  "expected" : {
+    "asymmetryReported" : false,
+    "cadenceMean" : 109.09090909090908,
+    "exceededNoiseLimit" : false,
+    "gapCount" : 0,
+    "highFrequencyPowerRatio" : 0.04184077821727834,
+    "stepRegularity" : 0.41125292372111416,
+    "stepTimeCV" : 0.0909090909090909,
+    "strideRegularity" : 0.8891381600050345,
+    "trunkMotionML" : 0.1272574779670057,
+    "trunkMotionVT" : 0.29650056426226323,
+    "valid" : true,
+    "validStrideCount" : 106,
+    "validWalkingSeconds" : 118,
+    "windowCount" : 12
+  },
+  "mode" : "quickTest",
+  "name" : "timing-asymmetry-bilateral-quick",
+  "notes" : "The identical signal under a bilateral profile. Pins that asymmetry is absent, never zero [PRD §7].",
+  "profile" : "bilateral",
+  "signal" : {
+    "firstAmplitude" : 1,
+    "firstHalf" : 0.5,
+    "mediolateralAlternates" : true,
+    "secondAmplitude" : 1,
+    "secondHalf" : 0.6,
+    "seconds" : 120,
+    "stepJitter" : 0,
+    "vibrationAmplitude" : 0,
+    "vibrationHz" : 35
+  }
+}

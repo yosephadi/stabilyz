@@ -1,0 +1,34 @@
+{
+  "expected" : {
+    "asymmetryReported" : true,
+    "cadenceMean" : 109.09090909090908,
+    "exceededNoiseLimit" : false,
+    "gapCount" : 0,
+    "highFrequencyPowerRatio" : 0.0411941451410542,
+    "stepRegularity" : 0.6766267134320001,
+    "stepTimeAsymmetry" : 0,
+    "stepTimeCV" : 2.0185873175002848e-16,
+    "strideRegularity" : 0.8890990145158995,
+    "trunkMotionML" : 0.12719530242759597,
+    "trunkMotionVT" : 0.23217183528862895,
+    "valid" : true,
+    "validStrideCount" : 106,
+    "validWalkingSeconds" : 118,
+    "windowCount" : 12
+  },
+  "mode" : "quickTest",
+  "name" : "amplitude-asymmetry-quick",
+  "notes" : "One footfall lands harder. Pins Ad2 above Ad1 while step-time asymmetry stays near zero — the two features are distinct (entry 13).",
+  "profile" : "unilateral",
+  "signal" : {
+    "firstAmplitude" : 1,
+    "firstHalf" : 0.55,
+    "mediolateralAlternates" : true,
+    "secondAmplitude" : 0.45,
+    "secondHalf" : 0.55,
+    "seconds" : 120,
+    "stepJitter" : 0,
+    "vibrationAmplitude" : 0,
+    "vibrationHz" : 35
+  }
+}

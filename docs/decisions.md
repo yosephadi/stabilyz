@@ -449,11 +449,12 @@ other is evidence the two half-cycles are distinguishable at all. Without it, a
 difference in step durations cannot honestly be attributed to limbs that were
 never told apart.
 
-Reconciliation worth noting: the instruction listed "split peaks present" as a
-gate condition, but also specified that a single unsplit peak is a genuine ≈0
-measurement. Those conflict literally, so "peaks present" is read as *peak
-structure prominent enough to locate* — one peak or two. One prominent peak gives
-zero; no prominent peak gives nil.
+**Prominence gates; split-ness does not** (architect's confirmation). The
+instruction listed "split peaks present" as a gate condition while also
+specifying that a single unsplit peak is a genuine ≈0 measurement; those conflict
+literally. Confirmed reading: the gate is *peak structure prominent enough to
+locate*, one peak or two. One prominent peak gives zero; no prominent peak gives
+nil. Whether the peak splits determines the value, never the availability.
 
 `AsymmetryUnavailability` records which gate failed — bilateral profile, no
 profile, peaks not prominent, or side not reliably identifiable — so absence is a
@@ -483,3 +484,92 @@ anchors the axis. Neither is attempted in v1.
 
 `usesHalfStridePeakRatio` is renamed `usesHalfStridePeakPositions`, so the policy
 name states which reading is in force.
+
+---
+
+## 14. Cadence comes from the stride period
+
+**Date:** 2026-09-09 · **Task:** 5.3.1 · **Status:** Decided · supersedes entry 12's cadence row
+
+`cadenceMean = 120 / median(strideLag)`, not `60 / median(pooled step times)`.
+
+**Why it changed.** A golden case caught the old form reporting **120 spm** for a
+walk that is analytically **109.09** — half-cycles of 0.50 s and 0.60 s, a 1.10 s
+stride. Pooling step times and taking their median is parity-unstable when step
+durations alternate: the median lands on the shorter duration, the longer one, or
+their average depending only on how many steps happened to be detected at window
+boundaries. Alternating step durations are exactly the asymmetric gait this app
+exists to measure, and the metronome takes its tempo from this value.
+
+A stride contains exactly two steps by definition, so deriving cadence from the
+stride period is parity-free. The entry 12 reasoning — a robust centre, not the
+mean — still holds; the median is now taken over stride lags.
+
+**Found by the golden suite, not by the unit tests.** The stage tests only
+exercised cadence on a *symmetric* walk, where both forms agree. This is what
+end-to-end goldens are for.
+
+---
+
+## 15. Golden regression suite
+
+**Date:** 2026-09-09 · **Task:** 5.3.1 · **Status:** Decided
+
+Ten end-to-end cases in `StabilyzTests/Goldens/`, run through
+`GaitAnalysisPipeline` via `SessionProcessor`. Protocol in
+`StabilyzTests/Goldens/README.md`.
+
+### Regeneration protocol
+
+Goldens are **never auto-updated**. A failing golden has exactly two
+explanations and no third: a regression to fix in the code, or an intended
+algorithm change requiring explicit approval plus a ledger entry recording what
+moved and why. Regeneration is gated behind
+`TEST_RUNNER_STABILYZ_REGENERATE_GOLDENS=1` and never runs in a normal test pass.
+Widening a tolerance to make a golden pass is a regeneration in disguise and
+needs the same approval.
+
+### Derived versus recorded expectations
+
+Each case stores both. **Derived** values follow from the signal parameters —
+cadence is `120 / stride`, asymmetry is `|Δhalf| / stride` — and are asserted
+against physics *as well as* against the file, so a golden that drifts away from
+the signal it describes fails twice. **Recorded** values (Ad1, Ad2, CV, trunk
+RMS) have no closed form and are pure regression anchors. The distinction is what
+makes review possible: a regenerated file that nobody compared against the
+signal's known parameters is a recording, not a golden.
+
+### Measured sensitivity — an honest limit
+
+The suite was probed by perturbing configuration values and re-running:
+
+| Change | Goldens that failed |
+|---|---|
+| `lowPassCutoffHz` 20 → 12 | 1 of 10 |
+| `stepPeakProminenceSDs` 0.5 → 1.4 | 0 of 10 |
+
+The synthetic fixtures are clean, sharp footfall pulses, so step detection is
+robust to its threshold and most of the signal energy sits well below either
+cutoff. Both changes are therefore genuinely small *for these signals* — but the
+suite should not be described as a tight net around every tunable. It pins the
+pipeline's structural behaviour (validity decisions, reason codes, asymmetry
+presence-versus-absence, cadence, gap and pause accounting) far better than it
+pins the numeric sensitivity of the filters and thresholds.
+
+**Phase 12 follow-up:** recorded device captures will exercise threshold
+sensitivity in a way synthetic pulses cannot, and are the right basis for
+tightening this.
+
+### New production code this task required
+
+The task was scoped as tests only, but two pieces of production code were
+missing and the requirement could not be met without them:
+
+- `GaitAnalysisPipeline` — the `GaitScoringAlgorithm` conformance composing
+  stages 2–6. Task 5.1.1 defined the contract and 5.2.x built the stages, but
+  nothing had ever wired them together. Stages 7–8 remain EPIC 6, so a valid
+  session currently returns metrics with no score — the same shape a pre-baseline
+  session has permanently.
+- `profile` added to `GaitScoringAlgorithm.analyze` and
+  `SessionProcessor.process`. Asymmetry is profile-dependent (entry 13) and
+  stage 6 cannot run without it; the 5.1.1 contract had no way to pass it.

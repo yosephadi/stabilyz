@@ -40,7 +40,11 @@ actor SessionProcessor {
     ///   rather than a half-processed one; choosing which `InvalidReason` to
     ///   persist is the session flow's call (Task 8.2.3), so this surfaces the
     ///   cancellation rather than inventing a PRD reason code.
-    func process(buffer: RawSessionBuffer, baseline: Baseline?) async throws -> SessionAnalysisResult {
+    func process(
+        buffer: RawSessionBuffer,
+        baseline: Baseline?,
+        profile: UserProfile? = nil
+    ) async throws -> SessionAnalysisResult {
         // A session is only ever compared with its own mode's baseline
         // [PRD OQ-5]. Checked here because this is the one place the two meet.
         if let baseline, baseline.mode != buffer.mode {
@@ -67,6 +71,7 @@ actor SessionProcessor {
         let outcome = try await algorithm.analyze(
             buffer: buffer,
             baseline: baseline,
+            profile: profile,
             progress: { continuation.yield($0) }
         )
 

@@ -33,6 +33,7 @@ private struct StubAlgorithm: GaitScoringAlgorithm {
     func analyze(
         buffer: RawSessionBuffer,
         baseline: Baseline?,
+        profile: UserProfile?,
         progress: @Sendable (ProcessingProgress) -> Void
     ) async throws -> SessionAnalysisOutcome {
         received.withLock { $0 = (buffer, baseline) }

@@ -1,0 +1,26 @@
+{
+  "expected" : {
+    "asymmetryReported" : false,
+    "exceededNoiseLimit" : true,
+    "gapCount" : 0,
+    "highFrequencyPowerRatio" : 0.9758218205309994,
+    "invalidReason" : "excessiveNoise",
+    "valid" : false,
+    "validWalkingSeconds" : 118
+  },
+  "mode" : "quickTest",
+  "name" : "vibration-quick",
+  "notes" : "Good walking under heavy 35 Hz vibration. Pins that noise is judged before the cleaning low-pass (entry 8) — the channels look fine, the session does not.",
+  "profile" : "unilateral",
+  "signal" : {
+    "firstAmplitude" : 1,
+    "firstHalf" : 0.55,
+    "mediolateralAlternates" : true,
+    "secondAmplitude" : 1,
+    "secondHalf" : 0.55,
+    "seconds" : 120,
+    "stepJitter" : 0,
+    "vibrationAmplitude" : 2,
+    "vibrationHz" : 35
+  }
+}
