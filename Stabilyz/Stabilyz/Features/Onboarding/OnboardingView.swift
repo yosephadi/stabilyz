@@ -9,11 +9,17 @@ import SwiftUI
 /// what keeps six screens looking like one wizard — the alternative, each case
 /// drawing its own header and button, is six chances for them to drift apart.
 ///
-/// Everything under the chrome stays native per §5: `List` `.insetGrouped`
-/// holding inline `Picker`s for the closed-choice fields, a system `Toggle`
-/// wearing `CheckboxToggleStyle` for the disclaimer tick, and a `Button` in
-/// `GlassCapsuleButtonStyle`. Dynamic Type, VoiceOver and the 44pt row height
-/// come from the system rather than from us remembering.
+/// The geometry is Figma node 40:835's, and design-system.md §5 tabulates it:
+/// 40pt from the safe area to the back chip, 24 to the progress label, 12 to
+/// the bar, 40 to the question, 16 to the "why we ask" line, 24 to the answer
+/// card, and 70 under the button. The question column sits at the 24pt text
+/// margin; the card breaks it and sits at 16.
+///
+/// Everything under the chrome stays native per §5: `OnboardingCard` built from
+/// `VStack`/`Divider`/`Button`, a system `Toggle` wearing `CheckboxToggleStyle`
+/// for the disclaimer tick, and a `Button` in `GlassCapsuleButtonStyle`.
+/// Dynamic Type, VoiceOver and the 44pt tap floor come from the system rather
+/// than from us remembering.
 ///
 /// No colour, size or spacing literal appears in this file; `DesignTokenGuardTests`
 /// enforces that for the whole of `Features/`.
@@ -26,20 +32,26 @@ struct OnboardingView: View {
 
     var body: some View {
         NavigationStack {
-            VStack(alignment: .leading, spacing: Space.x6) {
+            VStack(alignment: .leading, spacing: 0) {
                 header
+                    .padding(.horizontal, Space.screenMargin)
                 // The choice cards grow with Dynamic Type and K-level has six
                 // rows, so the step scrolls rather than clipping (§9).
                 ScrollView {
                     stepContent
+                        // The break between the wizard's chrome and its
+                        // question (Figma: bar ends at y=218, question starts
+                        // at y=258).
+                        .padding(.top, Space.x10)
                         .padding(.bottom, Space.x6)
                 }
                 .scrollBounceBehavior(.basedOnSize)
             }
-            // §4: 24pt screen margins, applied once to the container so no
-            // child restates them.
-            .padding(.horizontal, Space.screenMargin)
-            .padding(.top, Space.x4)
+            // Puts the back chip at y=100 on a 402x874 frame, where Figma draws
+            // it. Horizontal margins are *not* applied here: the question uses
+            // the 24pt text margin and the answer card the wider 16pt card
+            // margin, so each names its own rather than fighting a shared one.
+            .padding(.top, Space.x10)
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(StabilyzColor.bgBase)
             // Pins the primary button and keeps it clear of the home indicator
@@ -53,19 +65,23 @@ struct OnboardingView: View {
 
     // MARK: - Container chrome
 
-    /// Back and Skip on one line, the progress indicator beneath them.
+    /// Back and Skip on one line, the progress indicator 24pt beneath them.
+    ///
+    /// The bar is absent on the disclaimer, which is a consent gate rather than
+    /// a numbered field — `model.progress` is `nil` there and the row of
+    /// capsules is simply not drawn, exactly as the design draws it. The back
+    /// chip stays, on that screen as on every other.
     private var header: some View {
-        VStack(alignment: .leading, spacing: Space.x4) {
+        VStack(alignment: .leading, spacing: Space.x6) {
             HStack {
                 backChip
                 Spacer()
                 skipButton
             }
 
-            // Shown on every screen including the disclaimer: [PRD §7 AC] asks
-            // for a visible progress indicator throughout, where the designs
-            // drop it on the final screen.
-            StepProgressBar(step: model.progress.step, of: model.progress.of)
+            if let progress = model.progress {
+                StepProgressBar(step: progress.step, of: progress.of)
+            }
         }
     }
 
@@ -136,7 +152,10 @@ struct OnboardingView: View {
             .disabled(!model.canContinue)
         }
         .padding(.horizontal, Space.screenMargin)
-        .padding(.vertical, Space.x6)
+        .padding(.top, Space.x6)
+        // Figma anchors the button 70pt above the bottom safe-area edge, not
+        // snug against it.
+        .padding(.bottom, Controls.footerBottomGap)
         .background(StabilyzColor.bgBase)
     }
 
@@ -163,7 +182,14 @@ struct OnboardingView: View {
             }
 
         case .side:
-            step("Which side?", sideSubtitle) {
+            // One "why we ask" line [PRD §5], the one the design draws. The
+            // bilateral variant that used to sit here explained why there was
+            // nothing to choose between on a screen bilateral no longer
+            // reaches; it was ours, not the design's, so it is gone.
+            step(
+                "Which side?",
+                "This helps us describe some walking patterns accurately when we can identify them."
+            ) {
                 ChoiceCard(
                     options: model.allowedSides.map { .init($0, sideLabel($0)) },
                     selection: sideBinding
@@ -178,7 +204,7 @@ struct OnboardingView: View {
                             ForEach(0...60, id: \.self) { Text("\($0) years").tag($0) }
                         }
                     }
-                    Divider().padding(.leading, Space.x4)
+                    Divider().padding(.horizontal, Space.x4)
                     CardRow {
                         Picker("Months", selection: monthsBinding) {
                             ForEach(0...11, id: \.self) { Text("\($0) months").tag($0) }
@@ -214,67 +240,65 @@ struct OnboardingView: View {
 
         case .disclaimer:
             // The disclaimer's own body is the content of the screen, so it
-            // carries no helper line above the card.
-            step(DisclaimerText.title, nil) {
-                ScrollView {
-                    VStack(alignment: .leading, spacing: Space.x6) {
-                        Text(DisclaimerText.body)
-                            .font(StabilyzFont.bodyRegular)
-                            .foregroundStyle(StabilyzColor.ink600)
-                            .fixedSize(horizontal: false, vertical: true)
+            // carries no helper line and no card — copy and a checkbox sitting
+            // directly on the page, in the text column.
+            step(DisclaimerText.title, nil, contentMargin: Space.screenMargin) {
+                VStack(alignment: .leading, spacing: Space.x6) {
+                    Text(DisclaimerText.body)
+                        .font(StabilyzFont.bodyRegular)
+                        .foregroundStyle(StabilyzColor.ink600)
+                        .fixedSize(horizontal: false, vertical: true)
 
-                        Toggle(DisclaimerText.acknowledgement, isOn: $model.disclaimerAccepted)
-                            .toggleStyle(.checkbox)
-                    }
-                    .frame(maxWidth: .infinity, alignment: .leading)
+                    Toggle(DisclaimerText.acknowledgement, isOn: $model.disclaimerAccepted)
+                        .toggleStyle(.checkbox)
                 }
+                .frame(maxWidth: .infinity, alignment: .leading)
             }
         }
     }
 
-    /// The shape every step has: a two-line question, an optional helper line,
-    /// then the answer control.
+    /// The shape every step has: a question, an optional "why we ask" line
+    /// [PRD §5], then the answer control 24pt below it.
+    ///
+    /// The question is 28pt Bold rather than the 34pt `heading`: Figma draws it
+    /// at 28, and at 34 the two-line questions ("What type of prosthesis do you
+    /// use?") ran to three lines and pushed the card off the screen.
+    ///
+    /// `contentMargin` is the one thing a step gets to choose. An answer card
+    /// sits at the 16pt card margin so it breaks the text column; the
+    /// disclaimer's body and checkbox are copy, not a card, so they stay in the
+    /// column at 24pt.
     private func step<Content: View>(
         _ title: String,
         _ subtitle: String?,
+        contentMargin: CGFloat = Space.cardMargin,
         @ViewBuilder content: () -> Content
     ) -> some View {
-        VStack(alignment: .leading, spacing: Space.x6) {
-            VStack(alignment: .leading, spacing: Space.x2) {
+        VStack(alignment: .leading, spacing: 0) {
+            VStack(alignment: .leading, spacing: Space.x4) {
                 Text(title)
-                    .font(StabilyzFont.heading)
-                    .foregroundStyle(StabilyzColor.ink900)
+                    .font(StabilyzFont.subheadingBold)
+                    .foregroundStyle(StabilyzColor.onboardingTitle)
                     .fixedSize(horizontal: false, vertical: true)
 
                 if let subtitle {
                     Text(subtitle)
                         .font(StabilyzFont.smallRegular)
-                        .foregroundStyle(StabilyzColor.ink600)
+                        .foregroundStyle(StabilyzColor.onboardingSubtitle)
                         .fixedSize(horizontal: false, vertical: true)
                 }
             }
+            .padding(.horizontal, Space.screenMargin)
             .accessibilityElement(children: .combine)
 
             content()
+                .padding(.top, Space.x6)
+                .padding(.horizontal, contentMargin)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     // MARK: - Copy
-
-    /// The designs only ever draw the unilateral side screen. Bilateral is a
-    /// fully supported answer [PRD §7 AC] and no longer reaches this screen at
-    /// all, but a draft saved on it before the level changed still can, so it
-    /// keeps the line explaining why there is nothing to pick between.
-    private var sideSubtitle: String {
-        model.draft.amputationLevel == .bilateral
-            ? """
-              With a bilateral amputation there's no sound side to compare \
-              against, so Stabilyz measures how steadily you walk overall and \
-              never invents a comparison it can't make.
-              """
-            : "This helps us describe some walking patterns accurately when we can identify them."
-    }
 
     private func sideLabel(_ side: AmputationSide) -> String {
         switch side {

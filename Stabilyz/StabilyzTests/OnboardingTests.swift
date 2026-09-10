@@ -224,7 +224,8 @@ private func fillRequiredFields(_ model: OnboardingViewModel, level: AmputationL
     await model.start()
 
     #expect(model.step == .amputationLevel)
-    #expect(model.progress == (1, 6))
+    #expect(model.progress?.step == 1)
+    #expect(model.progress?.of == 5)
 }
 
 // MARK: - Optional fields never block [PRD §7 AC]
@@ -372,40 +373,69 @@ private func fillRequiredFields(_ model: OnboardingViewModel, level: AmputationL
     let model = makeModel()
 
     var seen: [OnboardingStep] = []
-    var positions: [Int] = []
+    var positions: [Int?] = []
 
     model.select(level: .transtibial)
     seen.append(model.step)
-    positions.append(model.progress.step)
+    positions.append(model.progress?.step)
     await model.advance()
 
     model.select(side: .left)
     seen.append(model.step)
-    positions.append(model.progress.step)
+    positions.append(model.progress?.step)
     await model.advance()
 
     for _ in 0..<3 {
         seen.append(model.step)
-        positions.append(model.progress.step)
+        positions.append(model.progress?.step)
         await model.advance()
     }
     seen.append(model.step)
-    positions.append(model.progress.step)
+    positions.append(model.progress?.step)
 
     #expect(seen == OnboardingStep.allCases)
-    #expect(positions == [1, 2, 3, 4, 5, 6])
-    #expect(model.progress.of == 6)
+    // Five numbered questions, then the disclaimer — a consent gate rather than
+    // a field, so it carries no number and draws no bar.
+    #expect(positions == [1, 2, 3, 4, 5, nil])
+    #expect(model.step == .disclaimer)
+    #expect(model.progress == nil)
 }
 
 @MainActor
-@Test func theProgressFractionAdvancesAndEndsFull() async {
+@Test func theDisclaimerIsNotCountedAmongTheQuestions() async {
+    // The count the user reads on the first screen has to be the number of
+    // questions they will actually be asked — Figma 40:835 says "1 out of 5",
+    // and there are six screens.
+    let model = makeModel()
+
+    #expect(model.progress?.of == 5)
+    #expect(model.numberedSteps.contains(.disclaimer) == false)
+    #expect(model.applicableSteps.contains(.disclaimer), "the disclaimer left the flow, not just the count")
+}
+
+@MainActor
+@Test func theProgressFractionAdvancesAndEndsFullOnTheLastQuestion() async {
     let model = makeModel()
     let first = model.progressFraction
 
-    await fillRequiredFields(model)
+    model.select(level: .transtibial)
+    await model.advance()
+    model.select(side: .left)
+    await model.advance()
+    model.setTimeSinceAmputation(months: 30)
+    await model.advance()
+    await model.advance()   // prosthesis, left blank
 
-    #expect(first < model.progressFraction)
-    #expect(model.progressFraction == 1.0)
+    #expect(model.step == .kLevel)
+    #expect(first ?? 0 < model.progressFraction ?? 0)
+    #expect(model.progressFraction == 1.0, "the bar is not full on the last question")
+
+    await model.advance()
+
+    // Full on the last question, absent on the gate after it — never full
+    // *before* the user has consented to anything.
+    #expect(model.step == .disclaimer)
+    #expect(model.progressFraction == nil)
 }
 
 @MainActor
@@ -606,21 +636,27 @@ private actor Handoff {
     let model = makeModel()
     model.select(level: .bilateral)
 
-    #expect(model.progress == (1, 5))
+    #expect(model.progress?.step == 1)
+    #expect(model.progress?.of == 4, "bilateral was told there are more questions than it will be asked")
 
     await model.advance()
-    #expect(model.progress == (2, 5))
+    #expect(model.progress?.step == 2)
+    #expect(model.progress?.of == 4)
 
     var seen: [OnboardingStep] = [.amputationLevel, .timeSinceAmputation]
-    for _ in 0..<3 {
+    for _ in 0..<2 {
         await model.advance()
         seen.append(model.step)
     }
 
     #expect(seen.contains(.side) == false)
-    #expect(model.step == .disclaimer)
-    #expect(model.progress == (5, 5))
+    #expect(model.step == .kLevel)
+    #expect(model.progress?.step == 4)
     #expect(model.progressFraction == 1.0)
+
+    await model.advance()
+    #expect(model.step == .disclaimer)
+    #expect(model.progress == nil)
 }
 
 @MainActor

@@ -10,8 +10,14 @@ import SwiftUI
 /// answer here, not a custom control — `VStack`, `RoundedRectangle`, `Divider`
 /// and `Button` are as stock as `List` is (§5 component law).
 ///
-/// The card carries no padding of its own, so it sits flush against the 24pt
-/// screen margin its container applies.
+/// The card carries no padding of its own, so it sits flush against the 16pt
+/// card margin its container applies (`Space.cardMargin`, wider than the 24pt
+/// text margin — see Figma node 40:835).
+///
+/// **No border.** It had a hairline to separate it from `bg-base`; the Figma
+/// node draws none, and at 26pt radius a solid white fill already has enough
+/// edge against `#F7F7F7` for the border to have been drawing a second, fainter
+/// outline just inside the corner rather than defining one.
 struct OnboardingCard<Content: View>: View {
     @ViewBuilder let content: Content
 
@@ -20,10 +26,9 @@ struct OnboardingCard<Content: View>: View {
             content
         }
         .background(StabilyzColor.bgElevated, in: RoundedRectangle(cornerRadius: Radius.card))
-        .overlay(
-            RoundedRectangle(cornerRadius: Radius.card)
-                .strokeBorder(StabilyzColor.ink200, lineWidth: Metrics.hairline)
-        )
+        // The rows run edge to edge, so anything that reaches a corner has to
+        // be clipped by the same shape that fills it.
+        .clipShape(RoundedRectangle(cornerRadius: Radius.card))
     }
 }
 
@@ -81,7 +86,8 @@ struct CardRow<Content: View>: View {
     }
 }
 
-/// One answer per row, separated by native `Divider`s inset to the text.
+/// One answer per row, separated by native `Divider`s inset to the text on
+/// both sides, as Figma node 40:835 draws them.
 struct ChoiceCard<Value: Hashable>: View {
     struct Option: Hashable {
         let value: Value
@@ -100,7 +106,7 @@ struct ChoiceCard<Value: Hashable>: View {
         OnboardingCard {
             ForEach(Array(options.enumerated()), id: \.element) { index, option in
                 if index > 0 {
-                    Divider().padding(.leading, Space.x4)
+                    Divider().padding(.horizontal, Space.x4)
                 }
                 ChoiceRow(
                     label: option.label,

@@ -59,6 +59,34 @@ enum StabilyzColor {
     static let warning = Color(hex: 0xB7791B)
     /// Destructive confirmations and the permission-denied state. Nowhere else.
     static let danger = Color(hex: 0xB3261E)
+
+    // MARK: - Onboarding wizard (§2.5)
+
+    /// Read verbatim from Figma node 40:835, which is the authority for what
+    /// this wizard draws.
+    ///
+    /// They are their own tokens rather than edits to the scales above because
+    /// the node disagrees with those scales by a few units in several places at
+    /// once — `#4D5562` under the question, `#575F6C` over the progress bar —
+    /// and the two greys are different on purpose. Re-tinting `ink-600` to one
+    /// of them would silently move every other screen in the app to match one
+    /// screen's read, and could not represent the other grey at all.
+    ///
+    /// Only the light values come from Figma; the design has no dark mode yet,
+    /// so the dark halves borrow the neutral scale in §2.2 rather than invent a
+    /// palette the document does not contain.
+
+    /// The question. `#000000`, not `ink-900` — §8's "never pure black" is
+    /// about dark-mode *surfaces*, and this is a light-mode title.
+    static let onboardingTitle = Color(light: 0x000000, dark: 0xF2F3F5)
+    /// The "why we ask" line beneath the question.
+    static let onboardingSubtitle = Color(light: 0x4D5562, dark: 0xB8BEC7)
+    /// "3 out of 5", above the progress bar.
+    static let progressLabel = Color(light: 0x575F6C, dark: 0xB8BEC7)
+    /// A step already reached.
+    static let progressFill = Color(light: 0x1D3963, dark: 0x8FB4D6)
+    /// A step not yet reached.
+    static let progressTrack = Color(light: 0xDBE3F3, dark: 0x2A2F37)
 }
 
 // MARK: - Hex

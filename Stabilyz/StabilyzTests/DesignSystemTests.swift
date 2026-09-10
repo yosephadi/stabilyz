@@ -98,6 +98,37 @@ private func contrastRatio(_ a: Color, _ b: Color, dark: Bool) -> Double {
     expectColor(StabilyzColor.danger, light: 0xB3261E, "danger")
 }
 
+/// §2.5 — read verbatim off Figma node 40:835.
+///
+/// These are the values most likely to be "corrected" back onto the ink scale
+/// by someone who notices `#4D5562` sitting two units from `ink-600`. They are
+/// two units apart because the design says so, and the two greys in the wizard
+/// differ from each other as well, so neither can be folded into the scale.
+@MainActor
+@Test func theOnboardingPaletteMatchesTheFigmaNode() {
+    expectColor(StabilyzColor.onboardingTitle, light: 0x000000, dark: 0xF2F3F5, "onboarding title")
+    expectColor(StabilyzColor.onboardingSubtitle, light: 0x4D5562, dark: 0xB8BEC7, "onboarding subtitle")
+    expectColor(StabilyzColor.progressLabel, light: 0x575F6C, dark: 0xB8BEC7, "progress label")
+    expectColor(StabilyzColor.progressFill, light: 0x1D3963, dark: 0x8FB4D6, "progress fill")
+    expectColor(StabilyzColor.progressTrack, light: 0xDBE3F3, dark: 0x2A2F37, "progress track")
+}
+
+@MainActor
+@Test func theOnboardingPaletteStaysLegibleInBothModes() {
+    // The two greys carry copy, so they answer to §9 like any other text
+    // colour — a value taken from a design is still not allowed to be
+    // unreadable.
+    #expect(contrastRatio(StabilyzColor.onboardingTitle, StabilyzColor.bgBase, dark: false) >= 4.5)
+    #expect(contrastRatio(StabilyzColor.onboardingSubtitle, StabilyzColor.bgBase, dark: false) >= 4.5)
+    #expect(contrastRatio(StabilyzColor.progressLabel, StabilyzColor.bgBase, dark: false) >= 4.5)
+    #expect(contrastRatio(StabilyzColor.onboardingTitle, StabilyzColor.bgBase, dark: true) >= 4.5)
+    #expect(contrastRatio(StabilyzColor.onboardingSubtitle, StabilyzColor.bgBase, dark: true) >= 4.5)
+
+    // The filled and unfilled halves of the bar have to be told apart at a
+    // glance; the bar is the only thing on screen saying where the user is.
+    #expect(contrastRatio(StabilyzColor.progressFill, StabilyzColor.progressTrack, dark: false) >= 3)
+}
+
 @MainActor
 @Test func darkModeNeverUsesPureBlack() {
     // §8: #0D1117 keeps enough warmth to avoid OLED smearing.
@@ -179,9 +210,9 @@ private func contrastRatio(_ a: Color, _ b: Color, dark: Bool) -> Double {
 // MARK: - Layout (§4)
 
 @Test func theSpacingScaleIsTheFourPointGrid() {
-    let scale: [CGFloat] = [Space.x1, Space.x2, Space.x3, Space.x4, Space.x6, Space.x8, Space.x12]
+    let scale: [CGFloat] = [Space.x1, Space.x2, Space.x3, Space.x4, Space.x6, Space.x8, Space.x10, Space.x12]
 
-    #expect(scale == [4, 8, 12, 16, 24, 32, 48])
+    #expect(scale == [4, 8, 12, 16, 24, 32, 40, 48])
     for value in scale {
         #expect(value.truncatingRemainder(dividingBy: 4) == 0, "\(value) is off the 4pt grid")
     }
@@ -190,19 +221,42 @@ private func contrastRatio(_ a: Color, _ b: Color, dark: Bool) -> Double {
 
 @Test func theFixedMeasurementsMatchTheDocument() {
     #expect(Space.screenMargin == 24)
+    #expect(Space.cardMargin == 16)
     #expect(Radius.control == 8)
-    #expect(Radius.card == 16)
+    #expect(Radius.card == 26)
     #expect(Radius.sheet == 24)
     #expect(Metrics.minimumTapTarget == 44)
     #expect(Metrics.minimumFontSize == 15)
     #expect(Controls.buttonHeight == 50)
     #expect(Controls.heroButtonHeight == 60)
     #expect(Controls.backButtonDiameter == 50)
-    #expect(Controls.rowHeight == 56)
+    #expect(Controls.rowHeight == 52)
+    #expect(Controls.progressBarHeight == 14)
+    #expect(Controls.footerBottomGap == 70)
+}
+
+/// The measurements read straight off Figma node 40:835, checked as the
+/// geometry they came from rather than as bare numbers — the node lays the
+/// screen out on a 402x874 frame, so the tokens have to reconstruct it.
+@Test func theOnboardingTokensReconstructTheFigmaFrame() {
+    let frameWidth: CGFloat = 402
+
+    // The question sits at x=24 in a 354pt column; the card breaks that margin
+    // and sits at x=16 in a 370pt one.
+    #expect(frameWidth - 2 * Space.screenMargin == 354)
+    #expect(frameWidth - 2 * Space.cardMargin == 370)
+    #expect(Space.cardMargin < Space.screenMargin, "the card no longer breaks the text margin")
+
+    // Back chip at y=100 under a 59pt safe-area inset; three 52pt rows make the
+    // 156pt card; the 60pt button's bottom edge lands at y=770 in an 874pt
+    // frame once the 34pt home-indicator inset is added back.
+    #expect(59 + Space.x10 + Controls.backButtonDiameter == 149)
+    #expect(3 * Controls.rowHeight == 156)
+    #expect(874 - 34 - Controls.footerBottomGap - Controls.heroButtonHeight == 710)
 }
 
 @Test func aChoiceRowClearsTheTapTargetFloor() {
-    // §5 draws these at 56pt; §9's floor is 44. The row is the whole
+    // §5 draws these at 52pt; §9's floor is 44. The row is the whole
     // interaction on its screen, so it may never be the tighter of the two.
     #expect(Controls.rowHeight >= Metrics.minimumTapTarget)
     #expect(Controls.backButtonDiameter >= Metrics.minimumTapTarget)
@@ -213,5 +267,11 @@ private func contrastRatio(_ a: Color, _ b: Color, dark: Bool) -> Double {
 @Test func everyCornerIsRounded() {
     // §4: no sharp corners anywhere.
     #expect(Radius.control > 0 && Radius.card > 0 && Radius.sheet > 0)
-    #expect(Radius.control < Radius.card && Radius.card < Radius.sheet)
+
+    // A control is always the tightest of the three. Card and sheet are no
+    // longer ordered against each other: the card's 26pt is read from Figma
+    // node 40:835 (iOS 26's grouped-list radius) and the sheet's 24pt from §4,
+    // so neither is derived from the other and the comparison said nothing.
+    #expect(Radius.control < Radius.card)
+    #expect(Radius.control < Radius.sheet)
 }

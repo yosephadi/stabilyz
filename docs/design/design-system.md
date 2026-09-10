@@ -84,6 +84,32 @@ Relative index encoded by **saturation and value only**, not hue:
 Direction (up/down vs. baseline) is communicated with an ↑/↓ glyph and
 copy ("+8 vs your baseline"), never with color alone.
 
+### 2.5 Onboarding wizard (read from Figma node 40:835)
+
+The onboarding node is the authority for what the wizard draws, and it
+disagrees with the scales above by a few units in several places at once.
+These are its exact values:
+
+| Token | Hex (light) | Hex (dark) | Use |
+|---|---|---|---|
+| `onboarding-title` | `#000000` | `#F2F3F5` | The question |
+| `onboarding-subtitle` | `#4D5562` | `#B8BEC7` | The "why we ask" line |
+| `progress-label` | `#575F6C` | `#B8BEC7` | "3 out of 5" |
+| `progress-fill` | `#1D3963` | `#8FB4D6` | A step already reached |
+| `progress-track` | `#DBE3F3` | `#2A2F37` | A step not yet reached |
+
+They are their own tokens rather than edits to §2.1/§2.2 for two reasons.
+`#4D5562` and `#575F6C` are *different* greys doing different jobs on the
+same screen, so neither can stand in for `ink-600` without losing the
+other; and re-tinting `ink-600` would move every screen in the app to
+match one screen's read. The title is pure black rather than `ink-900`
+— §8's "never pure black" is about dark-mode *surfaces*, not a
+light-mode title.
+
+Only the light values come from Figma. The node has no dark mode, so the
+dark halves borrow §2.2's neutrals rather than invent a palette the
+document does not contain.
+
 ---
 
 ## 3. Typography
@@ -118,13 +144,23 @@ Never go below 15px. Never use SF Pro's italic styles.
 | `space-4` | 16px | Standard internal padding, gap between related elements |
 | `space-6` | 24px | Card padding (default), gap between unrelated groups |
 | `space-8` | 32px | Section spacing |
+| `space-10` | 40px | Break between a screen's chrome and its content |
 | `space-12` | 48px | Major screen-section breaks |
 
-- Screen margins: 24px left/right.
+- Screen margins: 24px left/right — text, chrome and the primary button.
+- **Card margins: 16px left/right.** The onboarding answer card
+  deliberately breaks the text margin: Figma node 40:835 draws the card
+  at x=16 in a 402pt frame while the question above it sits at x=24. The
+  8pt overhang on each side is what makes the card read as a surface the
+  copy sits on top of, rather than as another paragraph in the same
+  column.
 - Minimum tap target: 44×44pt (HIG), non-negotiable given the user base
   skews toward less tech-savvy, older users.
-- Corner radius: `8px` for buttons/inputs, `16px` for cards, `24px` for
-  sheets/modals. No sharp corners anywhere.
+- Corner radius: `8px` for buttons/inputs, `26px` for cards, `24px` for
+  sheets/modals. No sharp corners anywhere. The card's 26px is iOS 26's
+  own grouped-list radius, read from Figma node 40:835; it is larger than
+  the sheet radius, and the two carry no ordering relative to each other
+  because neither is derived from the other.
 - Elevation: **no drop shadows.** Separate surfaces with a 1px
   `ink-200` / `ink-200`(dark) hairline border or a subtle `bg-elevated`
   fill contrast instead.
@@ -136,7 +172,15 @@ Never go below 15px. Never use SF Pro's italic styles.
 | `button-height` | 50pt | Primary button, full width |
 | `button-height-hero` | 60pt | Primary on single-decision screens (onboarding) |
 | `back-button` | 50×50pt | Circular back control, screen top-left |
-| `row-height` | 56pt | Row in an onboarding choice card |
+| `row-height` | 52pt | Row in an onboarding choice card |
+| `progress-bar-height` | 14pt | One capsule of the onboarding progress bar |
+| `footer-bottom-gap` | 70pt | Primary button to the bottom safe-area edge |
+
+`footer-bottom-gap` is measured from the safe area, not the screen: Figma
+node 40:835 puts the button's bottom edge at y=770 in an 874pt frame —
+104pt clear of the screen, 70pt clear of the 34pt home-indicator inset —
+and measuring from the safe area keeps that the same *visible* distance
+on a device without a home indicator.
 
 Both primary heights are full width (`maxWidth: .infinity`) in a `Capsule`.
 Both sit above the 44pt tap-target floor rather than being derived from
@@ -206,10 +250,11 @@ it is drawn once for every step rather than per screen.
 Its 50pt diameter clears the 44pt tap-target floor (§9) on its own, so it
 needs no extra hit area.
 
-It is present on **every** wizard step including the first, where "back"
-leaves the wizard for Welcome rather than moving between fields [PRD §5].
-A control that vanished on step one would make Welcome a place the user
-could not return to.
+It is present on **every** wizard step — the first, where "back" leaves
+the wizard for Welcome rather than moving between fields [PRD §5], and
+the disclaimer, which drops the progress bar but keeps this. A control
+that vanished on step one would make Welcome a place the user could not
+return to.
 
 ### Grouped content (Settings, History, session detail)
 Native `List` with `.listStyle(.insetGrouped)` — system-provided fill,
@@ -226,20 +271,57 @@ wizard step.
 
 ### Onboarding card
 Choice sets inside a wizard step are built from native primitives: a
-`VStack` container with `card` corner radius (16pt), a `bg-elevated`
-fill, a 1px `ink-200` border, and native `Divider` separators inset to
-the text.
+`VStack` container with `card` corner radius (26pt), a `bg-elevated`
+fill, **no border**, and native `Divider` separators inset 16pt on both
+sides.
 
-Rows are `Button`s at `row-height` (56pt) minimum with `ink-900` labels
+The border is gone because Figma node 40:835 draws none. At 26pt radius a
+solid white fill already has enough edge against `bg-base` that the
+hairline was drawing a second, fainter outline just inside the corner
+rather than defining one. (§4's "hairline instead of a shadow" still
+governs surfaces that *need* separating; this one does not.)
+
+Rows are `Button`s at `row-height` (52pt) minimum with `ink-900` labels
 and a native `checkmark` accessory on the selected row. The checkmark is
 what a sighted user reads, so the row also carries the `.isSelected`
 accessibility trait — the state a `Picker` row would have announced for
 free has to be stated explicitly here.
 
 The card carries no padding of its own, so its edge sits flush against
-the 24pt screen margin its container applies.
+the 16pt **card** margin its container applies — 8pt wider on each side
+than the 24pt text margin above it (§4).
 
 **This replaces embedding `List(.insetGrouped)` inside a wizard step.**
+
+### Onboarding wizard shell
+One container draws the chrome for all six steps; a step case contributes
+only its question, its "why we ask" line and its answer control. The
+vertical rhythm is Figma node 40:835's, on a 402x874 frame:
+
+| From | To | Gap |
+|---|---|---|
+| Safe-area top | Back chip | `space-10` (40) |
+| Back chip | Progress label | `space-6` (24) |
+| Progress label | Progress bar | `space-3` (12) |
+| Progress bar | Question | `space-10` (40) |
+| Question | "Why we ask" line | `space-4` (16) |
+| "Why we ask" line | Answer card | `space-6` (24) |
+| Primary button | Safe-area bottom | `footer-bottom-gap` (70) |
+
+The question is **Subheading Bold** (28pt), not Heading (34pt): the node
+draws 28, and at 34 the two-line questions run to three lines and push
+the card off the screen.
+
+**The progress indicator counts questions only.** There are five of them
+(four if the user answers bilateral, which retires the side screen), and
+the disclaimer is not one — it is the consent gate the flow ends on, so
+it carries no number and draws no bar. Counting it would also make the
+bar read as full on the one screen where nothing is done yet.
+
+**Skip appears on the two optional screens only** — device type and
+K-level [PRD §6, §7 AC]. The designs show it greyed on some required
+screens; the PRD is what governs, so it is absent rather than disabled
+there.
 
 ### Toggles (Step Feedback, Metronome cue)
 Native `Toggle`, `.tint(primary-600)`.

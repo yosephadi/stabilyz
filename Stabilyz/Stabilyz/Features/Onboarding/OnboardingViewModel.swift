@@ -82,15 +82,30 @@ final class OnboardingViewModel {
         return OnboardingStep.allCases.filter { $0 != .side || $0 == draft.step }
     }
 
-    /// One-based position and total, for the visible progress indicator
-    /// [PRD §7 AC].
-    var progress: (step: Int, of: Int) {
-        let steps = applicableSteps
-        return ((steps.firstIndex(of: draft.step) ?? 0) + 1, steps.count)
+    /// The screens that carry a number.
+    ///
+    /// The disclaimer is not one of them. [PRD §7 AC] asks for a progress
+    /// indicator over the screens that present "one field (or tightly grouped
+    /// field-set)", and the disclaimer presents no field — it is the consent
+    /// gate the flow ends on, and the designs draw it with no counter and no
+    /// bar. Counting it would also make the bar full before the user has
+    /// consented to anything, which reads as "done" on the one screen where
+    /// nothing is yet.
+    var numberedSteps: [OnboardingStep] {
+        applicableSteps.filter { $0 != .disclaimer }
     }
 
-    var progressFraction: Double {
-        Double(progress.step) / Double(progress.of)
+    /// One-based position and total, for the visible progress indicator
+    /// [PRD §7 AC]. `nil` on the screens that carry no number.
+    var progress: (step: Int, of: Int)? {
+        let steps = numberedSteps
+        guard let index = steps.firstIndex(of: draft.step) else { return nil }
+        return (index + 1, steps.count)
+    }
+
+    /// `nil` wherever `progress` is.
+    var progressFraction: Double? {
+        progress.map { Double($0.step) / Double($0.of) }
     }
 
     var canGoBack: Bool { draft.step != applicableSteps.first }

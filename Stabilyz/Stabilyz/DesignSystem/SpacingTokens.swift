@@ -14,11 +14,23 @@ enum Space {
     static let x6: CGFloat = 24
     /// Section spacing.
     static let x8: CGFloat = 32
+    /// Break between a screen's chrome and its question (Figma 40:835: the
+    /// progress bar ends at y=218, the question starts at y=258).
+    static let x10: CGFloat = 40
     /// Major screen-section breaks.
     static let x12: CGFloat = 48
 
-    /// Screen margins, left and right.
+    /// Screen margins, left and right: text, chrome and the primary button.
     static let screenMargin: CGFloat = 24
+
+    /// The answer card's margins, left and right.
+    ///
+    /// Deliberately 8pt wider than `screenMargin` on each side: Figma 40:835
+    /// draws the card at x=16 in a 402pt frame while the question above it sits
+    /// at x=24, so the card breaks the text margin rather than sharing it. That
+    /// is what makes it read as a surface the copy sits on top of instead of
+    /// another paragraph in the same column.
+    static let cardMargin: CGFloat = 16
 }
 
 /// Control sizing (§4).
@@ -33,15 +45,29 @@ enum Controls {
     static let heroButtonHeight: CGFloat = 60
     /// The circular back control in a screen's top-left.
     static let backButtonDiameter: CGFloat = 50
-    /// A row in an onboarding choice card. Comfortably above the 44pt floor,
-    /// because these rows are the whole interaction on their screen.
-    static let rowHeight: CGFloat = 56
+    /// A row in an onboarding choice card (Figma 40:835: three 52pt rows in a
+    /// 156pt card). Above the 44pt floor, because these rows are the whole
+    /// interaction on their screen.
+    static let rowHeight: CGFloat = 52
+    /// One capsule of the onboarding progress bar (Figma 40:835).
+    static let progressBarHeight: CGFloat = 14
+    /// Clearance between the primary button and the bottom safe-area edge.
+    ///
+    /// Figma 40:835 puts the button's bottom edge at y=770 in an 874pt frame —
+    /// 104pt clear of the screen, 70pt clear of the 34pt home-indicator inset.
+    /// Measured from the safe area rather than the screen so the gap is the
+    /// same visible distance on a device without a home indicator.
+    static let footerBottomGap: CGFloat = 70
 }
 
 /// Corner radii (§4). No sharp corners anywhere.
 enum Radius {
     static let control: CGFloat = 8
-    static let card: CGFloat = 16
+    /// The answer card. Figma 40:835 draws the grouped list at 26pt — iOS 26's
+    /// own grouped-list radius — which is larger than `sheet`; the two are read
+    /// from different sources and neither is derived from the other, so the
+    /// ordering between them carries no meaning.
+    static let card: CGFloat = 26
     static let sheet: CGFloat = 24
 }
 
