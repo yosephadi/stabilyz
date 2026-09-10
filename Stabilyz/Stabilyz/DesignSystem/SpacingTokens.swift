@@ -42,7 +42,12 @@ enum Controls {
     /// Primary button, full width.
     static let buttonHeight: CGFloat = 50
     /// The taller primary used on onboarding and other single-decision screens.
-    static let heroButtonHeight: CGFloat = 60
+    ///
+    /// 55, not the 60 Figma node 40:835 draws. The node's button is bottom
+    /// anchored, so the 5pt comes off the top and the capsule keeps its
+    /// position on the page; at 60 with a 17pt label it read as a slab rather
+    /// than a control.
+    static let heroButtonHeight: CGFloat = 55
     /// The circular back control in a screen's top-left.
     static let backButtonDiameter: CGFloat = 50
     /// A row in an onboarding choice card (Figma 40:835: three 52pt rows in a

@@ -128,19 +128,17 @@ document does not contain.
 | Button Label | 17px | Semibold | Label on a filled primary button (`.headline`) |
 | Body Text Regular | 17px | Medium | Default body copy |
 | Small Body Text Bold | 15px | Bold | Metadata labels, timestamps (bold) |
-| Small Body Text Regular | 15px | Medium | Metadata, captions — **floor size** |
-| Footnote | 13px | Regular | **Exception, see below** |
+| Small Body Text Regular | 15px | Medium | Metadata, captions, helper text — **floor size** |
 
-Never use SF Pro's italic styles.
+Never go below 15px. Never use SF Pro's italic styles.
 
-**The 15px floor has exactly one exception: `Footnote` (13px).** It is
-for a hint that restates something already on screen at full size, where
-the reader has the large version a few points away — today that is the
-single line under a disabled primary button, whose subject is the
-checkbox directly above it. It may never carry something the user could
-only learn there. The exemption is held by name in
-`StabilyzFont.belowTheFloorByException` and tested, so a second style
-below the floor fails rather than joining it quietly.
+**There is no exception to the floor.** A 13px `Footnote` token existed
+briefly, for the single line under a disabled primary button. On a screen
+built for readers in their 70s, the sentence explaining why a button will
+not respond is the last text that should shrink — helper text is Small
+Body Text Regular like everything else. The scale is checked against the
+*rendered* point size, so a token that quietly mapped to `.footnote`
+would fail even if its declared number said otherwise.
 
 Button labels are **Semibold, not Bold**: a `.borderedProminent` button
 is a system control, and `.headline` is the weight iOS sets its own
@@ -187,7 +185,7 @@ an iOS button".
 | Token | Value | Use |
 |---|---|---|
 | `button-height` | 50pt | Primary button, full width |
-| `button-height-hero` | 60pt | Primary on single-decision screens (onboarding) |
+| `button-height-hero` | 55pt | Primary on single-decision screens (onboarding) |
 | `back-button` | 50×50pt | Circular back control, screen top-left |
 | `row-height` | 52pt | Row in an onboarding choice card |
 | `progress-bar-height` | 14pt | One capsule of the onboarding progress bar |
@@ -198,6 +196,11 @@ node 40:835 puts the button's bottom edge at y=770 in an 874pt frame —
 104pt clear of the screen, 70pt clear of the 34pt home-indicator inset —
 and measuring from the safe area keeps that the same *visible* distance
 on a device without a home indicator.
+
+`button-height-hero` is 55pt where the node draws 60. The button is
+bottom anchored, so the 5pt comes off the top and the capsule keeps the
+position on the page the node gives it; at 60 with a 17pt label it read
+as a slab rather than a control.
 
 Both primary heights are full width (`maxWidth: .infinity`) in a `Capsule`.
 Both sit above the 44pt tap-target floor rather than being derived from
@@ -229,45 +232,40 @@ work.
   dashboard-button layout. Selected tab tinted `primary-600`.
 
 ### Buttons
-- **Primary (onboarding and other single-decision screens)**: a stock
-  `Button` with `.buttonStyle(.borderedProminent)`,
-  `.buttonBorderShape(.capsule)` and `.tint(primary-600)`, labelled in
-  `on-primary` Button Label (17 Semibold).
+- **Primary (onboarding and other single-decision screens)**: a
+  full-width `Capsule` at `button-height-hero` (55pt) wearing
+  `PrimaryCapsuleButtonStyle` — `.buttonStyle(.primaryCapsuleHero)`.
 
-  **This reverses the `.glassCapsuleHero` decision of 2026-09-10, and
-  `GlassCapsuleButtonStyle` is deleted rather than left unused.** The
-  glass primary was hand-built: its own surface, its own press
-  animation, its own opacity curve for the disabled state, and its own
-  hairline to stop it dissolving into `bg-base`. All four are things iOS
-  already does, and does better — the touch-down animation and the
-  disabled dimming in particular are system behaviours users read
-  without noticing, and an approximation of them is uncanny rather than
-  neutral. `primary-600` was already the brand fill (§2.1); a filled
-  navy capsule is what the palette was built for.
+  | State | Fill | Edge | Label |
+  |---|---|---|---|
+  | Enabled | `primary-600` | none | `on-primary`, Button Label (17 Semibold) |
+  | Disabled | `.ultraThinMaterial` | 1px `ink-200` hairline | `ink-400`, Button Label |
+  | Pressed | as above at 85% opacity, 0.15s ease-out | | |
 
-  **The sizing modifiers go on the label, inside the `Button`:**
+  **Why a style and not `.borderedProminent`.** The enabled half *is*
+  what the system draws. The disabled half is not: `.borderedProminent`
+  dims its own fill into an opaque grey slab, which ends up heavier on
+  the page than the enabled button it replaces, and the loudest thing on
+  a screen where the user has not done anything yet. The material
+  version lets the page show through, so it reads as unavailable by
+  being lighter rather than greyer. The hairline is load-bearing — the
+  material has almost no edge against `bg-base`, and without it the
+  button loses its shape entirely.
 
-  ```swift
-  Button { … } label: {
-      Text("Next")
-          .font(StabilyzFont.buttonLabel)
-          .foregroundStyle(StabilyzColor.onPrimary)
-          .frame(maxWidth: .infinity)
-          .frame(height: Controls.heroButtonHeight)
-          .contentShape(Capsule())
-  }
-  .buttonStyle(.borderedProminent)
-  .buttonBorderShape(.capsule)
-  .tint(StabilyzColor.primary600)
-  ```
+  This is the third and settled position on this control. It is *not* a
+  return to the deleted `GlassCapsuleButtonStyle`, which was translucent
+  in **both** states and so never looked pressable; here translucency is
+  what "not yet" means, and the enabled button is a solid navy capsule.
 
-  This is what makes the whole capsule tappable. `maxWidth: .infinity`
-  applied *outside* the button stretches the control while its hit area
-  stays wrapped around the word — a ~30pt target on a 354pt button, and
-  the failure this user base would hit hardest.
+  **The sizing and `contentShape` are applied to `configuration.label`
+  inside the style**, so the whole capsule is the hit area rather than
+  the width of the word. `maxWidth: .infinity` applied *outside* a button
+  stretches the control while its hit area stays wrapped around the
+  label — a ~30pt target on a 354pt button, and the failure this user
+  base would hit hardest. Every caller gets that for free.
 
-  `button-height-hero` (60pt) on single-decision screens,
-  `button-height` (50pt) elsewhere.
+  `.primaryCapsule` is the same style at `button-height` (50pt) for
+  screens that are not a single decision.
 - **Secondary**: `.buttonStyle(.bordered)`, `.tint(primary-600)`.
 - **Destructive**: `.buttonStyle(.bordered)` or plain, `.tint(danger)` —
   reserved for "Replace with Backup" and similar irreversible actions,
@@ -278,9 +276,15 @@ work.
 
 ### Back control
 A circular `back-button` (50x50pt) `Button` in the screen's top-left,
-carrying a `chevron.left` SF Symbol in `ink-900` over an **adaptive
-glass** `Circle`. Used by the onboarding wizard's container shell, where
-it is drawn once for every step rather than per screen.
+carrying a `chevron.left` SF Symbol in `ink-900` at Button Label weight
+over `.ultraThinMaterial` in a `Circle`, with `.buttonStyle(.plain)` so
+the system adds no second background under ours. Used by the onboarding
+wizard's container shell, where it is drawn once for every step rather
+than per screen.
+
+The material is the point. A solid fill at this size on `bg-base` reads
+as a flat white disc with no edge of its own; the blur picks up whatever
+the page puts behind it, so the chip stays a chip.
 
 Its 50pt diameter clears the 44pt tap-target floor (§9) on its own, so it
 needs no extra hit area.
@@ -396,21 +400,23 @@ The one place layout is still bespoke, because there's no native
 directly beneath. No card/border around it — sits directly on
 `bg-base` so it reads as the page's primary content.
 
-### Glass surfaces (iOS 26)
+### Surfaces and materials
 
-`.adaptiveGlass(_:in:)` puts a translucent surface behind cards and
-chrome: **Liquid Glass** on iOS 26, `.ultraThinMaterial` below it. The
-back chip is its one user today. The primary button is **not** a glass
-surface any more — it is a stock `.borderedProminent` capsule (see
-**Buttons**), so iOS owns its material, its press animation and its
-disabled state.
-Progressive enhancement, not a fork — both branches produce the same
-shape, so layout, hit-testing and contrast are identical and only the
-material differs. Deployment target stays iOS 17.0
-(docs/decisions.md §26).
+`.ultraThinMaterial` is the app's one translucent surface: behind the
+back chip, and behind the primary button in its disabled state. It is
+used directly rather than through a wrapper.
 
-The shape is always passed in explicitly; a glass surface whose shape
-disagrees with its content's clipping reads as a bug rather than a style.
+**Liquid Glass is not adopted.** `adaptiveGlass(_:in:)` and
+`GlassCapsuleButtonStyle` are both deleted (docs/decisions.md §26): over
+`bg-base` the iOS 26 material renders as a pale, low-contrast disc barely
+distinguishable from a flat white fill, and the abstraction existed to
+serve a primary button that no longer wants a translucent surface when it
+is enabled. Nothing about the deployment target changes — it was already
+17.0, and `.ultraThinMaterial` is available there.
+
+A material is always given its shape explicitly (`in: Circle()`,
+`in: Capsule()`); a translucent surface whose shape disagrees with its
+content's clipping reads as a bug rather than a style.
 
 ---
 

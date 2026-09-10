@@ -167,25 +167,53 @@ private func contrastRatio(_ a: Color, _ b: Color, dark: Bool) -> Double {
 
 // MARK: - Typography (§3)
 
-@Test func noTypeTokenFallsBelowTheFifteenPointFloorWithoutAnExemption() {
-    // The floor is why the scale stops where it does. `footnote` is §3's single
-    // named exception — a hint that restates something already on screen at
-    // full size — and it is exempted by name here rather than by being left out
-    // of the scale, so the next style added below 15pt fails this instead of
-    // slipping through the same silence.
-    for token in StabilyzFont.specifiedSizes
-    where !StabilyzFont.belowTheFloorByException.contains(token.name) {
+@Test func noTypeTokenFallsBelowTheFifteenPointFloor() {
+    // The floor is the reason the scale stops where it does: .footnote and
+    // .caption both render below 15pt, so no token may map to them. There is no
+    // exemption list — one existed briefly for the line under a disabled
+    // button, and that sentence is the last text on this screen that should
+    // shrink.
+    for token in StabilyzFont.specifiedSizes {
         #expect(token.points >= Metrics.minimumFontSize, "\(token.name) is below the floor")
     }
 }
 
-@Test func theFloorExemptionIsExactlyTheOneStyleTheDocumentNames() {
-    // An exemption list that grew would quietly repeal §3.
-    #expect(StabilyzFont.belowTheFloorByException == ["footnote"])
+@MainActor
+@Test func everyHelperLineInTheAppRendersAtTheFloorOrAbove() {
+    // The guard the exemption list used to defeat: the scale is checked against
+    // the *rendered* size, so a token that quietly mapped to .footnote or
+    // .caption would fail here even if its declared number said otherwise.
+    let standard = UITraitCollection(preferredContentSizeCategory: .large)
 
-    let named = Set(StabilyzFont.specifiedSizes.map(\.name))
-    #expect(StabilyzFont.belowTheFloorByException.isSubset(of: named),
-            "an exemption names a token that is not in the scale")
+    for token in StabilyzFont.specifiedSizes {
+        guard let style = uiTextStyle(token.style) else {
+            Issue.record("\(token.name) maps to a text style this test cannot resolve")
+            continue
+        }
+        let size = UIFont.preferredFont(forTextStyle: style, compatibleWith: standard).pointSize
+        #expect(size >= Metrics.minimumFontSize, "\(token.name) renders at \(size)pt")
+    }
+}
+
+/// SwiftUI's `Font.TextStyle` and UIKit's `UIFont.TextStyle` are different
+/// types with no bridge, and only the UIKit one can be measured. Every case is
+/// listed rather than defaulted, so a token pointing at `.caption2` resolves and
+/// fails the floor instead of returning nil and being skipped.
+private func uiTextStyle(_ style: Font.TextStyle) -> UIFont.TextStyle? {
+    switch style {
+    case .largeTitle: .largeTitle
+    case .title: .title1
+    case .title2: .title2
+    case .title3: .title3
+    case .headline: .headline
+    case .subheadline: .subheadline
+    case .body: .body
+    case .callout: .callout
+    case .footnote: .footnote
+    case .caption: .caption1
+    case .caption2: .caption2
+    @unknown default: nil
+    }
 }
 
 @MainActor
@@ -202,7 +230,6 @@ private func contrastRatio(_ a: Color, _ b: Color, dark: Bool) -> Double {
         ("body", .body, 17),
         ("buttonLabel", .headline, 17),
         ("small", .subheadline, 15),
-        ("footnote", .footnote, 13),
     ]
 
     for (name, style, expected) in styles {
@@ -246,7 +273,7 @@ private func contrastRatio(_ a: Color, _ b: Color, dark: Bool) -> Double {
     #expect(Metrics.minimumTapTarget == 44)
     #expect(Metrics.minimumFontSize == 15)
     #expect(Controls.buttonHeight == 50)
-    #expect(Controls.heroButtonHeight == 60)
+    #expect(Controls.heroButtonHeight == 55)
     #expect(Controls.backButtonDiameter == 50)
     #expect(Controls.rowHeight == 52)
     #expect(Controls.progressBarHeight == 14)
@@ -266,11 +293,16 @@ private func contrastRatio(_ a: Color, _ b: Color, dark: Bool) -> Double {
     #expect(Space.cardMargin < Space.screenMargin, "the card no longer breaks the text margin")
 
     // Back chip at y=100 under a 59pt safe-area inset; three 52pt rows make the
-    // 156pt card; the 60pt button's bottom edge lands at y=770 in an 874pt
-    // frame once the 34pt home-indicator inset is added back.
+    // 156pt card; the button's bottom edge lands at y=770 in an 874pt frame
+    // once the 34pt home-indicator inset is added back.
     #expect(59 + Space.x10 + Controls.backButtonDiameter == 149)
     #expect(3 * Controls.rowHeight == 156)
-    #expect(874 - 34 - Controls.footerBottomGap - Controls.heroButtonHeight == 710)
+    #expect(874 - 34 - Controls.footerBottomGap == 770)
+
+    // The button is bottom anchored, so trimming it from the node's 60pt to 55
+    // takes the 5pt off the top and leaves that bottom edge where Figma put it.
+    #expect(Controls.heroButtonHeight == 55)
+    #expect(770 - Controls.heroButtonHeight == 715)
 }
 
 @Test func aChoiceRowClearsTheTapTargetFloor() {

@@ -1167,7 +1167,29 @@ critical path fails the test at its bound.
 
 ## 26. Liquid Glass by progressive enhancement, deployment target stays 17.0
 
-**Date:** 2026-09-10 · **Task:** 8.1.5 · **Status:** Settled
+**Date:** 2026-09-10 · **Task:** 8.1.5 · **Status:** **Reversed 2026-09-11**
+
+> **Reversed.** Liquid Glass is not adopted, and `DesignSystem/GlassStyle.swift`
+> is deleted — both `adaptiveGlass(_:in:)` and the `GlassSurface` vocabulary
+> with it. The app's one translucent surface is `.ultraThinMaterial`, applied
+> directly at its two call sites: the back chip, and the primary button in its
+> disabled state.
+>
+> Two reasons. Over `bg-base` (`#F7F7F7`) the iOS 26 material renders as a pale
+> low-contrast disc barely distinguishable from the flat white fill it was
+> supposed to replace, so the enhancement bought nothing on the screens that
+> used it. And the abstraction existed to serve a primary button that has since
+> stopped wanting a translucent surface when it is enabled (§27) — with the
+> button gone, `adaptiveGlass` had one caller, and a two-branch OS fork
+> maintained for one circle is not an abstraction, it is an unused one.
+>
+> **The deployment target is unaffected.** It was already 17.0 and stays there;
+> `.ultraThinMaterial` is available on it, which is why the fallback branch
+> worked in the first place. What is gone is the *branching*, not the material.
+>
+> The original decision is kept below because the reasoning still holds for what
+> it decided — if Liquid Glass is revisited on a darker surface where it has
+> contrast to work with, this is the shape that adoption should take.
 
 iOS 26's Liquid Glass is adopted where the OS provides it and falls back to
 `.ultraThinMaterial` where it does not. `IPHONEOS_DEPLOYMENT_TARGET` stays
@@ -1294,3 +1316,58 @@ The existing onboarding suite covers selection through the same bindings the
 rows now drive, so behaviour is pinned independently of the container. The
 inset problem itself was visual and is not test-covered; §5 now states the rule
 that prevents its return.
+
+---
+
+## 27. The primary button is a custom capsule, for its disabled state only
+
+**Date:** 2026-09-11 · **Status:** Settled
+
+`PrimaryCapsuleButtonStyle` (`.primaryCapsule` / `.primaryCapsuleHero`) draws
+the app's primary button: a full-width `Capsule` at 55pt on single-decision
+screens.
+
+| State | Fill | Edge | Label |
+|---|---|---|---|
+| Enabled | `primary-600` | none | `on-primary`, 17 Semibold |
+| Disabled | `.ultraThinMaterial` | 1px `ink-200` | `ink-400`, 17 Semibold |
+| Pressed | as above at 85% opacity, 0.15s ease-out | | |
+
+### Why
+
+This control has now been through three forms, and the third is settled because
+it is the first one chosen for a reason that is about the *disabled* state.
+
+The **enabled** half is exactly `.borderedProminent` tinted `primary-600`, and
+if that were the whole control it would be the system's. It is not: the disabled
+half is the problem. `.borderedProminent` dims its own fill into an opaque grey
+slab that ends up heavier on the page than the enabled button it replaces — the
+loudest element on a screen where the user has not yet done anything. Onboarding
+opens on that state five times out of six, so it is not an edge case, it is the
+first thing the user sees.
+
+`.ultraThinMaterial` inverts that: the page shows through, and the button reads
+as unavailable by being *lighter* rather than greyer. The hairline is
+load-bearing rather than decorative — the material has almost no edge against
+`bg-base`, and without it the capsule loses its shape.
+
+This is **not** a return to `GlassCapsuleButtonStyle` (§26), which was
+translucent in both states and so never looked pressable at all. Here
+translucency is what "not yet" means, and the enabled button is a solid navy
+capsule.
+
+### What this costs
+
+The press animation and the disabled dimming are ours again, so they can drift
+from iOS. Both are one line each in a single style, and the enabled appearance
+is deliberately identical to the system's — if a future iOS changes what a
+filled capsule looks like, this is the one file to reconcile.
+
+### The part that is not about looks
+
+The sizing and `contentShape(Capsule())` are applied to `configuration.label`
+**inside** the style. That is what makes the whole capsule tappable. Applied
+outside a `Button`, `maxWidth: .infinity` stretches the control while its hit
+area stays wrapped around the word "Next" — a ~30pt target on a 354pt button,
+and the failure this user base would hit hardest. Putting it in the style means
+no caller can get it wrong.

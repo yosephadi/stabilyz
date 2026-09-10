@@ -17,9 +17,9 @@ import SwiftUI
 ///
 /// Everything under the chrome stays native per §5: `OnboardingCard` built from
 /// `VStack`/`Divider`/`Button`, a system `Toggle` wearing `CheckboxToggleStyle`
-/// for the disclaimer tick, and a stock `.borderedProminent` capsule for the
-/// primary. Dynamic Type, VoiceOver and the 44pt tap floor come from the system
-/// rather than from us remembering.
+/// for the disclaimer tick, and a `Button` in `PrimaryCapsuleButtonStyle` for
+/// the primary. Dynamic Type, VoiceOver and the 44pt tap floor come from the
+/// system rather than from us remembering.
 ///
 /// No colour, size or spacing literal appears in this file; `DesignTokenGuardTests`
 /// enforces that for the whole of `Features/`.
@@ -85,9 +85,15 @@ struct OnboardingView: View {
         }
     }
 
-    /// The circular back control (§5: 50x50 adaptive glass). A plain `Button`
-    /// underneath, so it keeps its tap handling and VoiceOver behaviour; the
-    /// space is held on the first screen so the progress bar does not jump.
+    /// The circular back control (§5: 50x50 on `.ultraThinMaterial`).
+    ///
+    /// The material is the point: a solid fill at this size on `bg-base` reads
+    /// as a flat white disc with no edge, where the blur picks up whatever the
+    /// page puts behind it and the chip stays a chip. `.plain` keeps the system
+    /// from adding a second background under ours, and keeps the `Button`'s tap
+    /// handling and VoiceOver behaviour intact.
+    ///
+    /// The space is held on the first screen so the progress bar does not jump.
     private var backChip: some View {
         Button {
             // On the first screen there is no previous field; what is behind it
@@ -95,14 +101,16 @@ struct OnboardingView: View {
             if model.canGoBack { model.back() } else { model.exitToWelcome() }
         } label: {
             Image(systemName: "chevron.left")
-                .font(StabilyzFont.bodyBold)
+                .font(StabilyzFont.buttonLabel)
                 .foregroundStyle(StabilyzColor.ink900)
                 .frame(
                     width: Controls.backButtonDiameter,
                     height: Controls.backButtonDiameter
                 )
-                .adaptiveGlass(.chrome, in: Circle())
+                .background(.ultraThinMaterial, in: Circle())
+                .contentShape(Circle())
         }
+        .buttonStyle(.plain)
         .accessibilityLabel(model.canGoBack ? "Back" : "Back to Welcome")
     }
 
@@ -126,16 +134,10 @@ struct OnboardingView: View {
 
     /// The primary button, and above it the one line that ever explains itself.
     ///
-    /// **A stock `.borderedProminent` capsule.** Everything that used to be
-    /// hand-built here — the surface, the press animation, the disabled
-    /// dimming — is the system's again, tinted `primary-600`. The custom glass
-    /// style it replaces is gone rather than left unused.
-    ///
-    /// The sizing modifiers sit on the *label*, not on the `Button`: that is
-    /// what makes the whole capsule tappable. Put `maxWidth: .infinity` outside
-    /// the button and the control stretches while its hit area stays wrapped
-    /// around the word "Next", which is a 30pt target on a 354pt button and the
-    /// exact failure this user base would hit most.
+    /// The capsule, both its states and the full-width hit area all live in
+    /// `PrimaryCapsuleButtonStyle`; this names the style and nothing else. The
+    /// disabled treatment is the reason that style exists rather than
+    /// `.borderedProminent` — see its own documentation.
     private var footer: some View {
         VStack(spacing: Space.x2) {
             if let explanation = model.blockedExplanation {
@@ -143,7 +145,7 @@ struct OnboardingView: View {
                 // [PRD §6]; a choice screen with nothing chosen explains itself
                 // by being a list of unchosen options.
                 Text(explanation)
-                    .font(StabilyzFont.footnote)
+                    .font(StabilyzFont.smallRegular)
                     .foregroundStyle(StabilyzColor.ink600)
                     .multilineTextAlignment(.center)
                     .frame(maxWidth: .infinity)
@@ -156,26 +158,17 @@ struct OnboardingView: View {
             if let failure = model.saveFailure,
                let presentation = ErrorPresenter.presentation(for: failure) {
                 Text(presentation.message)
-                    .font(StabilyzFont.footnote)
+                    .font(StabilyzFont.smallRegular)
                     .foregroundStyle(StabilyzColor.danger)
                     .multilineTextAlignment(.center)
                     .frame(maxWidth: .infinity)
                     .fixedSize(horizontal: false, vertical: true)
             }
 
-            Button {
+            Button(model.step == .disclaimer ? "Agree & Continue" : "Next") {
                 Task { await model.advance() }
-            } label: {
-                Text(model.step == .disclaimer ? "Agree & Continue" : "Next")
-                    .font(StabilyzFont.buttonLabel)
-                    .foregroundStyle(StabilyzColor.onPrimary)
-                    .frame(maxWidth: .infinity)
-                    .frame(height: Controls.heroButtonHeight)
-                    .contentShape(Capsule())
             }
-            .buttonStyle(.borderedProminent)
-            .buttonBorderShape(.capsule)
-            .tint(StabilyzColor.primary600)
+            .buttonStyle(.primaryCapsuleHero)
             .disabled(!model.canContinue)
         }
         .padding(.horizontal, Space.screenMargin)

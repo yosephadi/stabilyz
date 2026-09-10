@@ -39,20 +39,16 @@ enum StabilyzFont {
     /// own filled buttons in. Bold next to the system's semibold is the kind of
     /// difference that reads as "not quite an iOS button".
     static let buttonLabel = Font.headline
-    /// 13 Regular — **the one style below the 15pt floor** (§3).
-    ///
-    /// Reserved for a hint that restates something already on screen, where the
-    /// reader has the full-size version a few points away: today that is the
-    /// single line under a disabled primary button, whose subject is the
-    /// checkbox directly above it. It may not carry anything the user could
-    /// only learn here.
-    static let footnote = Font.footnote
 
     /// The point size each token renders at with Dynamic Type at its default
     /// setting, for tests that hold the scale to the document.
     ///
     /// `.footnote` and `.caption` are absent from the scale on purpose: both sit
-    /// below the 15pt floor, so no token may map to them.
+    /// below the 15pt floor, so no token may map to them. There is **no
+    /// exception list** — a 13pt token existed here briefly for the one line
+    /// under a disabled button, and on a screen built for readers in their 70s
+    /// the sentence explaining why a button will not respond is the last place
+    /// to save four points.
     static let specifiedSizes: [(name: String, style: Font.TextStyle, points: CGFloat)] = [
         ("heading", .largeTitle, 34),
         ("subheading", .title, 28),
@@ -60,13 +56,5 @@ enum StabilyzFont {
         ("body", .body, 17),
         ("buttonLabel", .headline, 17),
         ("small", .subheadline, 15),
-        ("footnote", .footnote, 13),
     ]
-
-    /// The tokens §3 exempts from the 15pt floor, by name.
-    ///
-    /// A list rather than an omission from `specifiedSizes`: leaving `footnote`
-    /// out of the scale would make the floor test pass by not looking, and the
-    /// next style added below 15pt would be exempted by the same silence.
-    static let belowTheFloorByException: Set<String> = ["footnote"]
 }
