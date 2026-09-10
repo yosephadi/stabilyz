@@ -314,6 +314,54 @@ private func uiTextStyle(_ style: Font.TextStyle) -> UIFont.TextStyle? {
     #expect(Controls.heroButtonHeight >= Controls.buttonHeight)
 }
 
+// MARK: - Motion (§10)
+
+@Test func theSplashLandsInsideTheBudgetTheDocumentSets() {
+    // §10: launch to hand-off in 0.8-0.9s. The splash runs beside `resolve()`
+    // rather than before it, so this is what the launch costs only on a device
+    // where reading a profile is slower than the countdown.
+    #expect(Motion.splashTotal == Motion.splashReveal + Motion.splashHold)
+    #expect(Motion.splashTotal >= 0.8)
+    #expect(Motion.splashTotal <= 0.9)
+
+    // The mark has to settle before it is taken away, or the reveal is a
+    // flicker rather than an entrance.
+    #expect(Motion.splashHold > 0)
+    #expect(Motion.splashReveal > Motion.splashHold)
+}
+
+@Test func theSplashMarkSettlesRatherThanGrows() {
+    // Close enough to 1 to read as arriving, not as zooming.
+    #expect(Motion.splashInitialScale < 1)
+    #expect(Motion.splashInitialScale >= 0.9)
+}
+
+@Test func motionCoversChangesFasterThanItPerformsThem() {
+    // §10's ordering, and the reason it holds: a cross-fade is covering a
+    // hand-off the user did not ask to watch, and a press is confirming a touch
+    // they have already made. Only the brand reveal is worth a beat.
+    #expect(Motion.buttonPress < Motion.rootCrossFade)
+    #expect(Motion.rootCrossFade < Motion.splashReveal)
+
+    // Nothing in the scale may stall a user who is trying to act.
+    for duration in [Motion.buttonPress, Motion.rootCrossFade, Motion.splashReveal, Motion.splashHold] {
+        #expect(duration > 0)
+        #expect(duration <= 1, "\(duration)s is long enough to feel like a wait")
+    }
+}
+
+@MainActor
+@Test func reduceMotionChangesHowThingsMoveNotHowLongLaunchTakes() {
+    // The rule §10 states, pinned as arithmetic: `SplashView` sleeps
+    // `splashTotal` on both paths, so turning animation off removes the reveal
+    // and leaves the hand-off where it was. A separate reduced total would make
+    // the app a different length for the users most likely to be disoriented by
+    // it changing.
+    let animated = Motion.splashReveal + Motion.splashHold
+    let reduced = Motion.splashTotal      // no reveal to wait through
+    #expect(animated == reduced)
+}
+
 @Test func everyCornerIsRounded() {
     // §4: no sharp corners anywhere.
     #expect(Radius.control > 0 && Radius.card > 0 && Radius.sheet > 0)

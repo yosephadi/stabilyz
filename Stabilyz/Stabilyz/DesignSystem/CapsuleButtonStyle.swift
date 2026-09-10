@@ -56,7 +56,7 @@ struct CapsuleButtonStyle: ButtonStyle {
                 // Edge to edge, not the width of the label.
                 .contentShape(Capsule())
                 .opacity(configuration.isPressed ? 0.85 : 1)
-                .animation(.easeOut(duration: 0.15), value: configuration.isPressed)
+                .animation(.easeOut(duration: Motion.buttonPress), value: configuration.isPressed)
         }
 
         private var label: Color {

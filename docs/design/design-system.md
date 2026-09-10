@@ -535,6 +535,53 @@ scale rather than the brand color:
 
 ---
 
+## 10. Motion
+
+Motion is short and gets out of the way. §1's "no decoration without
+function" applies to time as much as to pixels: the only movement in the
+app either confirms a touch or covers a hand-off. A user in their 70s
+waiting on an animation to finish before they can act is the failure this
+scale exists to keep small.
+
+| Token | Value | Use |
+|---|---|---|
+| `button-press` | 0.15s ease-out | A capsule acknowledging a touch |
+| `root-cross-fade` | 0.35s ease-in-out | Splash to the first real screen |
+| `splash-reveal` | 0.6s ease-out | The mark fading and settling in |
+| `splash-hold` | 0.3s | The mark at rest before hand-off |
+| `splash-total` | 0.9s | Launch to hand-off |
+| `splash-initial-scale` | 0.92 | Where the mark starts |
+
+The ordering is the rule, not the numbers: **covering a change is faster
+than performing one.** A cross-fade hides a hand-off nobody asked to
+watch; a press confirms a touch already made. Only the brand reveal is
+worth a beat.
+
+### Splash
+
+`SplashView` draws the wave mark centred on `bg-base` and calls back when
+its hold is over. It covers the moment `AppRouter` spends reading the
+store, so the app opens on its own mark rather than on a spinner.
+
+**It runs beside `resolve()`, not before it.** The store read starts on
+the same frame, so the 0.9s costs the launch nothing on any device where
+reading a profile is faster than that. `ContentView` keeps the mark up
+until the countdown is over *and* the router has an answer — a cold store
+that takes longer extends the splash rather than flashing a spinner
+between the mark and the first screen. A launch that *fails* is the one
+exception: the phase stays `resolving` forever when the store cannot be
+read, so the failure ends the splash and the error and its retry get on
+screen.
+
+**Reduce Motion removes the movement, not the time.** With the setting on
+the mark is already at rest on the first frame — no fade, no settle — and
+the hand-off still happens at `splash-total`. A launch that took a third
+as long because the user turned animation off would be a different app,
+not an accessible one; §9's reading of Reduce Motion is that it governs
+how things move, never when they happen.
+
+---
+
 ## Open questions
 
 - **App icon / launch screen concept** — deferred, revisit later.
