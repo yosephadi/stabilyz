@@ -33,7 +33,8 @@ struct ContentView: View {
                         profiles: dependencies.userProfileRepository,
                         clock: dependencies.clock,
                         logService: dependencies.logService,
-                        onCompleted: { await router.resolve() }
+                        onCompleted: { await router.resolve() },
+                        onExit: { router.returnToWelcome() }
                     )
                 )
             case .main:

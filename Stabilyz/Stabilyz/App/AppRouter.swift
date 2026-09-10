@@ -107,4 +107,20 @@ final class AppRouter {
         guard phase == .firstLaunch else { return }
         phase = .onboarding
     }
+
+    /// "Back" from the wizard's first screen — Welcome is where the user came
+    /// from [PRD §5].
+    ///
+    /// The mirror of `beginOnboarding()` and guarded the same way: it only ever
+    /// moves *backward to Welcome*, and only out of the wizard, so nothing can
+    /// drop a user who already has a profile onto the first-launch screen.
+    ///
+    /// The draft is deliberately left alone. Resuming is what it is for [PRD §6
+    /// AC], so "Get Started" picks the wizard back up exactly where it was
+    /// rather than restarting it — and a relaunch from here does the same,
+    /// because `resolve()` reads that draft and returns to onboarding.
+    func returnToWelcome() {
+        guard phase == .onboarding else { return }
+        phase = .firstLaunch
+    }
 }

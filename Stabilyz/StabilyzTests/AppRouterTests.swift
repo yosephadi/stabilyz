@@ -330,3 +330,32 @@ private struct ThrowingProfiles: UserProfileRepository {
     // Not a guess: nothing writes a draft yet, so this is the literal state.
     #expect(await EmptyOnboardingDraftStore().hasDraft() == false)
 }
+
+// MARK: - Leaving the wizard for Welcome (Task 8.1.7)
+
+@MainActor
+@Test func returningToWelcomeMovesBackOutOfTheWizard() async {
+    let router = makeRouter()
+    await router.resolve()
+    router.beginOnboarding()
+    #expect(router.phase == .onboarding)
+
+    router.returnToWelcome()
+
+    #expect(router.phase == .firstLaunch)
+}
+
+@MainActor
+@Test func returningToWelcomeOnlyEverMovesBackwardOutOfTheWizard() async {
+    // The mirror of `beginOnboarding`'s guard: nothing may drop a user who
+    // already has a profile onto the first-launch screen.
+    let profiles = StubProfiles()
+    await profiles.set(profile: .fixture())
+    let router = makeRouter(profiles: profiles)
+    await router.resolve()
+    #expect(router.phase == .main)
+
+    router.returnToWelcome()
+
+    #expect(router.phase == .main, "a user with a profile was sent to Welcome")
+}

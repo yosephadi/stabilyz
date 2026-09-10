@@ -28,19 +28,25 @@ final class OnboardingViewModel {
     /// What to do once the profile exists — in the app, re-resolve the router,
     /// which lands on Home because a profile now exists.
     private let onCompleted: @MainActor () async -> Void
+    /// What "back" does on the first screen — in the app, return the router to
+    /// Welcome. Injected rather than reached for, like `onCompleted`, so the
+    /// wizard still knows nothing about routing (docs/12 §12.3).
+    private let onExit: @MainActor () -> Void
 
     init(
         store: OnboardingDraftStore,
         profiles: UserProfileRepository,
         clock: Clock,
         logService: LogService,
-        onCompleted: @escaping @MainActor () async -> Void
+        onCompleted: @escaping @MainActor () async -> Void,
+        onExit: @escaping @MainActor () -> Void = {}
     ) {
         self.store = store
         self.profiles = profiles
         self.clock = clock
         self.logService = logService
         self.onCompleted = onCompleted
+        self.onExit = onExit
         self.draft = OnboardingDraft()
     }
 
@@ -197,8 +203,6 @@ final class OnboardingViewModel {
         persist()
     }
 
-    /// Back one screen, skipping any the current level does not visit — so a
-    /// bilateral user returns from "how long ago" straight to the level screen.
     /// Whether this screen offers "Skip".
     ///
     /// The two optional fields and nothing else [PRD §6 edge case: "user skips
@@ -225,6 +229,19 @@ final class OnboardingViewModel {
         await advance()
     }
 
+    /// Leaves the wizard for Welcome.
+    ///
+    /// Separate from `back()` rather than folded into it, because the two are
+    /// different acts: `canGoBack` asks whether there is a previous *field*,
+    /// and on the first screen there is none — what sits behind it is the
+    /// Welcome screen, not a step. The draft is kept, so returning resumes
+    /// [PRD §6 AC].
+    func exitToWelcome() {
+        onExit()
+    }
+
+    /// Back one screen, skipping any the current level does not visit — so a
+    /// bilateral user returns from "how long ago" straight to the level screen.
     func back() {
         let steps = applicableSteps
         guard let index = steps.firstIndex(of: draft.step), index > 0 else { return }

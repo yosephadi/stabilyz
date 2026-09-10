@@ -725,3 +725,57 @@ private actor Handoff {
     #expect(saved.prosthesisType == nil)
     #expect(saved.kLevel == nil)
 }
+
+// MARK: - Back from the first screen leaves the wizard (Task 8.1.7)
+
+@MainActor
+@Test func backFromTheFirstScreenReturnsToWelcome() async {
+    // [PRD §5] Welcome is where the user came from, so it stays reachable.
+    // `canGoBack` still answers "is there a previous field?" — and there is
+    // not; leaving the wizard is a different act.
+    var exited = false
+    let model = OnboardingViewModel(
+        store: MemoryDraftStore(),
+        profiles: RecordingProfiles(),
+        clock: OnboardingClock(),
+        logService: OnboardingLog(),
+        onCompleted: {},
+        onExit: { exited = true }
+    )
+
+    #expect(model.canGoBack == false)
+
+    model.exitToWelcome()
+
+    #expect(exited, "the first screen had no way back to Welcome")
+    #expect(model.step == .amputationLevel, "leaving the wizard moved the step")
+}
+
+@MainActor
+@Test func leavingForWelcomeKeepsTheDraftSoGetStartedResumes() async {
+    // [PRD §6 AC] The draft is what makes resuming work; exiting must not
+    // discard the answers already given.
+    let store = MemoryDraftStore()
+    var exited = false
+    let model = OnboardingViewModel(
+        store: store,
+        profiles: RecordingProfiles(),
+        clock: OnboardingClock(),
+        logService: OnboardingLog(),
+        onCompleted: {},
+        onExit: { exited = true }
+    )
+
+    model.select(level: .transfemoral)
+    await model.advance()
+    model.select(side: .right)
+    // `persist()` is fire-and-forget, so let the write land before reading it.
+    await Task.yield()
+
+    model.exitToWelcome()
+
+    #expect(exited)
+    #expect(await store.draft?.amputationLevel == .transfemoral)
+    #expect(await store.draft?.side == .right)
+    #expect(await store.draft?.step == .side)
+}

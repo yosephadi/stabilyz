@@ -28,8 +28,13 @@ struct OnboardingView: View {
         NavigationStack {
             VStack(alignment: .leading, spacing: Space.x6) {
                 header
-                stepContent
-                Spacer(minLength: 0)
+                // The choice cards grow with Dynamic Type and K-level has six
+                // rows, so the step scrolls rather than clipping (§9).
+                ScrollView {
+                    stepContent
+                        .padding(.bottom, Space.x6)
+                }
+                .scrollBounceBehavior(.basedOnSize)
             }
             // §4: 24pt screen margins, applied once to the container so no
             // child restates them.
@@ -67,28 +72,22 @@ struct OnboardingView: View {
     /// The circular back control (§5: 50x50 adaptive glass). A plain `Button`
     /// underneath, so it keeps its tap handling and VoiceOver behaviour; the
     /// space is held on the first screen so the progress bar does not jump.
-    @ViewBuilder
     private var backChip: some View {
-        if model.canGoBack {
-            Button { model.back() } label: {
-                Image(systemName: "chevron.left")
-                    .font(StabilyzFont.bodyBold)
-                    .foregroundStyle(StabilyzColor.ink900)
-                    .frame(
-                        width: Controls.backButtonDiameter,
-                        height: Controls.backButtonDiameter
-                    )
-                    .adaptiveGlass(.chrome, in: Circle())
-            }
-            .accessibilityLabel("Back")
-        } else {
-            Color.clear
+        Button {
+            // On the first screen there is no previous field; what is behind it
+            // is Welcome [PRD §5].
+            if model.canGoBack { model.back() } else { model.exitToWelcome() }
+        } label: {
+            Image(systemName: "chevron.left")
+                .font(StabilyzFont.bodyBold)
+                .foregroundStyle(StabilyzColor.ink900)
                 .frame(
                     width: Controls.backButtonDiameter,
                     height: Controls.backButtonDiameter
                 )
-                .accessibilityHidden(true)
+                .adaptiveGlass(.chrome, in: Circle())
         }
+        .accessibilityLabel(model.canGoBack ? "Back" : "Back to Welcome")
     }
 
     /// Skip, on the two optional screens only.
@@ -153,38 +152,37 @@ struct OnboardingView: View {
                 "What is your amputation level?",
                 "This helps us understand your walking profile and present your results clearly."
             ) {
-                answerList {
-                    Picker("Amputation level", selection: levelBinding) {
-                        Text("Below the knee").tag(AmputationLevel.transtibial as AmputationLevel?)
-                        Text("Above the knee").tag(AmputationLevel.transfemoral as AmputationLevel?)
-                        Text("Both legs").tag(AmputationLevel.bilateral as AmputationLevel?)
-                    }
-                    .pickerStyle(.inline)
-                    .labelsHidden()
-                }
+                ChoiceCard(
+                    options: [
+                        .init(.transtibial, "Below the knee"),
+                        .init(.transfemoral, "Above the knee"),
+                        .init(.bilateral, "Both legs")
+                    ],
+                    selection: levelBinding
+                )
             }
 
         case .side:
             step("Which side?", sideSubtitle) {
-                answerList {
-                    Picker("Side", selection: sideBinding) {
-                        ForEach(model.allowedSides, id: \.self) { side in
-                            Text(sideLabel(side)).tag(side as AmputationSide?)
-                        }
-                    }
-                    .pickerStyle(.inline)
-                    .labelsHidden()
-                }
+                ChoiceCard(
+                    options: model.allowedSides.map { .init($0, sideLabel($0)) },
+                    selection: sideBinding
+                )
             }
 
         case .timeSinceAmputation:
             step("How long has it been since your amputation?", "An estimate is fine.") {
-                answerList {
-                    Picker("Years", selection: yearsBinding) {
-                        ForEach(0...60, id: \.self) { Text("\($0) years").tag($0) }
+                OnboardingCard {
+                    CardRow {
+                        Picker("Years", selection: yearsBinding) {
+                            ForEach(0...60, id: \.self) { Text("\($0) years").tag($0) }
+                        }
                     }
-                    Picker("Months", selection: monthsBinding) {
-                        ForEach(0...11, id: \.self) { Text("\($0) months").tag($0) }
+                    Divider().padding(.leading, Space.x4)
+                    CardRow {
+                        Picker("Months", selection: monthsBinding) {
+                            ForEach(0...11, id: \.self) { Text("\($0) months").tag($0) }
+                        }
                     }
                 }
             }
@@ -194,9 +192,11 @@ struct OnboardingView: View {
                 "What type of prosthesis do you use?",
                 "Optional. This helps you keep a useful record of your setup."
             ) {
-                answerList {
-                    TextField("Prosthesis or device", text: prosthesisBinding)
-                        .textInputAutocapitalization(.words)
+                OnboardingCard {
+                    CardRow {
+                        TextField("Prosthesis or device", text: prosthesisBinding)
+                            .textInputAutocapitalization(.words)
+                    }
                 }
             }
 
@@ -205,16 +205,11 @@ struct OnboardingView: View {
                 "Do you know your K-level?",
                 "Optional. Your prosthetist may have discussed this with you."
             ) {
-                answerList {
-                    Picker("Activity level", selection: kLevelBinding) {
-                        Text("I don't know").tag(KLevel?.none)
-                        ForEach(KLevel.allCases, id: \.self) { level in
-                            Text(kLevelLabel(level)).tag(level as KLevel?)
-                        }
-                    }
-                    .pickerStyle(.inline)
-                    .labelsHidden()
-                }
+                ChoiceCard(
+                    options: KLevel.allCases.map { .init($0, kLevelLabel($0)) }
+                        + [.init(nil, "I don't know")],
+                    selection: kLevelBinding
+                )
             }
 
         case .disclaimer:
@@ -263,27 +258,6 @@ struct OnboardingView: View {
             content()
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-    }
-
-    /// The answer card: the designs draw a white rounded panel with hairline
-    /// dividers, which is what `.insetGrouped` already is (§5 — "no custom card
-    /// view is built"). Its own scroll inset is cancelled so the card lines up
-    /// with the container's 24pt margin rather than sitting inside it twice.
-    private func answerList<Content: View>(
-        @ViewBuilder _ content: () -> Content
-    ) -> some View {
-        List {
-            Section {
-                content()
-                    .font(StabilyzFont.bodyRegular)
-                    .foregroundStyle(StabilyzColor.ink900)
-                    .listRowBackground(StabilyzColor.bgElevated)
-            }
-        }
-        .listStyle(.insetGrouped)
-        .scrollContentBackground(.hidden)
-        .contentMargins(.horizontal, 0, for: .scrollContent)
-        .environment(\.defaultMinListRowHeight, Metrics.minimumTapTarget)
     }
 
     // MARK: - Copy

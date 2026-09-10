@@ -136,6 +136,7 @@ Never go below 15px. Never use SF Pro's italic styles.
 | `button-height` | 50pt | Primary button, full width |
 | `button-height-hero` | 60pt | Primary on single-decision screens (onboarding) |
 | `back-button` | 50×50pt | Circular back control, screen top-left |
+| `row-height` | 56pt | Row in an onboarding choice card |
 
 Both primary heights are full width (`maxWidth: .infinity`) in a `Capsule`.
 Both sit above the 44pt tap-target floor rather than being derived from
@@ -145,9 +146,15 @@ it, so they live in `Controls` rather than `Metrics`.
 
 ## 5. Components
 
-**Native only.** Every control below maps to a stock SwiftUI/UIKit
-component with our color and type tokens applied — nothing is
-custom-drawn. Given how much this user base already relies on system
+**Component law: everything is a stock SwiftUI/UIKit control**, with our
+color and type tokens applied. Nothing is custom-drawn — no hand-rolled
+switch, no bespoke dropdown, no painted chrome.
+
+"Native" means the *controls* are stock, not that every layout must be a
+single container. `VStack`, `RoundedRectangle`, `Divider` and `Button`
+are as native as `List` is; composing a card from them is inside this law
+and is sometimes the only way to stay inside it (see **Onboarding card**
+below). Given how much this user base already relies on system
 conventions (§9), staying inside standard iOS controls buys familiarity
 for free and keeps VoiceOver/Dynamic Type support correct without extra
 work.
@@ -197,14 +204,42 @@ glass** `Circle`. Used by the onboarding wizard's container shell, where
 it is drawn once for every step rather than per screen.
 
 Its 50pt diameter clears the 44pt tap-target floor (§9) on its own, so it
-needs no extra hit area. Where a screen has no back destination the space
-is held rather than collapsed, so the chrome beneath it does not shift.
+needs no extra hit area.
+
+It is present on **every** wizard step including the first, where "back"
+leaves the wizard for Welcome rather than moving between fields [PRD §5].
+A control that vanished on step one would make Welcome a place the user
+could not return to.
 
 ### Grouped content (Settings, History, session detail)
-Native `List` with `.listStyle(.insetGrouped)` — this is the iOS
-equivalent of a "card": system-provided fill, corner radius, and row
-dividers already match §4's radius/spacing intent, so no custom card
-view is built. Row height follows the system default (already ≥44pt).
+Native `List` with `.listStyle(.insetGrouped)` — system-provided fill,
+corner radius and row dividers already match §4's radius/spacing intent.
+Row height follows the system default (already ≥44pt).
+
+**Reserved for full-screen scrolling surfaces**: Settings, History,
+session detail. `.insetGrouped` brings its own margins, its own
+background and its own scroll view, and none of them can be switched off
+cleanly. Embedded inside a screen that already has margins and a scroll
+view it produces a card inset twice over and a scroll view inside a
+scroll view — so it is not the primitive for a choice set inside a
+wizard step.
+
+### Onboarding card
+Choice sets inside a wizard step are built from native primitives: a
+`VStack` container with `card` corner radius (16pt), a `bg-elevated`
+fill, a 1px `ink-200` border, and native `Divider` separators inset to
+the text.
+
+Rows are `Button`s at `row-height` (56pt) minimum with `ink-900` labels
+and a native `checkmark` accessory on the selected row. The checkmark is
+what a sighted user reads, so the row also carries the `.isSelected`
+accessibility trait — the state a `Picker` row would have announced for
+free has to be stated explicitly here.
+
+The card carries no padding of its own, so its edge sits flush against
+the 24pt screen margin its container applies.
+
+**This replaces embedding `List(.insetGrouped)` inside a wizard step.**
 
 ### Toggles (Step Feedback, Metronome cue)
 Native `Toggle`, `.tint(primary-600)`.

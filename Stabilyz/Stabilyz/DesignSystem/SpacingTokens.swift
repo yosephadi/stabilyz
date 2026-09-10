@@ -33,6 +33,9 @@ enum Controls {
     static let heroButtonHeight: CGFloat = 60
     /// The circular back control in a screen's top-left.
     static let backButtonDiameter: CGFloat = 50
+    /// A row in an onboarding choice card. Comfortably above the 44pt floor,
+    /// because these rows are the whole interaction on their screen.
+    static let rowHeight: CGFloat = 56
 }
 
 /// Corner radii (§4). No sharp corners anywhere.

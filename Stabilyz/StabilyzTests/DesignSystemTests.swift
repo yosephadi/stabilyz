@@ -198,6 +198,16 @@ private func contrastRatio(_ a: Color, _ b: Color, dark: Bool) -> Double {
     #expect(Controls.buttonHeight == 50)
     #expect(Controls.heroButtonHeight == 60)
     #expect(Controls.backButtonDiameter == 50)
+    #expect(Controls.rowHeight == 56)
+}
+
+@Test func aChoiceRowClearsTheTapTargetFloor() {
+    // §5 draws these at 56pt; §9's floor is 44. The row is the whole
+    // interaction on its screen, so it may never be the tighter of the two.
+    #expect(Controls.rowHeight >= Metrics.minimumTapTarget)
+    #expect(Controls.backButtonDiameter >= Metrics.minimumTapTarget)
+    #expect(Controls.buttonHeight >= Metrics.minimumTapTarget)
+    #expect(Controls.heroButtonHeight >= Controls.buttonHeight)
 }
 
 @Test func everyCornerIsRounded() {

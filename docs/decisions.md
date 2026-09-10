@@ -1234,3 +1234,56 @@ The four APIs used (`glassEffect(_:in:)`, `Glass.regular.interactive()`,
 `.buttonStyle(.glass)`, `.buttonStyle(.glassProminent)`) were compiled against
 the iOS 26.4 SDK before the modifiers were written. The app builds for both
 Debug and Release at deployment target 17.0.
+
+---
+
+## 27. The onboarding card is built from primitives, not from `List`
+
+**Date:** 2026-09-10 · **Task:** 8.1.7 · **Status:** Settled
+
+The wizard's answer card is a `VStack` in a `RoundedRectangle`, not a
+`List(.insetGrouped)`. §5's component law is unchanged and unbroken: every
+control is still stock SwiftUI.
+
+### What changed
+
+`DesignSystem/OnboardingCard.swift` adds `OnboardingCard`, `ChoiceCard`,
+`ChoiceRow` and `CardRow`. The wizard's five answer screens use them; §5 now
+reserves `.insetGrouped` for full-screen scrolling surfaces — Settings, History,
+session detail — and defines the onboarding card as its own primitive.
+
+### Why
+
+`.insetGrouped` is a full-screen surface, not a card. It brings its own
+horizontal margins, its own background and its own scroll view, and none of
+them can be switched off cleanly. Inside a wizard step that already has a 24pt
+container margin and its own scroll view, that produced a card inset twice over
+and a scroll view nested in a scroll view. Cancelling the scroll inset with
+`contentMargins` addressed half of it and left the section inset behind.
+
+The earlier reading of §5 — "no custom card view is built" — treated `List` as
+the only native way to draw a card. That was too narrow. `VStack`,
+`RoundedRectangle`, `Divider` and `Button` are exactly as stock as `List`, and
+composing four of them is not a custom control; it is the ordinary way to build
+a container that is not a full-screen list. The law is about not hand-rolling
+*controls*, and none is hand-rolled here.
+
+### What this costs
+
+The selected-state accessibility that `Picker` provided for free is now written
+out: each row carries `.isSelected` alongside its `checkmark`. That is a real
+obligation rather than a nicety — the checkmark is what a sighted user reads,
+and without the trait it would be the only thing announcing the answer. It is
+one line per row and `ChoiceRow` is the only place it can be forgotten.
+
+### What would change it
+
+A native container that is a card rather than a screen. `List` is not it, and
+`Form` is the same surface with more opinions.
+
+### Verification
+
+The existing onboarding suite covers selection through the same bindings the
+rows now drive, so behaviour is pinned independently of the container. The
+inset problem itself was visual and is not test-covered; §5 now states the rule
+that prevents its return.
