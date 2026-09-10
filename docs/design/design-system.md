@@ -43,7 +43,7 @@ everywhere in this document.*
 | `ink-400` | `#8A909B` | `#7A828E` | Placeholder, disabled text |
 | `ink-200` | `#DDE0E4` | `#2A2F37` | Dividers, borders |
 | `ink-100` | `#EEF0F2` | `#1C2027` | Subtle fills |
-| `bg-base` | `#FFFFFF` | `#0D1117` | Screen background |
+| `bg-base` | `#FFFFFF` | `#F7F7F7` | Screen background |
 | `bg-elevated` | `#FFFFFF` | `#161B22` | Cards, sheets |
 
 ### 2.3 Semantic (system states — kept separate from score color)
