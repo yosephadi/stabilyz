@@ -56,6 +56,8 @@ enum Controls {
     static let rowHeight: CGFloat = 52
     /// One capsule of the onboarding progress bar (Figma 40:835).
     static let progressBarHeight: CGFloat = 14
+    /// The wave mark above the app name on Welcome (Figma 47:1275).
+    static let logoHeight: CGFloat = 60
     /// Clearance between the primary button and the bottom safe-area edge.
     ///
     /// Figma 40:835 puts the button's bottom edge at y=770 in an 874pt frame —

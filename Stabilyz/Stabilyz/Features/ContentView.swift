@@ -2,9 +2,9 @@ import SwiftUI
 
 /// The app's root, driven by `AppRouter` (docs/11 §11.1).
 ///
-/// Each phase's real screen arrives with its own task; until then the phase is
-/// named on screen so the routing is visible in the running app rather than only
-/// in tests.
+/// Each remaining phase's real screen arrives with its own task; until then the
+/// phase is named on screen so the routing is visible in the running app rather
+/// than only in tests.
 struct ContentView: View {
     @State private var router: AppRouter
     private let dependencies: AppDependencies
@@ -22,10 +22,7 @@ struct ContentView: View {
                     Task { await router.resolve() }
                 }
             case .firstLaunch:
-                // Task 8.1.2: Welcome, with Get Started and Restore.
-                RootPlaceholder(name: "Welcome", action: "Get Started") {
-                    router.beginOnboarding()
-                }
+                WelcomeView { router.beginOnboarding() }
             case .onboarding:
                 OnboardingView(
                     model: OnboardingViewModel(

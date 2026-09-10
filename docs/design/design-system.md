@@ -85,15 +85,15 @@ Relative index encoded by **saturation and value only**, not hue:
 Direction (up/down vs. baseline) is communicated with an ↑/↓ glyph and
 copy ("+8 vs your baseline"), never with color alone.
 
-### 2.5 Onboarding wizard (read from Figma node 40:835)
+### 2.5 First-launch flow (read from Figma nodes 47:1275 and 40:835)
 
-The onboarding node is the authority for what the wizard draws, and it
-disagrees with the scales above by a few units in several places at once.
-These are its exact values:
+The onboarding nodes are the authority for what Welcome and the wizard
+draw, and they disagree with the scales above by a few units in several
+places at once. These are their exact values:
 
 | Token | Hex (light) | Hex (dark) | Use |
 |---|---|---|---|
-| `onboarding-title` | `#000000` | `#F2F3F5` | The question |
+| `onboarding-title` | `#000000` | `#F2F3F5` | The question; Welcome's title and subtitle |
 | `onboarding-subtitle` | `#4D5562` | `#B8BEC7` | The "why we ask" line |
 | `progress-label` | `#575F6C` | `#B8BEC7` | "3 out of 5" |
 | `progress-fill` | `#1D3963` | `#8FB4D6` | A step already reached |
@@ -189,6 +189,7 @@ an iOS button".
 | `back-button` | 50×50pt | Circular back control, screen top-left |
 | `row-height` | 52pt | Row in an onboarding choice card |
 | `progress-bar-height` | 14pt | One capsule of the onboarding progress bar |
+| `logo-height` | 60pt | The wave mark above the app name on Welcome |
 | `footer-bottom-gap` | 70pt | Primary button to the bottom safe-area edge |
 
 `footer-bottom-gap` is measured from the safe area, not the screen: Figma
@@ -266,7 +267,18 @@ work.
 
   `.primaryCapsule` is the same style at `button-height` (50pt) for
   screens that are not a single decision.
-- **Secondary**: `.buttonStyle(.bordered)`, `.tint(primary-600)`.
+- **Secondary capsule (beside a primary)**: the same
+  `CapsuleButtonStyle` at `role: .secondary` —
+  `.secondaryCapsuleHero` / `.secondaryCapsule`. `.ultraThinMaterial`
+  with the same 1px `ink-200` hairline, labelled `ink-900`.
+
+  It is the *same surface the primary wears when disabled*, which is why
+  the two roles share one style rather than being written twice: three of
+  the four role/state combinations draw an identical capsule, and only
+  the enabled primary is filled. Welcome's "Restore from Export" is the
+  first user.
+- **Secondary (elsewhere, not beside a primary)**:
+  `.buttonStyle(.bordered)`, `.tint(primary-600)`.
 - **Destructive**: `.buttonStyle(.bordered)` or plain, `.tint(danger)` —
   reserved for "Replace with Backup" and similar irreversible actions,
   and for the native `role: .destructive` on any `Button`/`.alert`
@@ -331,6 +343,39 @@ the 16pt **card** margin its container applies — 8pt wider on each side
 than the 24pt text margin above it (§4).
 
 **This replaces embedding `List(.insetGrouped)` inside a wizard step.**
+
+### Welcome (first launch)
+
+The screen before the wizard [PRD §5], from Figma node 47:1275 on the
+same 402x874 frame. Three bands, top to bottom:
+
+| Band | Margins | Contents |
+|---|---|---|
+| Header | 24pt | `AppLogo` at `logo-height`, `space-6`, "Stabilyz" (Heading), `space-4`, subtitle (Body Text Regular) — all centred |
+| Illustration | **none** | `WelcomeIllustration`, full bleed, scaled to width |
+| Actions | 24pt | "Get Started" primary capsule, `space-4`, "Restore from Export" secondary capsule |
+
+`space-12` (48) above the header, `footer-bottom-gap` (70) below the
+actions, and a flexible gap on either side of the illustration. The two
+flexible gaps are what make this work on a phone shorter than 874pt: the
+header and the buttons hold their distance from their own edge and the
+illustration gives up the slack.
+
+`footer-bottom-gap` rather than the node's 78pt, deliberately — it is the
+same clearance the wizard's primary uses, so the button does not shift
+when the user taps through to the first question.
+
+The header text sits at the 24pt screen margin where the node draws a
+328pt column (a 37pt inset). A fixed width would stop the subtitle
+reflowing under Dynamic Type, which §9 requires to Accessibility Large,
+and the copy is centred either way.
+
+**Both artwork assets are vectors** with
+`preserves-vector-representation`, exported from the node rather than
+rasterised: the illustration is scaled to the device width, and a bitmap
+would soften on anything wider than the export. Both are decorative and
+`accessibilityHidden` — the title and subtitle beneath the logo say what
+it says.
 
 ### Onboarding wizard shell
 One container draws the chrome for all six steps; a step case contributes

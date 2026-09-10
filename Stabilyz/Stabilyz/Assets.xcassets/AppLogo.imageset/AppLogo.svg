@@ -1,0 +1,22 @@
+<svg width="42" height="67" viewBox="0 0 42 67" fill="none" xmlns="http://www.w3.org/2000/svg">
+<g id="iOS Interface Design - Light">
+<g id="Onboarding 1">
+<g id="Frame 1597881196">
+<g id="Group 1">
+<path id="Vector 1" d="M17.404 3.07507C0.705799 18.2743 -3.00738 25.9215 14.9297 43.8998C19.2596 48.2297 15.5288 56.6549 9.36278 63.075" stroke="url(#paint0_linear_0_1)" stroke-width="6.1496" stroke-linecap="round"/>
+<path id="Vector 2" d="M38.7421 3.07483C22.0439 18.2741 18.3308 25.9213 36.2678 43.8995C40.5977 48.2294 36.8669 56.6546 30.7009 63.0748" stroke="url(#paint1_linear_0_1)" stroke-width="6.1496" stroke-linecap="round"/>
+</g>
+</g>
+</g>
+</g>
+<defs>
+<linearGradient id="paint0_linear_0_1" x1="10.2398" y1="3.07507" x2="10.2398" y2="63.075" gradientUnits="userSpaceOnUse">
+<stop stop-color="#121C27"/>
+<stop offset="1" stop-color="#294E88"/>
+</linearGradient>
+<linearGradient id="paint1_linear_0_1" x1="31.578" y1="3.07483" x2="31.578" y2="63.0748" gradientUnits="userSpaceOnUse">
+<stop stop-color="#121C27"/>
+<stop offset="1" stop-color="#294E88"/>
+</linearGradient>
+</defs>
+</svg>
