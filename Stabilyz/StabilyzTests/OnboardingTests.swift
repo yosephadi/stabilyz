@@ -111,20 +111,20 @@ private func fillRequiredFields(_ model: OnboardingViewModel, level: AmputationL
 }
 
 @MainActor
-@Test func theDisabledButtonAlwaysExplainsItself() async {
-    // [PRD §6] Never a silently dead button: whenever the button does nothing,
-    // there is copy on screen saying why. Checked on every step, so a future
-    // gate cannot be added without an explanation.
+@Test func theDisclaimerIsTheOnlyScreenThatExplainsItsBlock() async {
+    // [PRD §6] names one case: the disclaimer checkbox, where the gate is easy
+    // to miss. Everywhere else the wizard says nothing — a choice screen with
+    // nothing chosen is its own explanation, and a line under every question
+    // restating that is the helper text this flow deliberately does not have.
     for step in OnboardingStep.allCases {
         let model = makeModel(store: MemoryDraftStore(draft: OnboardingDraft(step: step)))
         await model.start()
 
-        if !model.canContinue {
-            let explanation = model.blockedExplanation
-            #expect(explanation != nil, "\(step) blocks with no explanation")
-            #expect(explanation?.isEmpty == false)
+        if step == .disclaimer {
+            #expect(model.canContinue == false)
+            #expect(model.blockedExplanation == DisclaimerText.blockedExplanation)
         } else {
-            #expect(model.blockedExplanation == nil, "\(step) explains a block that is not happening")
+            #expect(model.blockedExplanation == nil, "\(step) carries helper text")
         }
     }
 }
@@ -147,8 +147,36 @@ private func fillRequiredFields(_ model: OnboardingViewModel, level: AmputationL
     #expect(DisclaimerText.body.localizedCaseInsensitiveContains("not a medical device"))
     #expect(DisclaimerText.acknowledgement.localizedCaseInsensitiveContains("not a medical device"))
     // Non-diagnostic: it must not promise to detect or diagnose anything.
-    #expect(DisclaimerText.body.localizedCaseInsensitiveContains("doesn't diagnose"))
+    #expect(DisclaimerText.body.localizedCaseInsensitiveContains("does not provide clinical diagnoses"))
+    // The reader is pointed at a person, not at a future score [PRD §7 AC].
+    #expect(DisclaimerText.body.localizedCaseInsensitiveContains("prosthetist"))
     #expect(DisclaimerText.body.isEmpty == false)
+}
+
+/// Every string the disclaimer shows, so a clause break added later cannot
+/// reintroduce the character.
+@Test func theDisclaimerUsesNoEmDashes() {
+    let copy = [
+        DisclaimerText.title,
+        DisclaimerText.body,
+        DisclaimerText.acknowledgement,
+        DisclaimerText.blockedExplanation
+    ]
+
+    for text in copy {
+        // An em dash is set as one long rule with no surrounding space: at 17pt
+        // it reads as a hyphen joining two words, and VoiceOver skips it.
+        #expect(text.contains("\u{2014}") == false, "em dash in \"\(text)\"")
+        #expect(text.contains("\u{2013}") == false, "en dash in \"\(text)\"")
+    }
+}
+
+/// The one line the wizard shows above a disabled button.
+@Test func theBlockedExplanationIsASingleShortSentence() {
+    let text = DisclaimerText.blockedExplanation
+
+    #expect(text == "Check the box above to continue.")
+    #expect(text.filter { $0 == "." }.count == 1, "more than one sentence")
 }
 
 // MARK: - Resume [PRD §6 edge case, §7 AC]
@@ -347,7 +375,7 @@ private func fillRequiredFields(_ model: OnboardingViewModel, level: AmputationL
 
     #expect(model.step == .side)
     #expect(model.canContinue == false, "the side must be answered again")
-    #expect(model.blockedExplanation != nil)
+    #expect(model.blockedExplanation == nil, "the side screen carries helper text")
 }
 
 @MainActor

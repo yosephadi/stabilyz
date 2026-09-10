@@ -45,6 +45,7 @@ everywhere in this document.*
 | `ink-100` | `#EEF0F2` | `#1C2027` | Subtle fills |
 | `bg-base` | `#F7F7F7` | `#0D1117` | Screen background |
 | `bg-elevated` | `#FFFFFF` | `#161B22` | Cards, sheets |
+| `on-primary` | `#FFFFFF` | `#FFFFFF` | Label on a `primary-600` fill (both modes) |
 
 ### 2.3 Semantic (system states — kept separate from score color)
 
@@ -123,12 +124,28 @@ document does not contain.
 | Subheading Reg | 28px | Medium | Large numerals (e.g. score) when Bold is too heavy |
 | Subheading 2 Bold | 20px | Bold | Card titles, list section headers |
 | Subheading 2 Reg | 20px | Medium | Card titles, less emphasis |
-| Body Text Bold | 17px | Bold | Emphasized body copy, button labels |
+| Body Text Bold | 17px | Bold | Emphasized body copy |
+| Button Label | 17px | Semibold | Label on a filled primary button (`.headline`) |
 | Body Text Regular | 17px | Medium | Default body copy |
 | Small Body Text Bold | 15px | Bold | Metadata labels, timestamps (bold) |
-| Small Body Text Regular | 15px | Medium | Metadata, captions, footnotes — **floor size** |
+| Small Body Text Regular | 15px | Medium | Metadata, captions — **floor size** |
+| Footnote | 13px | Regular | **Exception, see below** |
 
-Never go below 15px. Never use SF Pro's italic styles.
+Never use SF Pro's italic styles.
+
+**The 15px floor has exactly one exception: `Footnote` (13px).** It is
+for a hint that restates something already on screen at full size, where
+the reader has the large version a few points away — today that is the
+single line under a disabled primary button, whose subject is the
+checkbox directly above it. It may never carry something the user could
+only learn there. The exemption is held by name in
+`StabilyzFont.belowTheFloorByException` and tested, so a second style
+below the floor fails rather than joining it quietly.
+
+Button labels are **Semibold, not Bold**: a `.borderedProminent` button
+is a system control, and `.headline` is the weight iOS sets its own
+filled buttons in. Bold beside the system's semibold reads as "not quite
+an iOS button".
 
 ---
 
@@ -212,27 +229,45 @@ work.
   dashboard-button layout. Selected tab tinted `primary-600`.
 
 ### Buttons
-- **Primary (onboarding and other single-decision screens)**: `Button`
-  with `.buttonStyle(.glassCapsuleHero)` — a full-width
-  (`maxWidth: .infinity`) `Capsule` at `button-height-hero` (60pt),
-  filled with **adaptive glass**, edged with a 1px `ink-200` hairline,
-  and labelled in `ink-900` Body Text Bold.
+- **Primary (onboarding and other single-decision screens)**: a stock
+  `Button` with `.buttonStyle(.borderedProminent)`,
+  `.buttonBorderShape(.capsule)` and `.tint(primary-600)`, labelled in
+  `on-primary` Button Label (17 Semibold).
 
-  This **supersedes the solid `.borderedProminent` `primary-600` fill for
-  onboarding flows.** A prominent style — `.borderedProminent` on iOS 17,
-  `.glassProminent` on iOS 26 — paints the control as an opaque blue slab
-  with white text, which is not what the onboarding designs draw: there
-  the button reads as glass over the page rather than a blue rectangle on
-  top of it. The hairline is not decoration either — glass has very
-  little edge against `bg-base`, and the iOS 17 `.ultraThinMaterial`
-  fallback has none at all, so without it the button dissolves into a
-  light background.
+  **This reverses the `.glassCapsuleHero` decision of 2026-09-10, and
+  `GlassCapsuleButtonStyle` is deleted rather than left unused.** The
+  glass primary was hand-built: its own surface, its own press
+  animation, its own opacity curve for the disabled state, and its own
+  hairline to stop it dissolving into `bg-base`. All four are things iOS
+  already does, and does better — the touch-down animation and the
+  disabled dimming in particular are system behaviours users read
+  without noticing, and an approximation of them is uncanny rather than
+  neutral. `primary-600` was already the brand fill (§2.1); a filled
+  navy capsule is what the palette was built for.
 
-  `.glassCapsule` is the same style at the standard `button-height`
-  (50pt) for screens that are not a single decision.
+  **The sizing modifiers go on the label, inside the `Button`:**
 
-  `primary-600` remains the brand colour elsewhere (§8) — it is the tint
-  for links, selection and the Skip control, not the fill of this button.
+  ```swift
+  Button { … } label: {
+      Text("Next")
+          .font(StabilyzFont.buttonLabel)
+          .foregroundStyle(StabilyzColor.onPrimary)
+          .frame(maxWidth: .infinity)
+          .frame(height: Controls.heroButtonHeight)
+          .contentShape(Capsule())
+  }
+  .buttonStyle(.borderedProminent)
+  .buttonBorderShape(.capsule)
+  .tint(StabilyzColor.primary600)
+  ```
+
+  This is what makes the whole capsule tappable. `maxWidth: .infinity`
+  applied *outside* the button stretches the control while its hit area
+  stays wrapped around the word — a ~30pt target on a 354pt button, and
+  the failure this user base would hit hardest.
+
+  `button-height-hero` (60pt) on single-decision screens,
+  `button-height` (50pt) elsewhere.
 - **Secondary**: `.buttonStyle(.bordered)`, `.tint(primary-600)`.
 - **Destructive**: `.buttonStyle(.bordered)` or plain, `.tint(danger)` —
   reserved for "Replace with Backup" and similar irreversible actions,
@@ -323,6 +358,16 @@ K-level [PRD §6, §7 AC]. The designs show it greyed on some required
 screens; the PRD is what governs, so it is absent rather than disabled
 there.
 
+**There is no helper text in onboarding**, with one exception: while the
+disclaimer box is unticked, a single centred Footnote line in `ink-600`
+sits above the button reading "Check the box above to continue." That is
+the case [PRD §6] names, and the gate there is a tick box a reader may
+not have registered as required. A choice screen with nothing chosen
+needs no line telling the reader to choose — it is a list of unchosen
+options. (A *failed save* still reports itself in `danger`; an error is
+not helper text, and suppressing it would leave the button pressable and
+silent, which is what [PRD §6] forbids outright.)
+
 ### Toggles (Step Feedback, Metronome cue)
 Native `Toggle`, `.tint(primary-600)`.
 
@@ -353,11 +398,12 @@ directly beneath. No card/border around it — sits directly on
 
 ### Glass surfaces (iOS 26)
 
-`.adaptiveGlass(_:in:)` puts a translucent surface behind buttons, cards
-and chrome: **Liquid Glass** on iOS 26, `.ultraThinMaterial` below it.
-Neither branch tints the surface, so a control's label colour is set by
-the control (`ink-900` on the primary button) rather than inherited from
-a system prominent style.
+`.adaptiveGlass(_:in:)` puts a translucent surface behind cards and
+chrome: **Liquid Glass** on iOS 26, `.ultraThinMaterial` below it. The
+back chip is its one user today. The primary button is **not** a glass
+surface any more — it is a stock `.borderedProminent` capsule (see
+**Buttons**), so iOS owns its material, its press animation and its
+disabled state.
 Progressive enhancement, not a fork — both branches produce the same
 shape, so layout, hit-testing and contrast are identical and only the
 material differs. Deployment target stays iOS 17.0

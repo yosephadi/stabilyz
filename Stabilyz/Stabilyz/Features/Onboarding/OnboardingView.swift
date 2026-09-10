@@ -17,9 +17,9 @@ import SwiftUI
 ///
 /// Everything under the chrome stays native per §5: `OnboardingCard` built from
 /// `VStack`/`Divider`/`Button`, a system `Toggle` wearing `CheckboxToggleStyle`
-/// for the disclaimer tick, and a `Button` in `GlassCapsuleButtonStyle`.
-/// Dynamic Type, VoiceOver and the 44pt tap floor come from the system rather
-/// than from us remembering.
+/// for the disclaimer tick, and a stock `.borderedProminent` capsule for the
+/// primary. Dynamic Type, VoiceOver and the 44pt tap floor come from the system
+/// rather than from us remembering.
 ///
 /// No colour, size or spacing literal appears in this file; `DesignTokenGuardTests`
 /// enforces that for the whole of `Features/`.
@@ -124,31 +124,58 @@ struct OnboardingView: View {
         }
     }
 
-    /// The primary button, plus the copy that says why it is unavailable.
+    /// The primary button, and above it the one line that ever explains itself.
+    ///
+    /// **A stock `.borderedProminent` capsule.** Everything that used to be
+    /// hand-built here — the surface, the press animation, the disabled
+    /// dimming — is the system's again, tinted `primary-600`. The custom glass
+    /// style it replaces is gone rather than left unused.
+    ///
+    /// The sizing modifiers sit on the *label*, not on the `Button`: that is
+    /// what makes the whole capsule tappable. Put `maxWidth: .infinity` outside
+    /// the button and the control stretches while its hit area stays wrapped
+    /// around the word "Next", which is a 30pt target on a 354pt button and the
+    /// exact failure this user base would hit most.
     private var footer: some View {
-        VStack(spacing: Space.x3) {
+        VStack(spacing: Space.x2) {
             if let explanation = model.blockedExplanation {
-                // A disabled button always says why [PRD §6].
+                // The disclaimer's gate is the only block that says anything
+                // [PRD §6]; a choice screen with nothing chosen explains itself
+                // by being a list of unchosen options.
                 Text(explanation)
-                    .font(StabilyzFont.smallRegular)
+                    .font(StabilyzFont.footnote)
                     .foregroundStyle(StabilyzColor.ink600)
                     .multilineTextAlignment(.center)
+                    .frame(maxWidth: .infinity)
                     .fixedSize(horizontal: false, vertical: true)
             }
 
+            // Not helper text: without it a failed save leaves the button
+            // pressable and silent, which is the one thing [PRD §6] forbids
+            // outright.
             if let failure = model.saveFailure,
                let presentation = ErrorPresenter.presentation(for: failure) {
                 Text(presentation.message)
-                    .font(StabilyzFont.smallRegular)
+                    .font(StabilyzFont.footnote)
                     .foregroundStyle(StabilyzColor.danger)
                     .multilineTextAlignment(.center)
+                    .frame(maxWidth: .infinity)
                     .fixedSize(horizontal: false, vertical: true)
             }
 
-            Button(model.step == .disclaimer ? "Continue to Stabilyz" : "Next") {
+            Button {
                 Task { await model.advance() }
+            } label: {
+                Text(model.step == .disclaimer ? "Agree & Continue" : "Next")
+                    .font(StabilyzFont.buttonLabel)
+                    .foregroundStyle(StabilyzColor.onPrimary)
+                    .frame(maxWidth: .infinity)
+                    .frame(height: Controls.heroButtonHeight)
+                    .contentShape(Capsule())
             }
-            .buttonStyle(.glassCapsuleHero)
+            .buttonStyle(.borderedProminent)
+            .buttonBorderShape(.capsule)
+            .tint(StabilyzColor.primary600)
             .disabled(!model.canContinue)
         }
         .padding(.horizontal, Space.screenMargin)

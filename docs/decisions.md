@@ -1181,17 +1181,25 @@ in the app that names a glass API:
 
 - `.adaptiveGlass(_ surface: GlassSurface, in: some Shape)` — `glassEffect` on
   iOS 26, `.background(.ultraThinMaterial, in:)` below it.
-- `GlassCapsuleButtonStyle` (`.glassCapsule` / `.glassCapsuleHero`) — the
+- ~~`GlassCapsuleButtonStyle` (`.glassCapsule` / `.glassCapsuleHero`) — the
   primary button's surface, built on `adaptiveGlass` rather than on a system
-  prominent style. Amended 2026-09-10 (Task 8.1.6): this began as
-  `.adaptiveGlassButtonStyle(tint:)` wrapping `.glassProminent` /
-  `.borderedProminent`, but both paint an opaque `primary-600` slab with white
-  text, which is not the translucent button the onboarding designs draw. The
-  progressive-enhancement decision below is unchanged; only the style built on
-  top of it is.
+  prominent style.~~ **Reverted 2026-09-11: deleted.** The primary button is a
+  stock `.borderedProminent` capsule with `.buttonBorderShape(.capsule)`,
+  tinted `primary-600`. The custom style had reimplemented four things iOS
+  already does — surface, press animation, disabled dimming, and a hairline to
+  keep the translucent version from dissolving into `bg-base` — and the
+  approximations of the first two read as uncanny rather than neutral. Its full
+  history: it began as `.adaptiveGlassButtonStyle(tint:)` wrapping
+  `.glassProminent` / `.borderedProminent`, became bespoke glass on 2026-09-10
+  (Task 8.1.6) to match the onboarding designs' translucent button, and is now
+  the system control again.
 
-Both branch on `if #available(iOS 26.0, *)`. `GlassSurface` distinguishes
-`.button` (interactive glass, reacts to touch), `.card` and `.chrome`.
+`adaptiveGlass` branches on `if #available(iOS 26.0, *)`. `GlassSurface` still
+distinguishes `.button` (interactive glass, reacts to touch), `.card` and
+`.chrome`; the back chip is the only caller today.
+
+**The progressive-enhancement decision below is unchanged by the reversal.** It
+governs how a glass surface is obtained, not which controls are glass.
 
 ### Why
 
@@ -1208,8 +1216,7 @@ screen and make the fallback something each view remembered separately; here a
 view asks for a glass surface and the design system decides what that means on
 this OS.
 
-`primary-600` stays the brand tint in both branches (§8) — on iOS 26 the button
-is that colour *in* glass, not a different colour.
+`primary-600` stays the brand tint wherever a control is tinted (§8).
 
 ### What this costs
 

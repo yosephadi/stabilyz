@@ -60,6 +60,11 @@ enum StabilyzColor {
     /// Destructive confirmations and the permission-denied state. Nowhere else.
     static let danger = Color(hex: 0xB3261E)
 
+    /// The label on a `primary-600` fill. White in both modes, because the
+    /// tint is navy in both — this is the pair §9 checks for WCAG AA, and it is
+    /// a token so `Features/` never has to type `.white`.
+    static let onPrimary = Color(hex: 0xFFFFFF)
+
     // MARK: - Onboarding wizard (§2.5)
 
     /// Read verbatim from Figma node 40:835, which is the authority for what

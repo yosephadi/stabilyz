@@ -32,6 +32,21 @@ enum StabilyzFont {
     static let smallBold = Font.subheadline.weight(.bold)
     /// 15 Medium — captions and footnotes. **The floor** (§3).
     static let smallRegular = Font.subheadline.weight(.medium)
+    /// 17 Semibold — the label on a filled primary button.
+    ///
+    /// `.headline` rather than `bodyBold`, because a `.borderedProminent`
+    /// button is a system control and `.headline` is the weight iOS sets its
+    /// own filled buttons in. Bold next to the system's semibold is the kind of
+    /// difference that reads as "not quite an iOS button".
+    static let buttonLabel = Font.headline
+    /// 13 Regular — **the one style below the 15pt floor** (§3).
+    ///
+    /// Reserved for a hint that restates something already on screen, where the
+    /// reader has the full-size version a few points away: today that is the
+    /// single line under a disabled primary button, whose subject is the
+    /// checkbox directly above it. It may not carry anything the user could
+    /// only learn here.
+    static let footnote = Font.footnote
 
     /// The point size each token renders at with Dynamic Type at its default
     /// setting, for tests that hold the scale to the document.
@@ -43,6 +58,15 @@ enum StabilyzFont {
         ("subheading", .title, 28),
         ("subheading2", .title3, 20),
         ("body", .body, 17),
+        ("buttonLabel", .headline, 17),
         ("small", .subheadline, 15),
+        ("footnote", .footnote, 13),
     ]
+
+    /// The tokens §3 exempts from the 15pt floor, by name.
+    ///
+    /// A list rather than an omission from `specifiedSizes`: leaving `footnote`
+    /// out of the scale would make the floor test pass by not looking, and the
+    /// next style added below 15pt would be exempted by the same silence.
+    static let belowTheFloorByException: Set<String> = ["footnote"]
 }

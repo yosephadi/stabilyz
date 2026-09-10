@@ -174,26 +174,21 @@ final class OnboardingViewModel {
         }
     }
 
-    /// Why the button is unavailable, in the user's words.
+    /// Why the button is unavailable, in the user's words. `nil` where there is
+    /// nothing to say.
     ///
-    /// [PRD §6] A checkbox that fails silently or a Continue button that simply
-    /// does not respond is the failure mode this exists to prevent: whenever
-    /// `canContinue` is false, this is non-nil and on screen.
+    /// **The disclaimer only.** [PRD §6] names one case — "the checkbox failing
+    /// silently or the Continue button just not responding" — and it is that
+    /// screen, where the gate is a tick box the reader may not have noticed is
+    /// required. The level and side screens used to carry a line too; those
+    /// were ours, and on a screen that is nothing but a list of unchosen
+    /// options they restated the obvious under every question.
+    ///
+    /// The rule lives here rather than in the view so a screen cannot acquire
+    /// an explanation by someone adding one to a `case`.
     var blockedExplanation: String? {
-        guard !canContinue else { return nil }
-
-        return switch draft.step {
-        case .amputationLevel:
-            "Choose the option that matches your amputation to continue."
-        case .side:
-            "Choose which side to continue."
-        case .disclaimer:
-            DisclaimerText.blockedExplanation
-        case .timeSinceAmputation, .prosthesisType, .kLevel:
-            // Unreachable: these never block. Non-nil anyway, so that a future
-            // gate added to one of them cannot produce a silent dead end.
-            "Answer this question to continue."
-        }
+        guard !canContinue, draft.step == .disclaimer else { return nil }
+        return DisclaimerText.blockedExplanation
     }
 
     // MARK: - Movement

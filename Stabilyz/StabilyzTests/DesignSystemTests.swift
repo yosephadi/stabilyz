@@ -94,6 +94,7 @@ private func contrastRatio(_ a: Color, _ b: Color, dark: Bool) -> Double {
     // Resolved 2026-09-10 in the design doc: amber for non-blocking alerts, red
     // for destructive confirmations and permission-denied, and neither anywhere
     // near a score.
+    expectColor(StabilyzColor.onPrimary, light: 0xFFFFFF, "on-primary")
     expectColor(StabilyzColor.warning, light: 0xB7791B, "warning")
     expectColor(StabilyzColor.danger, light: 0xB3261E, "danger")
 }
@@ -158,18 +159,33 @@ private func contrastRatio(_ a: Color, _ b: Color, dark: Bool) -> Double {
 
 @MainActor
 @Test func whiteOnTheBrandColourIsLegibleForPrimaryButtons() {
-    // .borderedProminent tinted primary-600 puts white text on that fill.
-    #expect(contrastRatio(.white, StabilyzColor.primary600, dark: false) >= 4.5)
+    // The primary is a .borderedProminent capsule tinted primary-600 with an
+    // on-primary label, in both modes — so the pair is checked in both.
+    #expect(contrastRatio(StabilyzColor.onPrimary, StabilyzColor.primary600, dark: false) >= 4.5)
+    #expect(contrastRatio(StabilyzColor.onPrimary, StabilyzColor.primary600, dark: true) >= 4.5)
 }
 
 // MARK: - Typography (§3)
 
-@Test func noTypeTokenFallsBelowTheFifteenPointFloor() {
-    // The floor is the reason the scale stops where it does: .footnote and
-    // .caption both render below 15pt, so no token may map to them.
-    for token in StabilyzFont.specifiedSizes {
+@Test func noTypeTokenFallsBelowTheFifteenPointFloorWithoutAnExemption() {
+    // The floor is why the scale stops where it does. `footnote` is §3's single
+    // named exception — a hint that restates something already on screen at
+    // full size — and it is exempted by name here rather than by being left out
+    // of the scale, so the next style added below 15pt fails this instead of
+    // slipping through the same silence.
+    for token in StabilyzFont.specifiedSizes
+    where !StabilyzFont.belowTheFloorByException.contains(token.name) {
         #expect(token.points >= Metrics.minimumFontSize, "\(token.name) is below the floor")
     }
+}
+
+@Test func theFloorExemptionIsExactlyTheOneStyleTheDocumentNames() {
+    // An exemption list that grew would quietly repeal §3.
+    #expect(StabilyzFont.belowTheFloorByException == ["footnote"])
+
+    let named = Set(StabilyzFont.specifiedSizes.map(\.name))
+    #expect(StabilyzFont.belowTheFloorByException.isSubset(of: named),
+            "an exemption names a token that is not in the scale")
 }
 
 @MainActor
@@ -184,7 +200,9 @@ private func contrastRatio(_ a: Color, _ b: Color, dark: Bool) -> Double {
         ("subheading", .title1, 28),
         ("subheading2", .title3, 20),
         ("body", .body, 17),
+        ("buttonLabel", .headline, 17),
         ("small", .subheadline, 15),
+        ("footnote", .footnote, 13),
     ]
 
     for (name, style, expected) in styles {
