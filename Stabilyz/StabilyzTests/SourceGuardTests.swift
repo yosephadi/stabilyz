@@ -396,3 +396,153 @@ private enum SourceTree {
         #expect(lines.contains { line in Self.audioSymbols.contains { line.contains($0) } })
     }
 }
+
+// MARK: - Design tokens are the only source of colour, size and spacing (Task 8.1.3)
+
+/// `DesignSystem/` is the only place a raw colour, a font size or a spacing
+/// number may appear. `Features/` names tokens or it names nothing.
+///
+/// A scan rather than a convention, for the same reason as the import guard:
+/// the rule is invisible at the point it would be broken. `.padding(20)` and
+/// `.foregroundStyle(.blue)` compile perfectly, look right on the one screen
+/// they were typed on, and only show up as a problem when the palette moves and
+/// one view stays behind — exactly what happened to `bg-base`, which lived in
+/// two places and drifted.
+@Suite struct DesignTokenGuardTests {
+
+    /// `Color(red:…)`, `UIColor(…)`, and the SwiftUI system colours.
+    ///
+    /// The system-colour half is word-bounded so it matches `.blue` but not
+    /// `.blueprint` — and, the case that actually occurs, not the `.white` at
+    /// the head of `.whitespacesAndNewlines`.
+    static let rawColour = #"(Color|UIColor)\s*\(\s*(red:|white:|hex:|rgb:|\.sRGB|displayP3)|0x[0-9A-Fa-f]{6}\b|\.(white|black|blue|red|green|gray|grey|orange|yellow|pink|purple|teal|indigo|mint|brown|cyan)\b"#
+
+    /// A point size pinned into a view, instead of a style from §3 that
+    /// Dynamic Type can scale.
+    static let fixedFontSize = #"\.system\(\s*size:|Font\.custom\("#
+
+    /// A bare number inside a layout modifier. The lookbehind keeps
+    /// `Space.x4` and `Space.x12` out of it — the digit there is part of an
+    /// identifier, not a measurement.
+    ///
+    /// A literal `0` is allowed. The 4pt scale in §4 starts at 4, so zero is
+    /// not a value taken from it — it is the absence of a gap, and
+    /// `VStack(spacing: 0)` says that more plainly than a token could.
+    static let magicNumber = #"\.(padding|frame|cornerRadius|offset|lineSpacing)\([^)]*?(?<![\w.])(?!0(?![\d.]))\d+(\.\d+)?\b|(spacing|width|height|radius):\s*(?<![\w.])(?!0(?![\d.]))\d+"#
+
+    /// Compiled once. Building an `NSRegularExpression` is expensive enough
+    /// that doing it per line turned this scan into seconds of CPU and starved
+    /// the timing-sensitive audio tests running alongside it.
+    static let patterns: [(name: String, regex: NSRegularExpression)] = [
+        ("a raw colour", rawColour),
+        ("a fixed font size", fixedFontSize),
+        ("a magic layout number", magicNumber)
+    ].compactMap { name, pattern in
+        guard let regex = try? NSRegularExpression(pattern: pattern) else { return nil }
+        return (name, regex)
+    }
+
+    /// Offending code lines, each tagged with what it tripped. Comments are
+    /// excluded: prose describing `.padding(20)` is not `.padding(20)`.
+    static func violations(in source: String) -> [(kind: String, line: String)] {
+        var found: [(kind: String, line: String)] = []
+
+        for line in StepFeedbackSchedulingGuardTests.codeLines(in: source) {
+            let range = NSRange(line.startIndex..., in: line)
+            for pattern in patterns where pattern.regex.firstMatch(in: line, range: range) != nil {
+                found.append((pattern.name, line))
+            }
+        }
+
+        // A pattern that failed to compile would make this scan silently
+        // toothless, so the count is asserted rather than assumed.
+        precondition(patterns.count == 3, "a design-token pattern did not compile")
+        return found
+    }
+
+    @Test func featuresNameTokensRatherThanValues() {
+        let files = SourceTree.swiftFiles(in: "Features")
+        #expect(files.isEmpty == false, "the Features scan found no files — the scan itself is broken")
+
+        for file in files {
+            guard let source = try? String(contentsOf: file.url, encoding: .utf8) else {
+                Issue.record("could not read \(file.path)")
+                continue
+            }
+            for violation in Self.violations(in: source) {
+                Issue.record(
+                    "\(file.path) contains \(violation.kind): \"\(violation.line)\" — Features/ may only name tokens from DesignSystem/"
+                )
+            }
+        }
+    }
+
+    /// The other half of "only home": the raw values have to actually be
+    /// somewhere, or the scan above is passing because the palette is empty.
+    @Test func theDesignSystemIsWhereTheRawValuesLive() {
+        let files = SourceTree.swiftFiles(in: "DesignSystem")
+        #expect(files.isEmpty == false, "the DesignSystem scan found no files — the scan itself is broken")
+
+        let sources = files.compactMap { try? String(contentsOf: $0.url, encoding: .utf8) }
+        let combined = sources.joined(separator: "\n")
+
+        #expect(combined.contains("0x"), "no hex colour lives in DesignSystem/ — the palette has gone missing")
+        #expect(
+            Self.violations(in: combined).isEmpty == false,
+            "DesignSystem/ holds no raw values at all, so 'the only home for them' is describing nothing"
+        )
+    }
+
+    // MARK: Mutation checks — a guard that never fails is one that cannot
+
+    @Test func theScanWouldCatchARawColour() {
+        #expect(Self.violations(in: "let brand = Color(red: 1, green: 0, blue: 0)").isEmpty == false)
+        #expect(Self.violations(in: ".foregroundStyle(.blue)").isEmpty == false)
+        #expect(Self.violations(in: "let c = UIColor(rgb: 0x1B4F8C)").isEmpty == false)
+    }
+
+    @Test func theScanWouldCatchAFixedFontSize() {
+        #expect(Self.violations(in: ".font(.system(size: 34, weight: .bold))").isEmpty == false)
+        #expect(Self.violations(in: #".font(Font.custom("SFPro", size: 17))"#).isEmpty == false)
+    }
+
+    @Test func theScanWouldCatchAMagicLayoutNumber() {
+        #expect(Self.violations(in: ".padding(.horizontal, 20)").isEmpty == false)
+        #expect(Self.violations(in: "VStack(spacing: 16) {").isEmpty == false)
+        #expect(Self.violations(in: ".frame(minHeight: 44)").isEmpty == false)
+
+        // Zero is the documented exception, and only exactly zero.
+        #expect(Self.violations(in: "VStack(spacing: 0) {").isEmpty)
+        #expect(Self.violations(in: ".padding(.top, 0)").isEmpty)
+        #expect(Self.violations(in: "VStack(spacing: 0.5) {").isEmpty == false)
+    }
+
+    @Test func theScanIgnoresComments() {
+        let source = """
+        // Was .padding(.horizontal, 20) before the tokens landed.
+        /// The brand colour is Color(red: 0.1, green: 0.3, blue: 0.5).
+        .padding(.horizontal, Space.screenMargin)
+        """
+        #expect(Self.violations(in: source).isEmpty)
+    }
+
+    @Test func theScanAcceptsTokenReferences() {
+        // Every shape the restyled onboarding actually uses, including the
+        // digit-bearing token names and the `.white` that is really a
+        // character set.
+        let good = """
+        .padding(.horizontal, Space.screenMargin)
+        .padding(.vertical, Space.x6)
+        VStack(spacing: Space.x4) {
+        HStack(spacing: Space.x1) {
+        .frame(height: Space.x2)
+        .frame(maxWidth: .infinity, minHeight: Metrics.minimumTapTarget)
+        .foregroundStyle(StabilyzColor.ink900)
+        .font(StabilyzFont.bodyRegular)
+        RoundedRectangle(cornerRadius: Radius.card)
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        Color.clear
+        """
+        #expect(Self.violations(in: good).isEmpty, "\(Self.violations(in: good))")
+    }
+}

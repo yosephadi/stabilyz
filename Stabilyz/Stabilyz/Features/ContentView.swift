@@ -53,7 +53,7 @@ private struct ResolvingView: View {
 
     var body: some View {
         if let failure, let presentation = ErrorPresenter.presentation(for: failure) {
-            VStack(spacing: 16) {
+            VStack(spacing: Space.x4) {
                 Text(presentation.message)
                     .multilineTextAlignment(.center)
                 if presentation.isRecoverable {
@@ -73,8 +73,8 @@ private struct RootPlaceholder: View {
     var perform: (() -> Void)?
 
     var body: some View {
-        VStack(spacing: 16) {
-            Text(name).font(.largeTitle)
+        VStack(spacing: Space.x4) {
+            Text(name).font(StabilyzFont.heading)
             if let action, let perform {
                 Button(action, action: perform)
             }
