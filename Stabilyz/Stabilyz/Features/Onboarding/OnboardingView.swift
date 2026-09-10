@@ -79,17 +79,17 @@ struct OnboardingView: View {
                     .font(StabilyzFont.bodyBold)
                     .foregroundStyle(StabilyzColor.ink900)
                     .frame(
-                        width: Metrics.minimumTapTarget,
-                        height: Metrics.minimumTapTarget
+                        width: Controls.backButtonDiameter,
+                        height: Controls.backButtonDiameter
                     )
-                    .background(StabilyzColor.bgElevated, in: Circle())
+                    .adaptiveGlass(.chrome, in: Circle())
             }
             .accessibilityLabel("Back")
         } else {
             Color.clear
                 .frame(
-                    width: Metrics.minimumTapTarget,
-                    height: Metrics.minimumTapTarget
+                    width: Controls.backButtonDiameter,
+                    height: Controls.backButtonDiameter
                 )
                 .accessibilityHidden(true)
         }
@@ -212,11 +212,10 @@ struct OnboardingView: View {
             Button(model.step == .disclaimer ? "Continue to Stabilyz" : "Next") {
                 Task { await model.advance() }
             }
-            .buttonStyle(.borderedProminent)
+            .adaptiveGlassButtonStyle()
             .buttonBorderShape(.capsule)
             .controlSize(.large)
-            .tint(StabilyzColor.primary600)
-            .frame(maxWidth: .infinity, minHeight: Metrics.minimumTapTarget)
+            .frame(maxWidth: .infinity, minHeight: Controls.heroButtonHeight)
             .disabled(!model.canContinue)
         }
         .padding(.horizontal, Space.screenMargin)

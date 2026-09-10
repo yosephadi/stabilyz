@@ -18,7 +18,21 @@ enum Space {
     static let x12: CGFloat = 48
 
     /// Screen margins, left and right.
-    static let screenMargin: CGFloat = 20
+    static let screenMargin: CGFloat = 24
+}
+
+/// Control sizing (§4).
+///
+/// Separate from `Metrics`, which holds accessibility *minimums*: these are the
+/// sizes the design draws, all comfortably above the 44pt floor rather than
+/// derived from it.
+enum Controls {
+    /// Primary button, full width.
+    static let buttonHeight: CGFloat = 50
+    /// The taller primary used on onboarding and other single-decision screens.
+    static let heroButtonHeight: CGFloat = 60
+    /// The circular back control in a screen's top-left.
+    static let backButtonDiameter: CGFloat = 50
 }
 
 /// Corner radii (§4). No sharp corners anywhere.

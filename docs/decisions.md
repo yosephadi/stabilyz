@@ -1162,3 +1162,69 @@ each recorder call so a regression fails rather than hangs. The result is
 byte-identical to a clean run and every audio call is still in flight at the
 end. Mutation-verified: restoring `await audioFeedback.playStopTone()` to the
 critical path fails the test at its bound.
+
+---
+
+## 26. Liquid Glass by progressive enhancement, deployment target stays 17.0
+
+**Date:** 2026-09-10 · **Task:** 8.1.5 · **Status:** Settled
+
+iOS 26's Liquid Glass is adopted where the OS provides it and falls back to
+`.ultraThinMaterial` where it does not. `IPHONEOS_DEPLOYMENT_TARGET` stays
+**17.0** — the same target docs/17 sets — so no user loses the app to get the
+material.
+
+### What changed
+
+`DesignSystem/GlassStyle.swift` adds two modifiers, and they are the only place
+in the app that names a glass API:
+
+- `.adaptiveGlass(_ surface: GlassSurface, in: some Shape)` — `glassEffect` on
+  iOS 26, `.background(.ultraThinMaterial, in:)` below it.
+- `.adaptiveGlassButtonStyle(tint:)` — `.glassProminent` on iOS 26,
+  `.borderedProminent` below it.
+
+Both branch on `if #available(iOS 26.0, *)`. `GlassSurface` distinguishes
+`.button` (interactive glass, reacts to touch), `.card` and `.chrome`.
+
+### Why
+
+Progressive enhancement rather than a version fork. Both branches produce a
+translucent surface **in the same shape**, so layout, hit-testing, Dynamic Type
+and contrast are identical either way and only the material differs. That is
+what makes it safe to apply without maintaining two designs: there is no iOS 17
+layout and an iOS 26 layout, there is one layout that is glass where glass
+exists.
+
+Confining the availability check to two modifiers is the other half. A
+`#available` at each call site would spread OS-version knowledge across every
+screen and make the fallback something each view remembered separately; here a
+view asks for a glass surface and the design system decides what that means on
+this OS.
+
+`primary-600` stays the brand tint in both branches (§8) — on iOS 26 the button
+is that colour *in* glass, not a different colour.
+
+### What this costs
+
+The fallback is not a visual match. `.ultraThinMaterial` is a blur, not glass:
+no specular edge, no refraction, no interactive response to touch. An iOS 17
+user gets a coherent translucent design, not a facsimile of the iOS 26 one, and
+that is the accepted trade.
+
+Glass is applied to chrome and buttons, not to the onboarding answer card. The
+screen designs draw that card as an opaque white panel, and the design wins over
+reflexively glassing every surface.
+
+### What would change it
+
+Raising the deployment target to 26.0, which would make the fallback branch dead
+code and let the modifiers collapse to direct `glassEffect` calls. Not worth
+doing for the material alone.
+
+### Verification
+
+The four APIs used (`glassEffect(_:in:)`, `Glass.regular.interactive()`,
+`.buttonStyle(.glass)`, `.buttonStyle(.glassProminent)`) were compiled against
+the iOS 26.4 SDK before the modifiers were written. The app builds for both
+Debug and Release at deployment target 17.0.

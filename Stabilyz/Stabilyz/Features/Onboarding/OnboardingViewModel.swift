@@ -59,10 +59,27 @@ final class OnboardingViewModel {
 
     var step: OnboardingStep { draft.step }
 
+    /// The screens this draft will actually visit.
+    ///
+    /// Choosing bilateral answers the side question, so that screen never
+    /// appears [PRD §7 AC — bilateral is fully supported, not a dead end]. It
+    /// drops out of movement *and* out of the progress indicator: a user who
+    /// sees five screens must not be told there are six, or watch the count
+    /// jump from one to three.
+    ///
+    /// The current step is always kept in the list even when it would otherwise
+    /// be filtered out. A draft saved on the side screen and resumed after
+    /// bilateral was chosen still has a position, so movement stays defined
+    /// instead of reading an unknown step as "finished".
+    var applicableSteps: [OnboardingStep] {
+        guard draft.amputationLevel == .bilateral else { return OnboardingStep.allCases }
+        return OnboardingStep.allCases.filter { $0 != .side || $0 == draft.step }
+    }
+
     /// One-based position and total, for the visible progress indicator
     /// [PRD §7 AC].
     var progress: (step: Int, of: Int) {
-        let steps = OnboardingStep.allCases
+        let steps = applicableSteps
         return ((steps.firstIndex(of: draft.step) ?? 0) + 1, steps.count)
     }
 
@@ -70,7 +87,7 @@ final class OnboardingViewModel {
         Double(progress.step) / Double(progress.of)
     }
 
-    var canGoBack: Bool { draft.step != OnboardingStep.allCases.first }
+    var canGoBack: Bool { draft.step != applicableSteps.first }
 
     // MARK: - Answers
 
@@ -180,16 +197,20 @@ final class OnboardingViewModel {
         persist()
     }
 
+    /// Back one screen, skipping any the current level does not visit — so a
+    /// bilateral user returns from "how long ago" straight to the level screen.
     func back() {
-        guard let index = OnboardingStep.allCases.firstIndex(of: draft.step), index > 0 else { return }
-        draft.step = OnboardingStep.allCases[index - 1]
+        let steps = applicableSteps
+        guard let index = steps.firstIndex(of: draft.step), index > 0 else { return }
+        draft.step = steps[index - 1]
         persist()
     }
 
     private func nextStep() -> OnboardingStep? {
-        guard let index = OnboardingStep.allCases.firstIndex(of: draft.step) else { return nil }
+        let steps = applicableSteps
+        guard let index = steps.firstIndex(of: draft.step) else { return nil }
         let next = index + 1
-        return next < OnboardingStep.allCases.count ? OnboardingStep.allCases[next] : nil
+        return next < steps.count ? steps[next] : nil
     }
 
     // MARK: - Completion

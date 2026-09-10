@@ -120,7 +120,7 @@ Never go below 15px. Never use SF Pro's italic styles.
 | `space-8` | 32px | Section spacing |
 | `space-12` | 48px | Major screen-section breaks |
 
-- Screen margins: 20px left/right (standard iOS safe-area default).
+- Screen margins: 24px left/right.
 - Minimum tap target: 44×44pt (HIG), non-negotiable given the user base
   skews toward less tech-savvy, older users.
 - Corner radius: `8px` for buttons/inputs, `16px` for cards, `24px` for
@@ -128,6 +128,18 @@ Never go below 15px. Never use SF Pro's italic styles.
 - Elevation: **no drop shadows.** Separate surfaces with a 1px
   `ink-200` / `ink-200`(dark) hairline border or a subtle `bg-elevated`
   fill contrast instead.
+
+### Control sizing
+
+| Token | Value | Use |
+|---|---|---|
+| `button-height` | 50pt | Primary button, full width |
+| `button-height-hero` | 60pt | Primary on single-decision screens (onboarding) |
+| `back-button` | 50×50pt | Circular back control, screen top-left |
+
+Both primary heights are full width (`maxWidth: .infinity`) in a `Capsule`.
+Both sit above the 44pt tap-target floor rather than being derived from
+it, so they live in `Controls` rather than `Metrics`.
 
 ---
 
@@ -149,9 +161,11 @@ work.
   dashboard-button layout. Selected tab tinted `primary-600`.
 
 ### Buttons
-- **Primary**: `Button` with `.buttonStyle(.borderedProminent)`,
-  `.tint(primary-600)`, `.controlSize(.large)`. Label uses the system
-  button font (aligns with Body Text Bold).
+- **Primary**: `Button` with `.adaptiveGlassButtonStyle()` —
+  `.buttonStyle(.glassProminent)` on iOS 26, `.borderedProminent` below
+  it — `.tint(primary-600)`, `.controlSize(.large)`, `Capsule` border
+  shape, full width at `button-height` (or `button-height-hero`). Label
+  uses the system button font (aligns with Body Text Bold).
 - **Secondary**: `.buttonStyle(.bordered)`, `.tint(primary-600)`.
 - **Destructive**: `.buttonStyle(.bordered)` or plain, `.tint(danger)` —
   reserved for "Replace with Backup" and similar irreversible actions,
@@ -193,6 +207,18 @@ The one place layout is still bespoke, because there's no native
 §2.4, centered, with the baseline comparison in Small Body Text Regular
 directly beneath. No card/border around it — sits directly on
 `bg-base` so it reads as the page's primary content.
+
+### Glass surfaces (iOS 26)
+
+`.adaptiveGlass(_:in:)` puts a translucent surface behind buttons, cards
+and chrome: **Liquid Glass** on iOS 26, `.ultraThinMaterial` below it.
+Progressive enhancement, not a fork — both branches produce the same
+shape, so layout, hit-testing and contrast are identical and only the
+material differs. Deployment target stays iOS 17.0
+(docs/decisions.md §26).
+
+The shape is always passed in explicitly; a glass surface whose shape
+disagrees with its content's clipping reads as a bug rather than a style.
 
 ---
 

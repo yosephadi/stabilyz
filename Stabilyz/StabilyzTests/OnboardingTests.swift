@@ -548,3 +548,93 @@ private actor Handoff {
     #expect(await store.hasDraft() == false)
     #expect(await store.load() == nil)
 }
+
+// MARK: - Bilateral skips the side screen (Task 8.1.5)
+
+/// Choosing bilateral answers the side question, so that screen is not shown
+/// again [PRD §7 AC — bilateral is fully supported, not a dead end]. These pin
+/// the navigation, both directions, and the progress indicator that has to
+/// agree with it.
+
+@MainActor
+@Test func bilateralGoesStraightFromLevelToTimeSinceAmputation() async {
+    let model = makeModel()
+
+    model.select(level: .bilateral)
+    #expect(model.step == .amputationLevel)
+    #expect(model.draft.side == .both, "bilateral did not settle the side")
+
+    await model.advance()
+
+    #expect(model.step == .timeSinceAmputation, "the side screen was shown to a bilateral user")
+}
+
+@MainActor
+@Test func backFromTimeSinceReturnsToLevelWhenBilateral() async {
+    let model = makeModel()
+    model.select(level: .bilateral)
+    await model.advance()
+    #expect(model.step == .timeSinceAmputation)
+
+    model.back()
+
+    #expect(model.step == .amputationLevel, "back landed on the skipped side screen")
+}
+
+@MainActor
+@Test func aUnilateralUserStillSeesTheSideScreenInBothDirections() async {
+    // The mirror: the skip must be bilateral-only, or it would strand a
+    // unilateral user with no way to say which side.
+    let model = makeModel()
+    model.select(level: .transtibial)
+
+    await model.advance()
+    #expect(model.step == .side)
+
+    model.select(side: .left)
+    await model.advance()
+    #expect(model.step == .timeSinceAmputation)
+
+    model.back()
+    #expect(model.step == .side)
+}
+
+@MainActor
+@Test func theProgressIndicatorCountsOnlyTheScreensBilateralVisits() async {
+    // A user who sees five screens must not be told there are six, nor watch
+    // the count jump from one to three.
+    let model = makeModel()
+    model.select(level: .bilateral)
+
+    #expect(model.progress == (1, 5))
+
+    await model.advance()
+    #expect(model.progress == (2, 5))
+
+    var seen: [OnboardingStep] = [.amputationLevel, .timeSinceAmputation]
+    for _ in 0..<3 {
+        await model.advance()
+        seen.append(model.step)
+    }
+
+    #expect(seen.contains(.side) == false)
+    #expect(model.step == .disclaimer)
+    #expect(model.progress == (5, 5))
+    #expect(model.progressFraction == 1.0)
+}
+
+@MainActor
+@Test func switchingToBilateralOnTheSideScreenLeavesAWayForward() async {
+    // A draft resumed on the side screen after bilateral was chosen still has
+    // a position: the step stays reachable rather than reading as "finished"
+    // and completing the wizard early.
+    let model = makeModel(store: MemoryDraftStore(draft: OnboardingDraft(step: .side, amputationLevel: .bilateral, side: .both)))
+    await model.start()
+
+    #expect(model.step == .side)
+    #expect(model.canContinue)
+
+    await model.advance()
+
+    #expect(model.step == .timeSinceAmputation, "the wizard skipped to the end from a stale side step")
+}

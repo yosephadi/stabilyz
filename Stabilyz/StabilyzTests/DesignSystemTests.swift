@@ -189,12 +189,15 @@ private func contrastRatio(_ a: Color, _ b: Color, dark: Bool) -> Double {
 }
 
 @Test func theFixedMeasurementsMatchTheDocument() {
-    #expect(Space.screenMargin == 20)
+    #expect(Space.screenMargin == 24)
     #expect(Radius.control == 8)
     #expect(Radius.card == 16)
     #expect(Radius.sheet == 24)
     #expect(Metrics.minimumTapTarget == 44)
     #expect(Metrics.minimumFontSize == 15)
+    #expect(Controls.buttonHeight == 50)
+    #expect(Controls.heroButtonHeight == 60)
+    #expect(Controls.backButtonDiameter == 50)
 }
 
 @Test func everyCornerIsRounded() {
