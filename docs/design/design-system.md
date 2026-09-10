@@ -161,11 +161,27 @@ work.
   dashboard-button layout. Selected tab tinted `primary-600`.
 
 ### Buttons
-- **Primary**: `Button` with `.adaptiveGlassButtonStyle()` —
-  `.buttonStyle(.glassProminent)` on iOS 26, `.borderedProminent` below
-  it — `.tint(primary-600)`, `.controlSize(.large)`, `Capsule` border
-  shape, full width at `button-height` (or `button-height-hero`). Label
-  uses the system button font (aligns with Body Text Bold).
+- **Primary (onboarding and other single-decision screens)**: `Button`
+  with `.buttonStyle(.glassCapsuleHero)` — a full-width
+  (`maxWidth: .infinity`) `Capsule` at `button-height-hero` (60pt),
+  filled with **adaptive glass**, edged with a 1px `ink-200` hairline,
+  and labelled in `ink-900` Body Text Bold.
+
+  This **supersedes the solid `.borderedProminent` `primary-600` fill for
+  onboarding flows.** A prominent style — `.borderedProminent` on iOS 17,
+  `.glassProminent` on iOS 26 — paints the control as an opaque blue slab
+  with white text, which is not what the onboarding designs draw: there
+  the button reads as glass over the page rather than a blue rectangle on
+  top of it. The hairline is not decoration either — glass has very
+  little edge against `bg-base`, and the iOS 17 `.ultraThinMaterial`
+  fallback has none at all, so without it the button dissolves into a
+  light background.
+
+  `.glassCapsule` is the same style at the standard `button-height`
+  (50pt) for screens that are not a single decision.
+
+  `primary-600` remains the brand colour elsewhere (§8) — it is the tint
+  for links, selection and the Skip control, not the fill of this button.
 - **Secondary**: `.buttonStyle(.bordered)`, `.tint(primary-600)`.
 - **Destructive**: `.buttonStyle(.bordered)` or plain, `.tint(danger)` —
   reserved for "Replace with Backup" and similar irreversible actions,
@@ -173,6 +189,16 @@ work.
   action so iOS applies its standard destructive styling automatically.
 - Disabled state uses the system's automatic disabled dimming — no
   custom disabled-color override needed.
+
+### Back control
+A circular `back-button` (50x50pt) `Button` in the screen's top-left,
+carrying a `chevron.left` SF Symbol in `ink-900` over an **adaptive
+glass** `Circle`. Used by the onboarding wizard's container shell, where
+it is drawn once for every step rather than per screen.
+
+Its 50pt diameter clears the 44pt tap-target floor (§9) on its own, so it
+needs no extra hit area. Where a screen has no back destination the space
+is held rather than collapsed, so the chrome beneath it does not shift.
 
 ### Grouped content (Settings, History, session detail)
 Native `List` with `.listStyle(.insetGrouped)` — this is the iOS
@@ -212,6 +238,9 @@ directly beneath. No card/border around it — sits directly on
 
 `.adaptiveGlass(_:in:)` puts a translucent surface behind buttons, cards
 and chrome: **Liquid Glass** on iOS 26, `.ultraThinMaterial` below it.
+Neither branch tints the surface, so a control's label colour is set by
+the control (`ink-900` on the primary button) rather than inherited from
+a system prominent style.
 Progressive enhancement, not a fork — both branches produce the same
 shape, so layout, hit-testing and contrast are identical and only the
 material differs. Deployment target stays iOS 17.0

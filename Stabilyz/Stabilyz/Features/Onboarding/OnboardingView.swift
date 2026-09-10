@@ -1,17 +1,19 @@
 import SwiftUI
 
-/// The onboarding wizard (docs/04 §4.3, design-system.md §5, and the screen
+/// The onboarding wizard (docs/04 §4.3, design-system.md §4-§5, and the screen
 /// designs in docs/design/screens).
 ///
-/// The designs replace the large-title nav bar with an in-content header —
-/// circular back chip, progress, question, then the answer card — so the
-/// navigation bar is hidden and that header is drawn here instead. Everything
-/// under it stays native: `List` `.insetGrouped` holding inline `Picker`s for
-/// the closed-choice fields (§5 explicitly forbids a custom dropdown), a system
-/// `Toggle` wearing `CheckboxToggleStyle` for the disclaimer tick, and a
-/// `.borderedProminent` primary button tinted `primary-600`. Dynamic Type,
-/// VoiceOver and the 44pt row height therefore still come from the system
-/// rather than from us remembering.
+/// **The shell owns the chrome.** Back chip, Skip, progress and the primary
+/// button belong to the container and are drawn once; a step case contributes
+/// only its question, its "why we ask" line and its answer control. That is
+/// what keeps six screens looking like one wizard — the alternative, each case
+/// drawing its own header and button, is six chances for them to drift apart.
+///
+/// Everything under the chrome stays native per §5: `List` `.insetGrouped`
+/// holding inline `Picker`s for the closed-choice fields, a system `Toggle`
+/// wearing `CheckboxToggleStyle` for the disclaimer tick, and a `Button` in
+/// `GlassCapsuleButtonStyle`. Dynamic Type, VoiceOver and the 44pt row height
+/// come from the system rather than from us remembering.
 ///
 /// No colour, size or spacing literal appears in this file; `DesignTokenGuardTests`
 /// enforces that for the whole of `Features/`.
@@ -24,53 +26,47 @@ struct OnboardingView: View {
 
     var body: some View {
         NavigationStack {
-            VStack(spacing: 0) {
+            VStack(alignment: .leading, spacing: Space.x6) {
                 header
                 stepContent
-                footer
+                Spacer(minLength: 0)
             }
+            // §4: 24pt screen margins, applied once to the container so no
+            // child restates them.
+            .padding(.horizontal, Space.screenMargin)
+            .padding(.top, Space.x4)
+            .frame(maxWidth: .infinity, alignment: .leading)
             .background(StabilyzColor.bgBase)
+            // Pins the primary button and keeps it clear of the home indicator
+            // without the content having to know the inset.
+            .safeAreaInset(edge: .bottom) { footer }
             .toolbar(.hidden, for: .navigationBar)
         }
         .tint(StabilyzColor.primary600)
         .task { await model.start() }
     }
 
-    // MARK: - Header
+    // MARK: - Container chrome
 
-    /// Back chip, progress, question, and the "why we ask" line beneath it.
+    /// Back and Skip on one line, the progress indicator beneath them.
     private var header: some View {
         VStack(alignment: .leading, spacing: Space.x4) {
-            backChip
+            HStack {
+                backChip
+                Spacer()
+                skipButton
+            }
 
             // Shown on every screen including the disclaimer: [PRD §7 AC] asks
-            // for a visible progress indicator throughout, where the design
-            // drops it on the final screen.
+            // for a visible progress indicator throughout, where the designs
+            // drop it on the final screen.
             StepProgressBar(step: model.progress.step, of: model.progress.of)
-
-            VStack(alignment: .leading, spacing: Space.x2) {
-                Text(title)
-                    .font(StabilyzFont.heading)
-                    .foregroundStyle(StabilyzColor.ink900)
-                    .fixedSize(horizontal: false, vertical: true)
-
-                if let subtitle {
-                    Text(subtitle)
-                        .font(StabilyzFont.smallRegular)
-                        .foregroundStyle(StabilyzColor.ink600)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-            }
-            .accessibilityElement(children: .combine)
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.horizontal, Space.screenMargin)
-        .padding(.bottom, Space.x6)
     }
 
-    /// The circular back control from the designs. A plain `Button` underneath,
-    /// so it keeps its tap handling and VoiceOver behaviour; the space is held
-    /// even on the first screen so the header below it does not jump.
+    /// The circular back control (§5: 50x50 adaptive glass). A plain `Button`
+    /// underneath, so it keeps its tap handling and VoiceOver behaviour; the
+    /// space is held on the first screen so the progress bar does not jump.
     @ViewBuilder
     private var backChip: some View {
         if model.canGoBack {
@@ -95,100 +91,25 @@ struct OnboardingView: View {
         }
     }
 
-    // MARK: - Steps
-
+    /// Skip, on the two optional screens only.
+    ///
+    /// `model.canSkip` is the authority, not this view: which fields are
+    /// optional is a [PRD §7 AC] rule, and a required screen that became
+    /// skippable because a view forgot to hide a button is the failure worth
+    /// preventing.
     @ViewBuilder
-    private var stepContent: some View {
-        switch model.step {
-        case .amputationLevel:
-            answerList {
-                Picker("Amputation level", selection: levelBinding) {
-                    Text("Below the knee").tag(AmputationLevel.transtibial as AmputationLevel?)
-                    Text("Above the knee").tag(AmputationLevel.transfemoral as AmputationLevel?)
-                    Text("Both legs").tag(AmputationLevel.bilateral as AmputationLevel?)
-                }
-                .pickerStyle(.inline)
-                .labelsHidden()
+    private var skipButton: some View {
+        if model.canSkip {
+            Button("Skip") {
+                Task { await model.skip() }
             }
-
-        case .side:
-            answerList {
-                Picker("Side", selection: sideBinding) {
-                    ForEach(model.allowedSides, id: \.self) { side in
-                        Text(sideLabel(side)).tag(side as AmputationSide?)
-                    }
-                }
-                .pickerStyle(.inline)
-                .labelsHidden()
-            }
-
-        case .timeSinceAmputation:
-            answerList {
-                Picker("Years", selection: yearsBinding) {
-                    ForEach(0...60, id: \.self) { Text("\($0) years").tag($0) }
-                }
-                Picker("Months", selection: monthsBinding) {
-                    ForEach(0...11, id: \.self) { Text("\($0) months").tag($0) }
-                }
-            }
-
-        case .prosthesisType:
-            answerList {
-                TextField("Prosthesis or device", text: prosthesisBinding)
-                    .textInputAutocapitalization(.words)
-            }
-
-        case .kLevel:
-            answerList {
-                Picker("Activity level", selection: kLevelBinding) {
-                    Text("I don't know").tag(KLevel?.none)
-                    ForEach(KLevel.allCases, id: \.self) { level in
-                        Text(kLevelLabel(level)).tag(level as KLevel?)
-                    }
-                }
-                .pickerStyle(.inline)
-                .labelsHidden()
-            }
-
-        case .disclaimer:
-            ScrollView {
-                VStack(alignment: .leading, spacing: Space.x6) {
-                    Text(DisclaimerText.body)
-                        .font(StabilyzFont.bodyRegular)
-                        .foregroundStyle(StabilyzColor.ink600)
-                        .fixedSize(horizontal: false, vertical: true)
-
-                    Toggle(DisclaimerText.acknowledgement, isOn: $model.disclaimerAccepted)
-                        .toggleStyle(.checkbox)
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.horizontal, Space.screenMargin)
-            }
+            .font(StabilyzFont.bodyBold)
+            .foregroundStyle(StabilyzColor.primary600)
+            .frame(minHeight: Metrics.minimumTapTarget)
         }
     }
 
-    /// The answer card: the designs draw a white rounded panel with hairline
-    /// dividers, which is what `.insetGrouped` already is (§5 — "no custom card
-    /// view is built"). Only the backgrounds are re-pointed at our tokens so
-    /// `bg-base` shows through around it.
-    private func answerList<Content: View>(
-        @ViewBuilder _ content: () -> Content
-    ) -> some View {
-        List {
-            Section {
-                content()
-                    .font(StabilyzFont.bodyRegular)
-                    .foregroundStyle(StabilyzColor.ink900)
-                    .listRowBackground(StabilyzColor.bgElevated)
-            }
-        }
-        .listStyle(.insetGrouped)
-        .scrollContentBackground(.hidden)
-        .environment(\.defaultMinListRowHeight, Metrics.minimumTapTarget)
-    }
-
-    // MARK: - Footer
-
+    /// The primary button, plus the copy that says why it is unavailable.
     private var footer: some View {
         VStack(spacing: Space.x3) {
             if let explanation = model.blockedExplanation {
@@ -212,10 +133,7 @@ struct OnboardingView: View {
             Button(model.step == .disclaimer ? "Continue to Stabilyz" : "Next") {
                 Task { await model.advance() }
             }
-            .adaptiveGlassButtonStyle()
-            .buttonBorderShape(.capsule)
-            .controlSize(.large)
-            .frame(maxWidth: .infinity, minHeight: Controls.heroButtonHeight)
+            .buttonStyle(.glassCapsuleHero)
             .disabled(!model.canContinue)
         }
         .padding(.horizontal, Space.screenMargin)
@@ -223,49 +141,157 @@ struct OnboardingView: View {
         .background(StabilyzColor.bgBase)
     }
 
-    // MARK: - Copy
+    // MARK: - Steps
 
-    /// The question, worded as the screen designs word it.
-    private var title: String {
-        switch model.step {
-        case .amputationLevel: "What is your amputation level?"
-        case .side: "Which side?"
-        case .timeSinceAmputation: "How long has it been since your amputation?"
-        case .prosthesisType: "What type of prosthesis do you use?"
-        case .kLevel: "Do you know your K-level?"
-        case .disclaimer: DisclaimerText.title
-        }
-    }
-
-    /// The helper line under each question, from the screen designs.
-    ///
-    /// On level and side this is the "why we ask" microcopy [PRD §7 AC]. The
-    /// designs drop the literal "Why we ask:" opener but keep the substance —
-    /// each line says what the answer is used for — so the criterion is met by
-    /// what the sentence does rather than by how it starts.
-    private var subtitle: String? {
+    /// Each case supplies only its question, its helper line and its answer
+    /// control. Nothing here draws chrome.
+    @ViewBuilder
+    private var stepContent: some View {
         switch model.step {
         case .amputationLevel:
-            "This helps us understand your walking profile and present your results clearly."
+            step(
+                "What is your amputation level?",
+                "This helps us understand your walking profile and present your results clearly."
+            ) {
+                answerList {
+                    Picker("Amputation level", selection: levelBinding) {
+                        Text("Below the knee").tag(AmputationLevel.transtibial as AmputationLevel?)
+                        Text("Above the knee").tag(AmputationLevel.transfemoral as AmputationLevel?)
+                        Text("Both legs").tag(AmputationLevel.bilateral as AmputationLevel?)
+                    }
+                    .pickerStyle(.inline)
+                    .labelsHidden()
+                }
+            }
+
         case .side:
-            sideSubtitle
+            step("Which side?", sideSubtitle) {
+                answerList {
+                    Picker("Side", selection: sideBinding) {
+                        ForEach(model.allowedSides, id: \.self) { side in
+                            Text(sideLabel(side)).tag(side as AmputationSide?)
+                        }
+                    }
+                    .pickerStyle(.inline)
+                    .labelsHidden()
+                }
+            }
+
         case .timeSinceAmputation:
-            "An estimate is fine."
+            step("How long has it been since your amputation?", "An estimate is fine.") {
+                answerList {
+                    Picker("Years", selection: yearsBinding) {
+                        ForEach(0...60, id: \.self) { Text("\($0) years").tag($0) }
+                    }
+                    Picker("Months", selection: monthsBinding) {
+                        ForEach(0...11, id: \.self) { Text("\($0) months").tag($0) }
+                    }
+                }
+            }
+
         case .prosthesisType:
-            "Optional. This helps you keep a useful record of your setup."
+            step(
+                "What type of prosthesis do you use?",
+                "Optional. This helps you keep a useful record of your setup."
+            ) {
+                answerList {
+                    TextField("Prosthesis or device", text: prosthesisBinding)
+                        .textInputAutocapitalization(.words)
+                }
+            }
+
         case .kLevel:
-            "Optional. Your prosthetist may have discussed this with you."
+            step(
+                "Do you know your K-level?",
+                "Optional. Your prosthetist may have discussed this with you."
+            ) {
+                answerList {
+                    Picker("Activity level", selection: kLevelBinding) {
+                        Text("I don't know").tag(KLevel?.none)
+                        ForEach(KLevel.allCases, id: \.self) { level in
+                            Text(kLevelLabel(level)).tag(level as KLevel?)
+                        }
+                    }
+                    .pickerStyle(.inline)
+                    .labelsHidden()
+                }
+            }
+
         case .disclaimer:
-            // The disclaimer's own body is the content of the screen.
-            nil
+            // The disclaimer's own body is the content of the screen, so it
+            // carries no helper line above the card.
+            step(DisclaimerText.title, nil) {
+                ScrollView {
+                    VStack(alignment: .leading, spacing: Space.x6) {
+                        Text(DisclaimerText.body)
+                            .font(StabilyzFont.bodyRegular)
+                            .foregroundStyle(StabilyzColor.ink600)
+                            .fixedSize(horizontal: false, vertical: true)
+
+                        Toggle(DisclaimerText.acknowledgement, isOn: $model.disclaimerAccepted)
+                            .toggleStyle(.checkbox)
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                }
+            }
         }
     }
 
+    /// The shape every step has: a two-line question, an optional helper line,
+    /// then the answer control.
+    private func step<Content: View>(
+        _ title: String,
+        _ subtitle: String?,
+        @ViewBuilder content: () -> Content
+    ) -> some View {
+        VStack(alignment: .leading, spacing: Space.x6) {
+            VStack(alignment: .leading, spacing: Space.x2) {
+                Text(title)
+                    .font(StabilyzFont.heading)
+                    .foregroundStyle(StabilyzColor.ink900)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                if let subtitle {
+                    Text(subtitle)
+                        .font(StabilyzFont.smallRegular)
+                        .foregroundStyle(StabilyzColor.ink600)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+            .accessibilityElement(children: .combine)
+
+            content()
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    /// The answer card: the designs draw a white rounded panel with hairline
+    /// dividers, which is what `.insetGrouped` already is (§5 — "no custom card
+    /// view is built"). Its own scroll inset is cancelled so the card lines up
+    /// with the container's 24pt margin rather than sitting inside it twice.
+    private func answerList<Content: View>(
+        @ViewBuilder _ content: () -> Content
+    ) -> some View {
+        List {
+            Section {
+                content()
+                    .font(StabilyzFont.bodyRegular)
+                    .foregroundStyle(StabilyzColor.ink900)
+                    .listRowBackground(StabilyzColor.bgElevated)
+            }
+        }
+        .listStyle(.insetGrouped)
+        .scrollContentBackground(.hidden)
+        .contentMargins(.horizontal, 0, for: .scrollContent)
+        .environment(\.defaultMinListRowHeight, Metrics.minimumTapTarget)
+    }
+
+    // MARK: - Copy
+
     /// The designs only ever draw the unilateral side screen. Bilateral is a
-    /// fully supported answer [PRD §7 AC] and lands here with `both` already
-    /// chosen, so it keeps the line that explains why there is nothing to pick
-    /// between — the designs did not word that state, rather than deciding it
-    /// should go unexplained.
+    /// fully supported answer [PRD §7 AC] and no longer reaches this screen at
+    /// all, but a draft saved on it before the level changed still can, so it
+    /// keeps the line explaining why there is nothing to pick between.
     private var sideSubtitle: String {
         model.draft.amputationLevel == .bilateral
             ? """
@@ -284,7 +310,7 @@ struct OnboardingView: View {
         }
     }
 
-    /// K1–K4 are worded as the designs word them. K0 is not on that screen —
+    /// K1-K4 are worded as the designs word them. K0 is not on that screen —
     /// it is a real `KLevel` the domain supports, so it keeps a label rather
     /// than becoming unselectable on the strength of a mockup that omitted it.
     private func kLevelLabel(_ level: KLevel) -> String {

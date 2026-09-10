@@ -638,3 +638,90 @@ private actor Handoff {
 
     #expect(model.step == .timeSinceAmputation, "the wizard skipped to the end from a stale side step")
 }
+
+// MARK: - Skip, on the optional fields only (Task 8.1.6)
+
+/// [PRD §6 edge case] "User skips both optional fields (device type, K-level).
+/// Onboarding must complete successfully with only the required fields filled."
+/// [PRD §7 AC] The disclaimer is the one hard gate — there is no skip path to
+/// Home, so the affordance must never appear there either.
+
+@MainActor
+@Test func onlyTheTwoOptionalScreensOfferSkip() async {
+    for step in OnboardingStep.allCases {
+        let model = makeModel(store: MemoryDraftStore(draft: OnboardingDraft(step: step)))
+        await model.start()
+
+        #expect(
+            model.canSkip == (step == .prosthesisType || step == .kLevel),
+            "\(step) offers the wrong skip affordance"
+        )
+    }
+}
+
+@MainActor
+@Test func skippingAnOptionalFieldLeavesItBlankAndMovesOn() async {
+    let model = makeModel(store: MemoryDraftStore(draft: OnboardingDraft(step: .prosthesisType)))
+    await model.start()
+
+    model.setProsthesisType("Genium X3")
+    #expect(model.draft.prosthesisType != nil)
+
+    await model.skip()
+
+    #expect(model.draft.prosthesisType == nil, "skip kept an answer the user abandoned")
+    #expect(model.step == .kLevel)
+}
+
+@MainActor
+@Test func skippingKLevelClearsItToo() async {
+    let model = makeModel(store: MemoryDraftStore(draft: OnboardingDraft(step: .kLevel)))
+    await model.start()
+
+    model.setKLevel(.k3)
+    await model.skip()
+
+    #expect(model.draft.kLevel == nil)
+    #expect(model.step == .disclaimer)
+}
+
+@MainActor
+@Test func skipDoesNothingOnARequiredScreen() async {
+    // Belt and braces against a view that showed the button anyway: the model
+    // refuses, rather than trusting the caller.
+    for step in [OnboardingStep.amputationLevel, .side, .timeSinceAmputation, .disclaimer] {
+        let model = makeModel(store: MemoryDraftStore(draft: OnboardingDraft(step: step)))
+        await model.start()
+
+        await model.skip()
+
+        #expect(model.step == step, "\(step) was skipped")
+    }
+}
+
+@MainActor
+@Test func skippingBothOptionalFieldsStillCompletesOnboarding() async {
+    // The PRD edge case, end to end.
+    let profiles = RecordingProfiles()
+    let model = makeModel(profiles: profiles)
+
+    model.select(level: .transtibial)
+    await model.advance()
+    model.select(side: .left)
+    await model.advance()
+    model.setTimeSinceAmputation(months: 18)
+    await model.advance()
+
+    #expect(model.step == .prosthesisType)
+    await model.skip()
+    #expect(model.step == .kLevel)
+    await model.skip()
+
+    #expect(model.step == .disclaimer)
+    model.disclaimerAccepted = true
+    await model.advance()
+
+    let saved = try! #require(await profiles.saved)
+    #expect(saved.prosthesisType == nil)
+    #expect(saved.kLevel == nil)
+}

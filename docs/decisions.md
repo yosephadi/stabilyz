@@ -1181,8 +1181,14 @@ in the app that names a glass API:
 
 - `.adaptiveGlass(_ surface: GlassSurface, in: some Shape)` — `glassEffect` on
   iOS 26, `.background(.ultraThinMaterial, in:)` below it.
-- `.adaptiveGlassButtonStyle(tint:)` — `.glassProminent` on iOS 26,
-  `.borderedProminent` below it.
+- `GlassCapsuleButtonStyle` (`.glassCapsule` / `.glassCapsuleHero`) — the
+  primary button's surface, built on `adaptiveGlass` rather than on a system
+  prominent style. Amended 2026-09-10 (Task 8.1.6): this began as
+  `.adaptiveGlassButtonStyle(tint:)` wrapping `.glassProminent` /
+  `.borderedProminent`, but both paint an opaque `primary-600` slab with white
+  text, which is not the translucent button the onboarding designs draw. The
+  progressive-enhancement decision below is unchanged; only the style built on
+  top of it is.
 
 Both branch on `if #available(iOS 26.0, *)`. `GlassSurface` distinguishes
 `.button` (interactive glass, reacts to touch), `.card` and `.chrome`.

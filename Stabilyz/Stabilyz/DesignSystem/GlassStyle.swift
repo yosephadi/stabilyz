@@ -32,20 +32,6 @@ extension View {
             background(.ultraThinMaterial, in: shape)
         }
     }
-
-    /// The primary button's fill: Liquid Glass on iOS 26, the bordered-prominent
-    /// fill below it.
-    ///
-    /// `primary-600` stays the brand tint in both branches (§8), so the button
-    /// is the same colour on both — on iOS 26 it is that colour *in* glass.
-    @ViewBuilder
-    func adaptiveGlassButtonStyle(tint: Color = StabilyzColor.primary600) -> some View {
-        if #available(iOS 26.0, *) {
-            buttonStyle(.glassProminent).tint(tint)
-        } else {
-            buttonStyle(.borderedProminent).tint(tint)
-        }
-    }
 }
 
 @available(iOS 26.0, *)
@@ -55,5 +41,65 @@ private extension GlassSurface {
         case .button: .regular.interactive()
         case .card, .chrome: .regular
         }
+    }
+}
+
+// MARK: - Primary button
+
+/// The full-width capsule primary (§5): translucent glass, a hairline edge and
+/// an `ink-900` label.
+///
+/// **Not** `.borderedProminent` or `.glassProminent`. Both paint the button as a
+/// solid `primary-600` slab with white text, which is the opposite of what the
+/// onboarding designs draw — there the button reads as glass over the page, not
+/// as a blue rectangle on top of it. Building the surface here rather than
+/// borrowing a system prominent style is what makes the label colour ours to
+/// set, and `adaptiveGlass` keeps the iOS 17 fallback in one place.
+///
+/// The hairline is what stops the button dissolving into a light background:
+/// glass alone has very little edge against `bg-base`, and on the iOS 17
+/// fallback `.ultraThinMaterial` has none at all.
+struct GlassCapsuleButtonStyle: ButtonStyle {
+    /// `Controls.buttonHeight` or `Controls.heroButtonHeight` (§4).
+    let height: CGFloat
+
+    func makeBody(configuration: Configuration) -> some View {
+        Surface(configuration: configuration, height: height)
+    }
+
+    /// A nested `View` so the style can read `isEnabled` — a `ButtonStyle` is
+    /// not itself a view and has no environment of its own.
+    private struct Surface: View {
+        let configuration: Configuration
+        let height: CGFloat
+        @Environment(\.isEnabled) private var isEnabled
+
+        var body: some View {
+            configuration.label
+                .font(StabilyzFont.bodyBold)
+                .foregroundStyle(StabilyzColor.ink900)
+                .frame(maxWidth: .infinity, minHeight: height)
+                .adaptiveGlass(.button, in: Capsule())
+                .overlay(
+                    Capsule()
+                        .strokeBorder(StabilyzColor.ink200, lineWidth: Metrics.hairline)
+                )
+                // A disabled primary always has copy beneath it saying why
+                // [PRD §6], so this only has to read as unavailable.
+                .opacity(isEnabled ? (configuration.isPressed ? 0.7 : 1) : 0.4)
+                .animation(.easeOut(duration: 0.15), value: configuration.isPressed)
+        }
+    }
+}
+
+extension ButtonStyle where Self == GlassCapsuleButtonStyle {
+    /// The standard full-width primary (§4: 50pt).
+    static var glassCapsule: GlassCapsuleButtonStyle {
+        GlassCapsuleButtonStyle(height: Controls.buttonHeight)
+    }
+
+    /// The taller primary for single-decision screens (§4: 60pt).
+    static var glassCapsuleHero: GlassCapsuleButtonStyle {
+        GlassCapsuleButtonStyle(height: Controls.heroButtonHeight)
     }
 }

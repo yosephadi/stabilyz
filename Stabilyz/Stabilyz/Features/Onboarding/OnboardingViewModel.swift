@@ -199,6 +199,32 @@ final class OnboardingViewModel {
 
     /// Back one screen, skipping any the current level does not visit — so a
     /// bilateral user returns from "how long ago" straight to the level screen.
+    /// Whether this screen offers "Skip".
+    ///
+    /// The two optional fields and nothing else [PRD §6 edge case: "user skips
+    /// both optional fields"; §7 AC: they can be left blank without blocking
+    /// progress]. Level, side and time are required, and the disclaimer is the
+    /// one hard gate in the app [PRD §7 AC — there is no skip path to Home], so
+    /// none of them may show it.
+    var canSkip: Bool { draft.step.isOptionalField }
+
+    /// Leaves an optional field blank and moves on.
+    ///
+    /// Clears the field rather than merely advancing: skipping a screen the
+    /// user had already typed into should not quietly keep the answer they
+    /// just chose to abandon.
+    func skip() async {
+        guard canSkip else { return }
+
+        switch draft.step {
+        case .prosthesisType: draft.prosthesisType = nil
+        case .kLevel: draft.kLevel = nil
+        case .amputationLevel, .side, .timeSinceAmputation, .disclaimer: return
+        }
+        persist()
+        await advance()
+    }
+
     func back() {
         let steps = applicableSteps
         guard let index = steps.firstIndex(of: draft.step), index > 0 else { return }
