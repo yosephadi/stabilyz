@@ -44,7 +44,7 @@ enum StabilyzColor {
     /// Subtle fills.
     static let ink100 = Color(light: 0xEEF0F2, dark: 0x1C2027)
     /// Screen background. Never pure black in dark mode (§8).
-    static let bgBase = Color(light: 0xFFFFFF, dark: 0x0D1117)
+    static let bgBase = Color(light: 0xF7F7F7, dark: 0x0D1117)
     /// Cards, sheets.
     static let bgElevated = Color(light: 0xFFFFFF, dark: 0x161B22)
 

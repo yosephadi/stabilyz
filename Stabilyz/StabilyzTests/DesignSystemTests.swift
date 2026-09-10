@@ -85,7 +85,7 @@ private func contrastRatio(_ a: Color, _ b: Color, dark: Bool) -> Double {
     expectColor(StabilyzColor.ink400, light: 0x8A909B, dark: 0x7A828E, "ink-400")
     expectColor(StabilyzColor.ink200, light: 0xDDE0E4, dark: 0x2A2F37, "ink-200")
     expectColor(StabilyzColor.ink100, light: 0xEEF0F2, dark: 0x1C2027, "ink-100")
-    expectColor(StabilyzColor.bgBase, light: 0xFFFFFF, dark: 0x0D1117, "bg-base")
+    expectColor(StabilyzColor.bgBase, light: 0xF7F7F7, dark: 0x0D1117, "bg-base")
     expectColor(StabilyzColor.bgElevated, light: 0xFFFFFF, dark: 0x161B22, "bg-elevated")
 }
 
