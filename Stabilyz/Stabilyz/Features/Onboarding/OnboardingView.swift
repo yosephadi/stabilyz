@@ -103,9 +103,9 @@ struct OnboardingView: View {
         case .amputationLevel:
             answerList {
                 Picker("Amputation level", selection: levelBinding) {
-                    Text("Below the knee (transtibial)").tag(AmputationLevel.transtibial as AmputationLevel?)
-                    Text("Above the knee (transfemoral)").tag(AmputationLevel.transfemoral as AmputationLevel?)
-                    Text("Both legs (bilateral)").tag(AmputationLevel.bilateral as AmputationLevel?)
+                    Text("Below the knee").tag(AmputationLevel.transtibial as AmputationLevel?)
+                    Text("Above the knee").tag(AmputationLevel.transfemoral as AmputationLevel?)
+                    Text("Both legs").tag(AmputationLevel.bilateral as AmputationLevel?)
                 }
                 .pickerStyle(.inline)
                 .labelsHidden()
@@ -141,7 +141,7 @@ struct OnboardingView: View {
         case .kLevel:
             answerList {
                 Picker("Activity level", selection: kLevelBinding) {
-                    Text("Prefer not to say").tag(KLevel?.none)
+                    Text("I don't know").tag(KLevel?.none)
                     ForEach(KLevel.allCases, id: \.self) { level in
                         Text(kLevelLabel(level)).tag(level as KLevel?)
                     }
@@ -209,7 +209,7 @@ struct OnboardingView: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
 
-            Button(model.step == .disclaimer ? "Finish" : "Continue") {
+            Button(model.step == .disclaimer ? "Continue to Stabilyz" : "Next") {
                 Task { await model.advance() }
             }
             .buttonStyle(.borderedProminent)
@@ -226,55 +226,55 @@ struct OnboardingView: View {
 
     // MARK: - Copy
 
+    /// The question, worded as the screen designs word it.
     private var title: String {
         switch model.step {
-        case .amputationLevel: "Your amputation"
-        case .side: "Which side"
-        case .timeSinceAmputation: "How long ago"
-        case .prosthesisType: "Your prosthesis"
-        case .kLevel: "Activity level"
+        case .amputationLevel: "What is your amputation level?"
+        case .side: "Which side?"
+        case .timeSinceAmputation: "How long has it been since your amputation?"
+        case .prosthesisType: "What type of prosthesis do you use?"
+        case .kLevel: "Do you know your K-level?"
         case .disclaimer: DisclaimerText.title
         }
     }
 
-    /// The helper line under each question. On level and side this is the
-    /// "why we ask" microcopy [PRD §7 AC]; the designs put it here, directly
-    /// beneath the question, rather than under the answer card.
+    /// The helper line under each question, from the screen designs.
+    ///
+    /// On level and side this is the "why we ask" microcopy [PRD §7 AC]. The
+    /// designs drop the literal "Why we ask:" opener but keep the substance —
+    /// each line says what the answer is used for — so the criterion is met by
+    /// what the sentence does rather than by how it starts.
     private var subtitle: String? {
         switch model.step {
         case .amputationLevel:
-            """
-            Why we ask: this tells Stabilyz which measurements make sense for \
-            you. Everyone gets the same core walking measurements — this only \
-            decides whether one extra comparison between your two legs is \
-            possible.
-            """
+            "This helps us understand your walking profile and present your results clearly."
         case .side:
             sideSubtitle
         case .timeSinceAmputation:
-            "An approximate answer is fine — this is context for your results, not a measurement."
+            "An estimate is fine."
         case .prosthesisType:
-            "Optional. You can leave this blank and carry on."
+            "Optional. This helps you keep a useful record of your setup."
         case .kLevel:
-            "Optional. If your prosthetist has given you a K-level, it goes here."
+            "Optional. Your prosthetist may have discussed this with you."
         case .disclaimer:
             // The disclaimer's own body is the content of the screen.
             nil
         }
     }
 
+    /// The designs only ever draw the unilateral side screen. Bilateral is a
+    /// fully supported answer [PRD §7 AC] and lands here with `both` already
+    /// chosen, so it keeps the line that explains why there is nothing to pick
+    /// between — the designs did not word that state, rather than deciding it
+    /// should go unexplained.
     private var sideSubtitle: String {
         model.draft.amputationLevel == .bilateral
             ? """
-              Why we ask: with a bilateral amputation there's no sound side to \
-              compare against, so Stabilyz measures how steadily you walk \
-              overall and never invents a comparison it can't make.
+              With a bilateral amputation there's no sound side to compare \
+              against, so Stabilyz measures how steadily you walk overall and \
+              never invents a comparison it can't make.
               """
-            : """
-              Why we ask: knowing which side is affected lets Stabilyz compare \
-              the timing of your two legs. It's a comparison, not a judgement — \
-              nothing here says one side is right and the other wrong.
-              """
+            : "This helps us describe some walking patterns accurately when we can identify them."
     }
 
     private func sideLabel(_ side: AmputationSide) -> String {
@@ -285,13 +285,16 @@ struct OnboardingView: View {
         }
     }
 
+    /// K1–K4 are worded as the designs word them. K0 is not on that screen —
+    /// it is a real `KLevel` the domain supports, so it keeps a label rather
+    /// than becoming unselectable on the strength of a mockup that omitted it.
     private func kLevelLabel(_ level: KLevel) -> String {
         switch level {
         case .k0: "K0 — not walking at present"
-        case .k1: "K1 — walking on level ground at home"
-        case .k2: "K2 — some kerbs, stairs or uneven ground"
-        case .k3: "K3 — varied walking speeds, most surfaces"
-        case .k4: "K4 — high activity, sport or work demands"
+        case .k1: "K1 — household walking"
+        case .k2: "K2 — limited community walking"
+        case .k3: "K3 — community walking"
+        case .k4: "K4 — high activity"
         }
     }
 

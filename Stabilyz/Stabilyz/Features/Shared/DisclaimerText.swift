@@ -12,7 +12,7 @@ import Foundation
 /// the kind of text that normally gets reviewed before release. Nothing about
 /// its structure changes if the words do.
 enum DisclaimerText {
-    static let title = "Before you start"
+    static let title = "Before you begin"
 
     /// Read on the final onboarding screen and again from Settings.
     static let body = """

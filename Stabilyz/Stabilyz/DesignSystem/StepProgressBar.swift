@@ -6,14 +6,14 @@ import SwiftUI
 /// The label is not decoration. A row of capsules is invisible to VoiceOver and
 /// collapses at large type settings, so the position is stated in words as well
 /// and the two are merged into a single accessibility element — the bar is then
-/// read once, as "Step 2 of 6", rather than as six anonymous shapes.
+/// read once, as "2 out of 6", rather than as six anonymous shapes.
 struct StepProgressBar: View {
     let step: Int
     let of: Int
 
     var body: some View {
         VStack(alignment: .leading, spacing: Space.x2) {
-            Text("Step \(step) of \(of)")
+            Text("\(step) out of \(of)")
                 .font(StabilyzFont.smallRegular)
                 .foregroundStyle(StabilyzColor.ink600)
 
