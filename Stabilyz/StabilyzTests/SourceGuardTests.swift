@@ -546,3 +546,175 @@ private enum SourceTree {
         #expect(Self.violations(in: good).isEmpty, "\(Self.violations(in: good))")
     }
 }
+
+// MARK: - Debug-only code cannot reach a release build (Task 8.1.4)
+
+/// The reset in `Debug/` and `Persistence/DebugDataReset.swift` erases the
+/// user's data with no confirmation and no recovery. That is correct for a dev
+/// build and catastrophic in a shipped one, so "it is debug-only" has to be a
+/// property of the source rather than a promise in a comment.
+///
+/// Two halves. Every debug file is wrapped in `#if DEBUG` from its first line of
+/// code, so its symbols do not exist in a release build; and no file outside
+/// them names those symbols except inside a `#if DEBUG` block of its own. The
+/// second half is what makes the first useful — a call site that escaped the
+/// guard would fail to compile in release, but only after someone tried to
+/// ship it.
+@Suite struct DebugIsolationGuardTests {
+
+    /// Files that may contain debug-only code.
+    static let debugPaths = ["Debug", "Persistence/DebugDataReset.swift"]
+
+    /// Symbols that must never be reachable from release code.
+    static let debugSymbols = ["DebugDataReset", "debugResetGesture", "DebugResetGesture", "debugStoreWriter", "eraseAllData"]
+
+    /// Whether a source is wrapped in `#if DEBUG` from its first code line.
+    ///
+    /// Leading comments and blank lines are allowed above it — a file header is
+    /// not code — but the first thing the compiler sees must be the guard, so
+    /// that `import` included, nothing in the file exists in release.
+    static func isWrappedInDebug(_ source: String) -> Bool {
+        let lines = source.split(separator: "\n", omittingEmptySubsequences: false).map {
+            String($0).trimmingCharacters(in: .whitespaces)
+        }
+        guard let first = lines.first(where: { !$0.isEmpty && !$0.hasPrefix("//") }) else { return false }
+        return first == "#if DEBUG" && source.contains("#endif")
+    }
+
+    /// The lines of a source that are **not** inside any `#if DEBUG` region.
+    ///
+    /// Tracks nesting, and treats `#else` of a DEBUG block as release code —
+    /// which is exactly right: the `#else` branch is what ships.
+    static func releaseLines(in source: String) -> [String] {
+        var lines: [String] = []
+        var debugDepth = 0
+        var stack: [Bool] = []
+
+        for raw in source.split(separator: "\n", omittingEmptySubsequences: false) {
+            let line = String(raw)
+            let trimmed = line.trimmingCharacters(in: .whitespaces)
+
+            if trimmed.hasPrefix("#if") {
+                let isDebug = trimmed == "#if DEBUG"
+                stack.append(isDebug)
+                if isDebug { debugDepth += 1 }
+                continue
+            }
+            if trimmed.hasPrefix("#else") {
+                if stack.last == true { debugDepth -= 1; stack[stack.count - 1] = false }
+                continue
+            }
+            if trimmed.hasPrefix("#endif") {
+                if stack.popLast() == true { debugDepth -= 1 }
+                continue
+            }
+            if debugDepth == 0, !trimmed.isEmpty, !trimmed.hasPrefix("//") {
+                lines.append(line)
+            }
+        }
+        return lines
+    }
+
+    static func isDebugFile(_ path: String) -> Bool {
+        debugPaths.contains { path == $0 || path.hasPrefix($0 + "/") }
+    }
+
+    @Test func everyDebugFileIsWrappedInIfDebug() {
+        let root = SourceTree.appSourceRoot()
+        var checked = 0
+
+        for layer in ["Debug", "Persistence"] {
+            for file in SourceTree.swiftFiles(in: layer) where Self.isDebugFile(file.path) {
+                guard let source = try? String(contentsOf: file.url, encoding: .utf8) else {
+                    Issue.record("could not read \(file.path)")
+                    continue
+                }
+                checked += 1
+                #expect(
+                    Self.isWrappedInDebug(source),
+                    "\(file.path) is debug-only code that is not wrapped in #if DEBUG from its first code line"
+                )
+            }
+        }
+
+        #expect(checked > 0, "the debug scan found no debug files — the scan itself is broken")
+        #expect(
+            FileManager.default.fileExists(atPath: root.appendingPathComponent("Debug").path),
+            "Debug/ has gone missing — the scan is guarding nothing"
+        )
+    }
+
+    @Test func noReleaseCodeNamesADebugSymbol() {
+        var scanned = 0
+
+        for layer in ["App", "Features", "Domain", "Algorithms", "Services", "Persistence", "DesignSystem", "Utilities", "Debug"] {
+            for file in SourceTree.swiftFiles(in: layer) {
+                guard let source = try? String(contentsOf: file.url, encoding: .utf8) else { continue }
+                scanned += 1
+                for line in Self.releaseLines(in: source) {
+                    for symbol in Self.debugSymbols where line.contains(symbol) {
+                        Issue.record(
+                            "\(file.path) names \(symbol) outside #if DEBUG: \"\(line.trimmingCharacters(in: .whitespaces))\" — the reset must not be reachable from a release build"
+                        )
+                    }
+                }
+            }
+        }
+
+        #expect(scanned > 0, "the release scan found no files — the scan itself is broken")
+    }
+
+    // MARK: Mutation checks — a guard that never fails is one that cannot
+
+    @Test func theScanWouldCatchAnUnwrappedDebugFile() {
+        #expect(Self.isWrappedInDebug("import SwiftUI\n#if DEBUG\nenum X {}\n#endif\n") == false,
+                "an import above the guard still ships")
+        #expect(Self.isWrappedInDebug("enum DebugDataReset {}\n") == false)
+
+        // And accepts the real shape: header comment, then the guard.
+        #expect(Self.isWrappedInDebug("// A header.\n\n#if DEBUG\nimport SwiftUI\n#endif\n"))
+    }
+
+    @Test func theScanWouldCatchAReleaseCallSite() {
+        let offending = """
+        struct Home: View {
+            var body: some View {
+                Text("Home").debugResetGesture(writer: nil, router: router)
+            }
+        }
+        """
+        let lines = Self.releaseLines(in: offending)
+        #expect(lines.contains { line in Self.debugSymbols.contains { line.contains($0) } })
+    }
+
+    @Test func theScanAcceptsAGuardedCallSite() {
+        let fine = """
+        struct Home: View {
+            var body: some View {
+                #if DEBUG
+                home.debugResetGesture(writer: dependencies.debugStoreWriter, router: router)
+                #else
+                home
+                #endif
+            }
+        }
+        """
+        let lines = Self.releaseLines(in: fine)
+        #expect(lines.contains { line in Self.debugSymbols.contains { line.contains($0) } } == false)
+        #expect(lines.contains { $0.contains("home") }, "the #else branch should still be read as release code")
+    }
+
+    @Test func theElseBranchOfADebugBlockCountsAsRelease() {
+        // The branch that ships is the one that must be clean.
+        let offending = """
+        #if DEBUG
+        let x = 1
+        #else
+        DebugDataReset.eraseDefaults()
+        #endif
+        """
+        let lines = Self.releaseLines(in: offending)
+        #expect(lines.contains { $0.contains("DebugDataReset") })
+        #expect(lines.contains { $0.contains("let x = 1") } == false)
+    }
+}

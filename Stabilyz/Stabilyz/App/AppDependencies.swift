@@ -47,6 +47,16 @@ struct AppDependencies: Sendable {
     let gaitSessionRepository: GaitSessionRepository
     let baselineRepository: BaselineRepository
 
+    #if DEBUG
+    /// DEBUG-only handle for `DebugDataReset` (docs/design/dev-notes.md).
+    ///
+    /// Assigned after construction rather than through `init` on purpose: Swift
+    /// does not allow `#if` inside a parameter list, and a debug-only parameter
+    /// would otherwise have to exist in release signatures to keep call sites
+    /// compiling. `nil` in the degraded graph, where there is no store to erase.
+    var debugStoreWriter: StoreWriter?
+    #endif
+
     init(
         logService: LogService,
         clock: Clock,
@@ -100,7 +110,7 @@ extension AppDependencies {
         // silence is the specified degraded behaviour meanwhile (docs/10 §10.4).
         let audioFeedback = SilentAudioFeedbackService()
 
-        return AppDependencies(
+        var dependencies = AppDependencies(
             logService: logService,
             clock: clock,
             fileIO: fileIO,
@@ -125,6 +135,11 @@ extension AppDependencies {
             gaitSessionRepository: SwiftDataGaitSessionRepository(reader: reader, writer: writer),
             baselineRepository: SwiftDataBaselineRepository(reader: reader, writer: writer)
         )
+
+        #if DEBUG
+        dependencies.debugStoreWriter = writer
+        #endif
+        return dependencies
     }
 
     /// Builds the store and the production graph.

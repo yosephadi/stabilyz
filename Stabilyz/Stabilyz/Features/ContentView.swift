@@ -38,10 +38,24 @@ struct ContentView: View {
                 )
             case .main:
                 // Task 8.3.1: Home / History / Settings.
-                RootPlaceholder(name: "Home")
+                homeRoot
             }
         }
         .task { await router.resolve() }
+    }
+
+    /// Home, carrying the DEBUG-only reset gesture (docs/design/dev-notes.md).
+    ///
+    /// Release builds get the placeholder and nothing else — `debugResetGesture`
+    /// does not exist to be called there.
+    @ViewBuilder
+    private var homeRoot: some View {
+        let home = RootPlaceholder(name: "Home")
+        #if DEBUG
+        home.debugResetGesture(writer: dependencies.debugStoreWriter, router: router)
+        #else
+        home
+        #endif
     }
 }
 
