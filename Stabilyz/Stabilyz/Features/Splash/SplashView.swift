@@ -29,7 +29,7 @@ struct SplashView: View {
             Image("AppLogo")
                 .resizable()
                 .scaledToFit()
-                .frame(height: Controls.logoHeight)
+                .frame(height: Controls.splashLogoHeight)
                 .scaleEffect(scale)
                 .opacity(opacity)
         }

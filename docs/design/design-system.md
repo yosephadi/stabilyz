@@ -190,6 +190,7 @@ an iOS button".
 | `row-height` | 52pt | Row in an onboarding choice card |
 | `progress-bar-height` | 14pt | One capsule of the onboarding progress bar |
 | `logo-height` | 60pt | The wave mark above the app name on Welcome |
+| `splash-logo-height` | 90pt | The same mark on the splash, at 1.5x |
 | `footer-bottom-gap` | 70pt | Primary button to the bottom safe-area edge |
 
 `footer-bottom-gap` is measured from the safe area, not the screen: Figma
@@ -559,8 +560,11 @@ worth a beat.
 
 ### Splash
 
-`SplashView` draws the wave mark centred on `bg-base` and calls back when
-its hold is over. It covers the moment `AppRouter` spends reading the
+`SplashView` draws the wave mark centred on `bg-base` at
+`splash-logo-height`, and calls back when its hold is over. It is 1.5x
+the mark on Welcome and carries its own token for that reason: there the
+mark labels the app name beneath it, here it is the only thing on screen,
+and one size cannot be right for both. It covers the moment `AppRouter` spends reading the
 store, so the app opens on its own mark rather than on a spinner.
 
 **It runs beside `resolve()`, not before it.** The store read starts on

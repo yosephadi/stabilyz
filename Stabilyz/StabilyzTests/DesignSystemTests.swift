@@ -277,6 +277,10 @@ private func uiTextStyle(_ style: Font.TextStyle) -> UIFont.TextStyle? {
     #expect(Controls.backButtonDiameter == 50)
     #expect(Controls.rowHeight == 52)
     #expect(Controls.progressBarHeight == 14)
+    #expect(Controls.logoHeight == 60)
+    // 1.5x, and pinned as the ratio so the two move together if either does.
+    #expect(Controls.splashLogoHeight == 90)
+    #expect(Controls.splashLogoHeight == Controls.logoHeight * 1.5)
     #expect(Controls.footerBottomGap == 70)
 }
 

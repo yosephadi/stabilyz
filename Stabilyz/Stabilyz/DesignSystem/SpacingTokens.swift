@@ -58,6 +58,13 @@ enum Controls {
     static let progressBarHeight: CGFloat = 14
     /// The wave mark above the app name on Welcome (Figma 47:1275).
     static let logoHeight: CGFloat = 60
+    /// The wave mark on the splash, at 1.5x `logoHeight`.
+    ///
+    /// Its own token rather than a shared one: on Welcome the mark is a label
+    /// sitting above the app's name, and on the splash it is the only thing on
+    /// screen. The same 60pt reads as correct in the first place and as lost in
+    /// the second.
+    static let splashLogoHeight: CGFloat = 90
     /// Clearance between the primary button and the bottom safe-area edge.
     ///
     /// Figma 40:835 puts the button's bottom edge at y=770 in an 874pt frame —
