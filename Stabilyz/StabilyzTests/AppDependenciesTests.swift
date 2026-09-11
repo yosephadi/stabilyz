@@ -70,6 +70,26 @@ private extension AppDependencies {
     #expect(dependencies.userProfileRepository is SwiftDataUserProfileRepository)
 }
 
+@Test func bothLiveGraphsPlayRealAudio() throws {
+    // The EPIC 7 audit finding this pins: the whole audio epic was built,
+    // tested and unreachable, because `live()` still held the silent double and
+    // every audio test constructed the engine directly. A green suite said
+    // nothing about whether the shipped app made a sound.
+    let live = AppDependencies.live(container: try StoreContainer.make(inMemory: true))
+    #expect(live.audioFeedback is EngineAudioFeedbackService)
+
+    // The degraded graph too. A store that will not open says nothing about the
+    // audio route, and this is the graph a user is most likely to be looking at
+    // when they need the rest of the app to behave normally.
+    let degraded = AppDependencies.storeUnavailable()
+    #expect(degraded.audioFeedback is EngineAudioFeedbackService)
+
+    // Not asserted here, but the reason `live()` binds the service to a `let`
+    // and hands that one value to both the recorder and the interruption
+    // observer: this type solely owns the `AVAudioSession` (docs/10 §10.2), so
+    // a second instance would be a second writer to one piece of system state.
+}
+
 // MARK: - Unwired slots fail loudly
 
 @Test func unwiredMotionServiceReportsUnavailableAndRefusesToStart() async throws {

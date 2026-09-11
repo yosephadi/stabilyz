@@ -55,8 +55,12 @@ struct UnwiredPedometerService: PedometerService {
 
 /// Silence, which is exactly the specified degraded behaviour: audio failure is
 /// surfaced only as silent degradation and can never fail a session
-/// (docs/10 §10.4). This is also the preview/test double in docs/12 §12.2, so it
-/// stays useful after Task 7.1.1 supplies the AVAudioEngine implementation.
+/// (docs/10 §10.4).
+///
+/// **No longer in either production graph** — both now hold
+/// `EngineAudioFeedbackService`. This stays as the preview and test double
+/// docs/12 §12.2 calls for: a conformance that does nothing, for the places that
+/// need an `AudioFeedbackService` and no sound.
 struct SilentAudioFeedbackService: AudioFeedbackService {
     var events: AsyncStream<AudioFeedbackEvent> {
         AsyncStream { $0.finish() }

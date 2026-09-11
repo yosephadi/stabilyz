@@ -58,6 +58,18 @@ actor EngineAudioFeedbackService: AudioFeedbackService {
     /// Whether audio has degraded to silence for the rest of the session.
     private(set) var isDegraded = false
 
+    /// When the most recently scheduled tone finishes rendering, on the
+    /// monotonic clock. Zero before anything has played.
+    private var lastToneEndsAt: TimeInterval = 0
+
+    /// The longest `teardown` will wait for a tone to finish.
+    ///
+    /// Derived from the specs rather than typed, so a tone lengthened in
+    /// `ToneSynthesis` cannot quietly outlive the drain that is meant to cover
+    /// it.
+    private static let maxToneDrain: TimeInterval =
+        Tone.allCases.map(\.spec.duration).max() ?? 0
+
     private nonisolated let continuation: AsyncStream<AudioFeedbackEvent>.Continuation
     nonisolated let events: AsyncStream<AudioFeedbackEvent>
 
@@ -149,6 +161,14 @@ actor EngineAudioFeedbackService: AudioFeedbackService {
 
     /// Stops the engine and releases the session.
     func teardown() async {
+        // The stop tone is scheduled and returns immediately — the recorder
+        // never waits on audio — so stopping the engine the instant it returns
+        // would cut it off mid-render, and [PRD AC] "a distinct stop tone
+        // plays" would become "sometimes". docs/10: the stop tone plays
+        // *before* teardown, and making that true is this layer's job rather
+        // than the recorder's, which has no business knowing tone durations.
+        await drainInFlightTone()
+
         for observer in observers { NotificationCenter.default.removeObserver(observer) }
         observers.removeAll()
 
@@ -157,8 +177,21 @@ actor EngineAudioFeedbackService: AudioFeedbackService {
         players.removeAll()
         buffers.removeAll()
         isPrepared = false
+        lastToneEndsAt = 0
 
         try? session.setActive(false, options: .notifyOthersOnDeactivation)
+    }
+
+    /// Waits out whatever is still rendering, bounded by the longest tone.
+    ///
+    /// Bounded because the wait is the only thing standing between a wrong
+    /// clock reading and a teardown that never finishes; a session that ends
+    /// half a tone early is a far smaller problem than one that cannot release
+    /// the audio route.
+    private func drainInFlightTone() async {
+        let remaining = lastToneEndsAt - ProcessInfo.processInfo.systemUptime
+        guard remaining > 0 else { return }
+        try? await Task.sleep(for: .seconds(min(remaining, Self.maxToneDrain)))
     }
 
     /// Whether the engine is running and able to play.
@@ -304,6 +337,7 @@ actor EngineAudioFeedbackService: AudioFeedbackService {
         player.scheduleBuffer(buffer, at: nil, options: .interrupts)
         if !player.isPlaying { player.play() }
         scheduledToneCount += 1
+        lastToneEndsAt = ProcessInfo.processInfo.systemUptime + tone.spec.duration
     }
 
     // MARK: - Suspend / resume (hooks for Task 7.1.2)

@@ -207,6 +207,11 @@ actor SessionRecorder {
         // never precede a recording.
         continuation.yield(.ready)
         requestAudio { audio, config in
+            // Activates the audio session and preloads the buffers. Inside the
+            // audio task rather than before it, so an engine that is slow to
+            // spin up delays its own first tone and nothing else — the walk is
+            // already being recorded by the time this runs.
+            await audio.prepare()
             await audio.playStartTone()
             // The other engine, equally opt-in (Task 7.2.2). The tempo travels
             // on the config, which `MetronomeCue` is the only way to build — so
@@ -224,7 +229,9 @@ actor SessionRecorder {
 
     /// Stops recording and returns the frozen buffer (docs/07 §7.3).
     ///
-    /// Order is fixed: stop tone, stop sensors, freeze, hand off.
+    /// Order is fixed: stop tone, stop sensors, freeze, hand off. This is also
+    /// the only way out of a recording — there is no separate cancel — so it is
+    /// the one place the audio session can be released.
     func stop() async throws -> RawSessionBuffer {
         guard state == .recording, let anchor, let startedAt, let mode else {
             throw StabilyzError.recording(.notRecording)
@@ -242,6 +249,11 @@ actor SessionRecorder {
         requestAudio { audio, config in
             if case .metronome = config { await audio.stopMetronome() }
             await audio.playStopTone()
+            // Whatever activated the `AVAudioSession` has to release it, or the
+            // app keeps the audio route after the walk is over and the user's
+            // music stays interrupted. `teardown` waits for the tone above to
+            // finish rendering before it stops the engine (docs/10).
+            await audio.teardown()
         }
 
         await motionSensor.stop()

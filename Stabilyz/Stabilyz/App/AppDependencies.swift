@@ -106,9 +106,13 @@ extension AppDependencies {
         let fileIO = FileManagerFileIO()
         let motionSensor = CoreMotionSensorService(clock: clock, logService: logService)
         let pedometer = CoreMotionPedometerService(logService: logService)
-        // Task 7.1.1 replaces this with the AVAudioEngine implementation;
-        // silence is the specified degraded behaviour meanwhile (docs/10 §10.4).
-        let audioFeedback = SilentAudioFeedbackService()
+        // One instance, shared by the recorder and the interruption observer:
+        // this type solely owns the `AVAudioSession` (docs/10 §10.2), so two of
+        // them would be two writers to one piece of system state. It activates
+        // nothing until `SessionRecorder` calls `prepare()` at the start of a
+        // session, so constructing it here costs the launch nothing and the app
+        // holds no audio route while the user is not walking.
+        let audioFeedback = EngineAudioFeedbackService(logService: logService)
 
         var dependencies = AppDependencies(
             logService: logService,
@@ -159,7 +163,10 @@ extension AppDependencies {
         let fileIO = FileManagerFileIO()
         let motionSensor = UnwiredMotionSensorService()
         let pedometer = UnwiredPedometerService()
-        let audioFeedback = SilentAudioFeedbackService()
+        // Real audio even here. The store failing to open says nothing about
+        // the audio route, and the degraded graph is the one a user is most
+        // likely to be looking at when they need the app to behave normally.
+        let audioFeedback = EngineAudioFeedbackService(logService: logService)
 
         return AppDependencies(
             logService: logService,

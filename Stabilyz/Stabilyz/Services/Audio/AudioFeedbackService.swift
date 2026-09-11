@@ -33,4 +33,30 @@ protocol AudioFeedbackService: Sendable {
 
     func suspend() async
     func resume() async
+
+    /// Activates the audio session and gets the engine ready to play.
+    ///
+    /// On the protocol rather than only on the engine because the **recorder**
+    /// owns this lifecycle: it is what knows when a session starts and ends, and
+    /// an `AVAudioSession` that something activates has to be something's job to
+    /// release. Safe to call repeatedly.
+    func prepare() async
+
+    /// Releases the engine and deactivates the audio session.
+    ///
+    /// Called after the stop tone, and it is the implementation's job to let
+    /// that tone finish first (docs/10: "stop tone plays before teardown").
+    func teardown() async
+}
+
+extension AudioFeedbackService {
+    /// Nothing to build, and nothing to release.
+    ///
+    /// Only the engine-backed implementation owns an `AVAudioSession`. Silence
+    /// and the test doubles have no state, so requiring them to write two empty
+    /// methods each would be ceremony — but an implementation that *does* hold
+    /// the session must override both, which is what the doc comments above say
+    /// and what `SessionRecorder` relies on.
+    func prepare() async {}
+    func teardown() async {}
 }

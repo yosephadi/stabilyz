@@ -49,15 +49,31 @@ private actor ToneSpy: AudioFeedbackService {
     func stopMetronome() async { calls.append("metronomeOff") }
     func suspend() async {}
     func resume() async {}
+
+    // The session lifecycle. Recorded rather than defaulted away, because
+    // `prepare` activates an `AVAudioSession` and `teardown` releases it — an
+    // ordering the recorder owns and nothing else would catch.
+    func prepare() async { calls.append("prepare") }
+    func teardown() async { calls.append("teardown") }
 }
 
 extension ToneSpy {
-    /// Waits briefly for the expected tones, then returns whatever arrived.
+    /// Waits for the expected tones, then returns whatever arrived.
     ///
     /// Bounded so a regression fails with the actual sequence rather than
     /// hanging, and so "no tone at all" is still a failure rather than a wait.
+    ///
+    /// **5s, not 2.** The tones arrive on a detached `Task` (decisions.md entry
+    /// 25), so this is waiting on the scheduler, not on the recorder — and the
+    /// suite runs in parallel simulator clones on a loaded machine, where a
+    /// detached task can sit unscheduled for far longer than it ever would on a
+    /// device. At 2s this tripped spuriously. The bound is not a latency budget
+    /// and must not be read as one: what is being asserted is that the tones
+    /// arrive and in what order, never how quickly. Nothing waits the full
+    /// 5s — the loop returns the moment the calls land, so the widened ceiling
+    /// costs a green run nothing.
     func waitForCalls(_ expected: Int) async -> [String] {
-        for _ in 0..<100 {
+        for _ in 0..<250 {
             if calls.count >= expected { return calls }
             try? await Task.sleep(for: .milliseconds(20))
         }
@@ -160,7 +176,13 @@ private func collect(_ events: AsyncStream<SessionRecordingEvent>) async -> [Ses
     let collected = await collector.value
     #expect(collected.first == .ready)
     // Readiness is signalled before the tone is even requested (docs/07 §7.3).
-    #expect(await audio.waitForCalls(1).first == "start")
+    // The engine is prepared first, inside the same audio task — activating the
+    // session is audio's own cost and is not allowed to delay the recording.
+    // A prefix, not the whole sequence: `stop()` has already run by the time
+    // this asserts, so the stop tone and the teardown may well have landed too.
+    // What is being pinned is the order of the first two, not the absence of
+    // the rest.
+    #expect(await audio.waitForCalls(2).prefix(2) == ["prepare", "start"])
 }
 
 @Test func beginStampsOneAnchorEverySampleResolvesAgainst() async throws {
@@ -322,7 +344,32 @@ private struct UndeterminedMotionService: MotionSensorService {
 
     _ = try await recorder.stop()
 
-    #expect(await audio.waitForCalls(2) == ["start", "stop"])
+    #expect(await audio.waitForCalls(4) == ["prepare", "start", "stop", "teardown"])
+}
+
+@Test func theAudioSessionIsReleasedByTheStopThatOpenedIt() async throws {
+    // `prepare` activates an `AVAudioSession`; something has to deactivate it,
+    // or the app holds the audio route after the walk is over and the user's
+    // music stays interrupted. `stop()` is the only way out of a recording, so
+    // it is the only place that can.
+    let (recorder, _, audio, _) = makeRecorder()
+
+    _ = try await recorder.begin(mode: .quickTest, audioConfig: .none)
+    let duringSession = await audio.waitForCalls(2)
+    #expect(duringSession.contains("teardown") == false, "the session was released mid-walk")
+
+    _ = try await recorder.stop()
+    let afterStop = await audio.waitForCalls(4)
+
+    #expect(afterStop.last == "teardown", "the audio session was never released")
+    #expect(afterStop.filter { $0 == "prepare" }.count == 1)
+    #expect(afterStop.filter { $0 == "teardown" }.count == 1)
+
+    // The order [PRD AC] depends on: the stop tone is requested before the
+    // engine that plays it is taken away.
+    let stopTone = afterStop.firstIndex(of: "stop")
+    let release = afterStop.firstIndex(of: "teardown")
+    #expect(stopTone != nil && release != nil && stopTone! < release!)
 }
 
 @Test func stopWithoutBeginIsRefused() async {
