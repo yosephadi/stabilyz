@@ -15,15 +15,19 @@ struct MainShellView: View {
     /// Passed through so the DEBUG reset gesture can re-resolve the root.
     let router: AppRouter
 
-    /// What Start hands over, held until the countdown screen exists (8.2.6).
+    /// What Start hands over, and what the cover is presented with.
     ///
-    /// A value rather than a `Bool`: when the cover arrives it needs the mode
-    /// and the audio config, and keeping them together means the hand-off does
-    /// not have to be reconstructed from the setup screen's state at the moment
-    /// it is replaced.
-    struct PendingSession: Equatable {
+    /// A value rather than a `Bool`: the cover needs the mode and the audio
+    /// config, and keeping them together means the hand-off is not
+    /// reconstructed from the setup screen's state at the moment it is
+    /// covered. Nil dismisses the cover.
+    struct PendingSession: Equatable, Identifiable {
         let mode: TestMode
         let audioConfig: SessionAudioConfig
+
+        /// The mode is enough: only one session can be pending at a time, and
+        /// re-presenting the same mode is the same sheet.
+        var id: TestMode { mode }
     }
 
     @State private var pendingSession: PendingSession?
@@ -48,11 +52,20 @@ struct MainShellView: View {
         .tint(StabilyzColor.primary600)
     }
 
-    /// The Walk tab: session setup, under the node's large "Walk" title.
+    /// The Walk tab: session setup, under the node's large "Walk" title, with
+    /// the session cover over it once Start is tapped (docs/11 §11.2).
     private var walkTab: some View {
         NavigationStack {
             SessionSetupView(model: setupModel)
                 .navigationTitle("Walk")
+        }
+        .fullScreenCover(item: $pendingSession) { session in
+            SessionCoverView(
+                mode: session.mode,
+                audioConfig: session.audioConfig,
+                dependencies: dependencies,
+                dismiss: { pendingSession = nil }
+            )
         }
     }
 
@@ -66,10 +79,6 @@ struct MainShellView: View {
             logService: dependencies.logService,
             openSettings: SystemSettingsLink.open,
             onStart: { mode, audioConfig in
-                // Task 8.2.6 replaces this with the countdown cover. Until then
-                // the choice is recorded and shown, so the wiring is visible in
-                // the running app rather than only in tests — and so the
-                // hand-off is already the shape the cover will consume.
                 pendingSession = PendingSession(mode: mode, audioConfig: audioConfig)
                 dependencies.logService.log(
                     .info, .session,

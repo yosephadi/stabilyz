@@ -54,6 +54,27 @@ enum Controls {
     /// 156pt card). Above the 44pt floor, because these rows are the whole
     /// interaction on their screen.
     static let rowHeight: CGFloat = 52
+    /// The session timer ring (Figma node 130:2722).
+    ///
+    /// The SVG draws a 254pt bounding box whose band runs from radius 109.55
+    /// to 127 — 17.45pt of fill plus its own 5pt stroke, which `strokeBorder`
+    /// reproduces as one band inset into a 254pt frame.
+    static let timerRingDiameter: CGFloat = 254
+    static let timerRingWidth: CGFloat = 17.5
+    /// Half the band, which is how far a centred stroke has to be inset to sit
+    /// inside the same circle `strokeBorder` fills. Derived rather than typed,
+    /// so the two cannot drift if the band changes.
+    static let timerRingInset: CGFloat = timerRingWidth / 2
+
+    /// Clearance between the primary button and the bottom safe-area edge on a
+    /// **full-screen cover** — no tab bar, no wizard chrome.
+    ///
+    /// Figma 128:2591 puts the button at y=690 in an 874pt frame, which is
+    /// exactly where 123:914 puts Start. That is the point: the button does not
+    /// jump when the cover appears over the setup screen. 874 − 34pt home
+    /// indicator = 840 safe-area bottom, less the button's 745 bottom edge.
+    static let coverFooterBottomGap: CGFloat = 95
+
     /// A grouped-list section header block (Figma node 123:914 draws each
     /// "Section Title" 39pt tall).
     ///

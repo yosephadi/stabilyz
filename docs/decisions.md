@@ -1961,3 +1961,82 @@ text at the top so Dynamic Type spends the gap before it grows the block.
 
 All three are unrendered changes: the suite is green and both configurations
 build, but nothing has been looked at on a simulator.
+
+---
+
+## 36. The countdown overlays the walk, and the walk's clock is the recorder's
+
+**Date:** 2026-09-13 · **Task:** 8.2.6 (UI) / 8.2.2 (base) · **Status:** Decided
+
+Figma node 128:2591, as a `fullScreenCover` from the Walk tab:
+`SessionCoverView` composes `ActiveSessionView` with `CountdownOverlayView`
+over it.
+
+### The countdown is an overlay, not a screen
+
+The node draws the walk *underneath* the numeral. So T-0 reveals what was
+already there rather than pushing something new, and the user counts into the
+screen they are about to be looking at. It also means there is exactly one
+cover to dismiss, whichever way the session ends.
+
+### The clock is the recorder's
+
+`.elapsed` arrives from `SessionRecorder`, derived from sample timestamps on
+the monotonic timebase (docs/07 §7.4). A `Timer` running beside the recording
+would drift from the data it claims to describe, and would keep counting
+through a suspension that had stopped delivery. The ring interpolates linearly
+across each one-second step, so a constant-rate clock looks constant.
+
+**The ring shows the advertised length, not the valid-walking minimum**
+[PRD OQ-3]. Two minutes is what the user was asked to walk; whether the session
+is scoreable is decided afterwards, from how much of it was walking. Walking
+past the end clamps at `00:00` rather than running negative.
+
+### `trim(from: 1 - progress, to: 1)`
+
+Clock-like means the *gap* opens at twelve and sweeps clockwise. Trimming the
+far end instead (`from: 0, to: progress`) shrinks the arc backwards from its
+end, which reads as unwinding anticlockwise. Reduce Motion drops the
+animation and keeps the once-a-second step (§9).
+
+### The idle timer is deliberately not touched here
+
+The task asked this screen to set `UIApplication.shared.isIdleTimerDisabled`.
+It already is: `SessionRecorder.prime()` disables it through
+`ScreenSleepController` and `stop()`/`abort()` restore it, covering the
+countdown *and* the session (docs/07 §7.7, ledger 30). A second writer on the
+view would be two owners of one piece of system state with no ordering between
+them — the mistake docs/10 §10.2 calls out for the audio session. Left alone.
+
+### Cues are shown, and disabled
+
+The node draws the Session Cues list during the walk. Rendered read-only:
+changing a cue mid-walk would change the conditions being measured [PRD §5],
+so the list is a record of what the session was started with.
+
+### A fixed 128pt, and why the scale tolerates one
+
+`countdownNumeral` is the only token naming a number rather than a text style.
+It is a glanceable numeral that must fit a fixed 254pt circle from across a
+room, and every tick is announced to VoiceOver regardless — nothing depends on
+reading it. §3 records the exception.
+
+### What this does not do
+
+**Stop does not stop.** `onStop` is a no-op pending the processing and score
+route (8.2.3); the button and its state machine are here, the destination is
+not. Backgrounding during the countdown should call `coordinator.cancel()`
+[PRD OQ-6] and nothing observes the scene phase yet. Both are recorded as open
+in the backlog.
+
+### Verification
+
+22 tests. The clock and ring for both modes including the clamp past the
+advertised length; the ring scaled to each mode's own length; stop firing once;
+and `CountdownOverlayContent` across every coordinator state — hidden before
+start, "Getting ready…" while priming, each numeral announced, "Go!" held then
+cleared, and hidden on both cancel and failure. Release build clean.
+
+**Not verified visually.** The ring geometry is read from the SVG (band radius
+109.55→127, gradient #1D3963→#294E88) and the layout from node metadata, but
+nothing has been rendered.

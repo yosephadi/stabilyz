@@ -65,6 +65,26 @@ enum StabilyzColor {
     /// a token so `Features/` never has to type `.white`.
     static let onPrimary = Color(hex: 0xFFFFFF)
 
+    // MARK: - Session timer ring (Figma node 130:2722)
+
+    /// The ring's gradient, top and bottom, read verbatim from the node's SVG.
+    ///
+    /// Their own tokens rather than `primary700`/`primary600`, for the same
+    /// reason the onboarding greys below are: the node disagrees with the navy
+    /// scale by a few units at both ends at once, and re-tinting the scale to
+    /// match one screen would move every other screen to follow it.
+    static let timerRingTop = Color(light: 0x1D3963, dark: 0x8FB4D6)
+    static let timerRingBottom = Color(light: 0x294E88, dark: 0x2E6BAE)
+
+    /// The scrim the countdown numeral sits on (node 129:2695).
+    ///
+    /// Dark in both modes: it exists to push the screen behind it back, and a
+    /// light scrim in dark mode would do the opposite.
+    static let countdownScrim = Color(hex: 0x000000).opacity(0.45)
+
+    /// The countdown numeral. White on the scrim in both modes.
+    static let countdownNumeral = Color(hex: 0xFFFFFF)
+
     // MARK: - Onboarding wizard (§2.5)
 
     /// Read verbatim from Figma node 40:835, which is the authority for what

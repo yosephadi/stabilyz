@@ -157,9 +157,25 @@ EPIC 8 — Core Flows UI
         interrupts a sleeping tick; priming failure lands on `.failed` carrying the
         real error for ErrorPresenter. Cadence is injected (`CountdownTicker`) so the
         tests drive it rather than sleep. Ledger entry 32.
-      ↳ STILL OPEN: the SwiftUI screen itself — numerals, Cancel button, VoiceOver
-        announcement per numeral, and the idle-auto-lock/backgrounding wiring.
+      ↳ UI DONE. `CountdownOverlayView` over `ActiveSessionView` inside
+        `SessionCoverView`, presented as a `fullScreenCover` from the Walk tab.
+        `CountdownOverlayContent` is the pure state→content mapping (hidden /
+        preparing / counting / go) so the overlay's rules are testable without
+        rendering. VoiceOver announcement per tick. Idle auto-lock is **not**
+        touched here — `SessionRecorder` already holds it across countdown and
+        session via `ScreenSleepController` (docs/07 §7.7). Ledger entry 36.
+      ↳ STILL OPEN: backgrounding/interruption during the countdown should call
+        `coordinator.cancel()`; nothing observes the scene phase yet.
     Task 8.2.2 Recording cover (elapsed, stop, tones)                       → dep: 8.2.6, 4.2.2, 7.1.1, 7.3.1
+      ↳ BASE DONE. `ActiveSessionView` + `ActiveSessionViewModel`: the 254pt
+        depleting ring (clock-like, gap sweeping clockwise from twelve), the
+        mm:ss clock, the cues shown as a read-only record, and the destructive
+        Stop capsule. The clock is driven by the recorder's `.elapsed` events
+        rather than a UI `Timer`, so it tracks the recording rather than running
+        beside it. Ledger entry 36.
+      ↳ STILL OPEN: Stop does not yet stop — `onStop` is a no-op pending the
+        processing/score route (8.2.3). Interruption and gap events are drained
+        but not surfaced.
       ↳ PRD OQ-6: entered at Go, not at the tap. The elapsed clock anchors to T-0, so
         the countdown contributes nothing to it. Stop stays **instant** — no countdown,
         a single haptic pulse plus the stop tone; the asymmetry with Start is deliberate

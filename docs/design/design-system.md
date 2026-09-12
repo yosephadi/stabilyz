@@ -132,6 +132,15 @@ document does not contain.
 
 Never go below 15px. Never use SF Pro's italic styles.
 
+**One fixed size, the countdown numeral.** Figma node 130:2832 draws it at
+128px Bold, well off the top of this scale, and it is the only token that
+names a number rather than a text style. The reason it may: it is a
+glanceable numeral that has to fit inside a fixed 254pt circle from across
+a room, not copy anybody reads. It carries `minimumScaleFactor` so "Go!"
+shrinks to fit rather than truncating, and every tick is announced to
+VoiceOver regardless of what is drawn — so nothing depends on being able to
+read it.
+
 **Body and caption are Regular (400), not Medium.** This table said Medium
 until Figma node 123:914 was read, which declares both styles as SF Pro
 Regular at weight 400. The earlier reading came from nodes 40:835 and
@@ -199,6 +208,12 @@ an iOS button".
 | `button-height` | 50pt | Primary button, full width |
 | `button-height-hero` | 55pt | Primary on single-decision screens (onboarding) |
 | `back-button` | 50×50pt | Circular back control, screen top-left |
+| `segmented-control-height` | 50pt | The large segmented control (Test Mode) |
+| `timer-ring-diameter` | 254pt | The session timer ring (node 130:2722) |
+| `timer-ring-width` | 17.5pt | Its band; the SVG runs radius 109.55→127 |
+| `cover-footer-bottom-gap` | 95pt | Primary button to safe area, full-screen cover |
+| `tab-footer-bottom-gap` | 34pt | Primary button to the tab bar |
+| `section-header-height` | 39pt | A grouped-list section header block |
 | `row-height` | 52pt | Row in an onboarding choice card |
 | `progress-bar-height` | 14pt | One capsule of the onboarding progress bar |
 | `logo-height` | 60pt | The wave mark above the app name on Welcome |

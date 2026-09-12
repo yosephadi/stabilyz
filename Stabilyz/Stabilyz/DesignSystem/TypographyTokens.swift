@@ -41,6 +41,17 @@ enum StabilyzFont {
     /// *size*, which is unchanged at 15 — nothing here gets lighter than the
     /// system's own body weight, and nothing gets smaller.
     static let smallRegular = Font.subheadline
+    /// 128 Bold — the countdown numeral (Figma node 130:2832).
+    ///
+    /// **The one fixed size in the scale, and deliberately so.** Every other
+    /// token names a text style so Dynamic Type can grow it (§3); this one
+    /// names a number because it is a glanceable numeral that has to fit
+    /// inside a fixed circle from across a room, not copy anybody reads. It is
+    /// paired with `minimumScaleFactor` at the call site so a longer string
+    /// ("Go!") shrinks to fit rather than truncating, and VoiceOver announces
+    /// each tick regardless of what is drawn.
+    static let countdownNumeral = Font.system(size: 128, weight: .bold)
+
     /// 17 Semibold — the label on a filled primary button.
     ///
     /// `.headline` rather than `bodyBold`, because a `.borderedProminent`

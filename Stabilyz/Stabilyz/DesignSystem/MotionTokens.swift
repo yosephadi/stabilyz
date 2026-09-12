@@ -41,4 +41,28 @@ enum Motion {
 
     /// A button acknowledging a touch. Barely perceptible on purpose.
     static let buttonPress: TimeInterval = 0.15
+
+    // MARK: - Session
+
+    /// How long the timer ring takes to travel between two whole seconds.
+    ///
+    /// Exactly one second, and linear: the recorder reports elapsed time once
+    /// per second (docs/07 §7.4), so the band interpolates across the gap
+    /// instead of stepping. Any easing here would make a constant-rate clock
+    /// look like it was speeding up and slowing down.
+    static let ringTick: TimeInterval = 1
+
+    /// How long "Go!" holds before the overlay clears.
+    ///
+    /// Long enough to register as the countdown ending rather than a flicker,
+    /// short enough that it never delays the walk — recording has already
+    /// started underneath it.
+    static let countdownGoHold: TimeInterval = 0.45
+
+    /// The overlay clearing at T-0.
+    static let countdownDismiss: TimeInterval = 0.3
+
+    /// How far the countdown numeral may shrink to fit. "Go!" is three glyphs
+    /// where "5" is one, and shrinking beats truncating.
+    static let countdownNumeralMinimumScale: CGFloat = 0.5
 }

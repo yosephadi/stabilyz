@@ -6,6 +6,13 @@ enum CapsuleButtonRole {
     case primary
     /// The alternative beside it. The same shape on a material.
     case secondary
+    /// Ending something in progress — Stop, during a recording (Figma node
+    /// 129:2697 draws it destructive). A solid `danger` fill.
+    ///
+    /// §2.3 reserves red for destructive confirmations and the
+    /// permission-denied state, and this is the third: it is the only control
+    /// on the screen, and it ends a walk that cannot be resumed.
+    case destructive
 }
 
 /// The app's capsule buttons: full width, `button-height-hero` (55pt) on
@@ -43,8 +50,8 @@ struct CapsuleButtonStyle: ButtonStyle {
         let height: CGFloat
         @Environment(\.isEnabled) private var isEnabled
 
-        /// True only for the one filled combination.
-        private var isFilled: Bool { role == .primary && isEnabled }
+        /// The two roles that carry a solid fill when enabled.
+        private var isFilled: Bool { role != .secondary && isEnabled }
 
         var body: some View {
             configuration.label
@@ -70,7 +77,7 @@ struct CapsuleButtonStyle: ButtonStyle {
         @ViewBuilder
         private var fill: some View {
             if isFilled {
-                Capsule().fill(StabilyzColor.primary600)
+                Capsule().fill(role == .destructive ? StabilyzColor.danger : StabilyzColor.primary600)
             } else {
                 Capsule()
                     .fill(.ultraThinMaterial)
@@ -102,5 +109,10 @@ extension ButtonStyle where Self == CapsuleButtonStyle {
     /// The secondary beside a hero primary (§4: 55pt).
     static var secondaryCapsuleHero: CapsuleButtonStyle {
         CapsuleButtonStyle(role: .secondary, height: Controls.heroButtonHeight)
+    }
+
+    /// Stop, during a recording (§4: 55pt).
+    static var destructiveCapsuleHero: CapsuleButtonStyle {
+        CapsuleButtonStyle(role: .destructive, height: Controls.heroButtonHeight)
     }
 }
