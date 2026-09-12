@@ -85,13 +85,26 @@ enum Controls {
     /// screen. The same 60pt reads as correct in the first place and as lost in
     /// the second.
     static let splashLogoHeight: CGFloat = 90
-    /// Clearance between the primary button and the bottom safe-area edge.
+    /// Clearance between the primary button and the bottom safe-area edge, on a
+    /// screen with **no tab bar**.
     ///
     /// Figma 40:835 puts the button's bottom edge at y=770 in an 874pt frame —
     /// 104pt clear of the screen, 70pt clear of the 34pt home-indicator inset.
     /// Measured from the safe area rather than the screen so the gap is the
     /// same visible distance on a device without a home indicator.
     static let footerBottomGap: CGFloat = 70
+
+    /// The same clearance on a screen **inside the tab bar**.
+    ///
+    /// Figma 123:914 puts the button's bottom edge at y=745 and the tab bar's
+    /// top at y=779 — 34pt between them. Inside a `TabView` the safe area
+    /// already stops at the tab bar, so this is measured from there, and
+    /// `footerBottomGap` would stack 70pt *on top of* the tab bar: the button
+    /// climbs into the content and the scroll area loses the difference.
+    ///
+    /// Equal to the home-indicator inset by coincidence, not derivation — this
+    /// one is the gap the node draws above a tab bar, and moves with that node.
+    static let tabFooterBottomGap: CGFloat = 34
 }
 
 /// Corner radii (§4). No sharp corners anywhere.

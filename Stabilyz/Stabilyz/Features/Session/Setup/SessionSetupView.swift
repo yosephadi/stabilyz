@@ -32,7 +32,14 @@ struct SessionSetupView: View {
 
             startButton
                 .padding(.horizontal, Space.screenMargin)
-                .padding(.bottom, Controls.footerBottomGap)
+                // Separates the button from content scrolled up against it;
+                // the node's own gap here is larger only because its content
+                // happens to be short.
+                .padding(.top, Space.x4)
+                // The tab-bar clearance, not the wizard's. This screen sits
+                // inside the `TabView`, so the safe area already ends at the
+                // tab bar.
+                .padding(.bottom, Controls.tabFooterBottomGap)
         }
         .background(StabilyzColor.bgBase)
         .task { await model.refreshPermission() }
