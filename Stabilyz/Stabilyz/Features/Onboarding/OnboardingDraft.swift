@@ -35,9 +35,11 @@ struct OnboardingDraft: Codable, Equatable, Sendable {
 
     var amputationLevel: AmputationLevel?
     var side: AmputationSide?
-    var timeSinceAmputationMonths: Int?
+    /// A band, not a month count: the screen offers five ranges and the domain
+    /// converts. Required [PRD §5] — nil means unanswered.
+    var timeSinceAmputation: TimeSinceAmputation?
     /// Optional [PRD AC] — nil is a complete answer.
-    var prosthesisType: String?
+    var prosthesisType: ProsthesisType?
     /// Optional [PRD AC] — nil is a complete answer.
     var kLevel: KLevel?
 
@@ -45,14 +47,14 @@ struct OnboardingDraft: Codable, Equatable, Sendable {
         step: OnboardingStep = .amputationLevel,
         amputationLevel: AmputationLevel? = nil,
         side: AmputationSide? = nil,
-        timeSinceAmputationMonths: Int? = nil,
-        prosthesisType: String? = nil,
+        timeSinceAmputation: TimeSinceAmputation? = nil,
+        prosthesisType: ProsthesisType? = nil,
         kLevel: KLevel? = nil
     ) {
         self.step = step
         self.amputationLevel = amputationLevel
         self.side = side
-        self.timeSinceAmputationMonths = timeSinceAmputationMonths
+        self.timeSinceAmputation = timeSinceAmputation
         self.prosthesisType = prosthesisType
         self.kLevel = kLevel
     }
@@ -70,4 +72,13 @@ struct OnboardingDraft: Codable, Equatable, Sendable {
         case nil: []
         }
     }
+
+    /// The K-levels the wizard offers, which is **not** `KLevel.allCases`.
+    ///
+    /// The design's screen lists K1 to K4 and nothing else. K0 stays a real
+    /// `KLevel` the domain supports — a restored export may carry one, and
+    /// dropping it from the type would make that profile unreadable — but
+    /// "not walking at present" is not an answer this wizard asks a walking-app
+    /// user to give about themselves, so it is not offered.
+    static let offeredKLevels: [KLevel] = [.k1, .k2, .k3, .k4]
 }

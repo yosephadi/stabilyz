@@ -69,7 +69,7 @@ private func fillRequiredFields(_ model: OnboardingViewModel, level: AmputationL
     await model.advance()
     if model.draft.side == nil { model.select(side: side) }
     await model.advance()
-    model.setTimeSinceAmputation(months: 30)
+    model.select(timeSinceAmputation: .threeToFiveYears)
     await model.advance()
     await model.advance()   // prosthesis, left blank
     await model.advance()   // K-level, left blank
@@ -202,7 +202,7 @@ private func fillRequiredFields(_ model: OnboardingViewModel, level: AmputationL
         step: .disclaimer,
         amputationLevel: .transtibial,
         side: .left,
-        timeSinceAmputationMonths: 12
+        timeSinceAmputation: .oneToTwoYears
     ))
     let model = makeModel(store: store)
 
@@ -241,9 +241,9 @@ private func fillRequiredFields(_ model: OnboardingViewModel, level: AmputationL
     await Task.yield()
     #expect(await store.draft?.amputationLevel == .bilateral)
 
-    model.setTimeSinceAmputation(months: 7)
+    model.select(timeSinceAmputation: .sixToTwelveMonths)
     await Task.yield()
-    #expect(await store.draft?.timeSinceAmputationMonths == 7)
+    #expect(await store.draft?.timeSinceAmputation == .sixToTwelveMonths)
 }
 
 @MainActor
@@ -270,7 +270,7 @@ private func fillRequiredFields(_ model: OnboardingViewModel, level: AmputationL
     let saved = try! #require(await profiles.saved)
     #expect(saved.prosthesisType == nil)
     #expect(saved.kLevel == nil)
-    #expect(saved.timeSinceAmputationMonths == 30)
+    #expect(saved.timeSinceAmputationMonths == TimeSinceAmputation.threeToFiveYears.lowerBoundMonths)
 }
 
 @MainActor
@@ -285,19 +285,44 @@ private func fillRequiredFields(_ model: OnboardingViewModel, level: AmputationL
 }
 
 @MainActor
-@Test func blankTextIsStoredAsNoAnswerRatherThanAnEmptyString() async {
+@Test func decliningToSayIsRecordedAsAnAnswerRatherThanAsSilence() async {
+    // The screen offers "Prefer not to say" as a row. Collapsing it to nil
+    // would make it indistinguishable from skipping the screen, which is a
+    // different thing: one user was asked and declined, the other never
+    // answered. Both are complete [PRD AC]; only one of them said so.
     let model = makeModel()
-    model.setProsthesisType("   ")
-    #expect(model.draft.prosthesisType == nil)
 
-    model.setProsthesisType("  Ottobock C-Leg ")
-    #expect(model.draft.prosthesisType == "Ottobock C-Leg")
+    model.setProsthesisType(.preferNotToSay)
+    #expect(model.draft.prosthesisType == .preferNotToSay)
+
+    model.setProsthesisType(nil)
+    #expect(model.draft.prosthesisType == nil)
 }
 
 @MainActor
-@Test func zeroMonthsIsARealAnswerNotAMissingOne() async {
-    // Someone two weeks post-amputation is zero months, so this screen has no
-    // invalid state — and an untouched wheel records the zero it was showing.
+@Test func theProsthesisAnswerIsStoredByRawValueNotByItsLabel() async {
+    // `UserProfile.prosthesisType` is a free-form `String?`, so what lands in
+    // it has to be data rather than display text — rewording the screen must
+    // not rewrite what people already answered.
+    let profiles = RecordingProfiles()
+    let model = makeModel(profiles: profiles)
+
+    await fillRequiredFields(model)
+    model.setProsthesisType(.microprocessorKnee)
+    model.disclaimerAccepted = true
+    await model.advance()
+
+    #expect(await profiles.saved?.prosthesisType == "microprocessorKnee")
+}
+
+@MainActor
+@Test func theTimeScreenWaitsForAnAnswerRatherThanAssumingOne() async {
+    // This replaces "an untouched wheel records the zero it was showing". The
+    // wheel always displayed *something*, so untouched and "zero months" were
+    // indistinguishable and the screen could never block. Five bands with none
+    // selected is an honestly unanswered screen, and [PRD §5] makes this field
+    // required — so it asks for the tap instead of recording an answer nobody
+    // gave.
     let profiles = RecordingProfiles()
     let model = makeModel(profiles: profiles)
 
@@ -305,17 +330,52 @@ private func fillRequiredFields(_ model: OnboardingViewModel, level: AmputationL
     await model.advance()
     model.select(side: .right)
     await model.advance()
-    #expect(model.canContinue, "the time screen blocked before it was touched")
-    await model.advance()
 
-    #expect(model.draft.timeSinceAmputationMonths == 0)
+    #expect(model.step == .timeSinceAmputation)
+    #expect(model.canContinue == false, "the time screen accepted an answer nobody gave")
+
+    model.select(timeSinceAmputation: .underSixMonths)
+    #expect(model.canContinue)
+    await model.advance()
 
     await model.advance()
     await model.advance()
     model.disclaimerAccepted = true
     await model.advance()
 
+    // "Less than 6 months" is genuinely zero months at its lower bound, so the
+    // two-weeks-post-amputation case the old wheel handled still round-trips.
     #expect(await profiles.saved?.timeSinceAmputationMonths == 0)
+}
+
+@MainActor
+@Test func everyBandRoundTripsThroughTheMonthCountTheProfileStores() {
+    // The profile records a month count, so the band has to survive the trip
+    // into it and back. Lower bounds are what make that true: they are distinct,
+    // and each is a fact about everyone who picked that band rather than a
+    // midpoint invented for them.
+    for band in TimeSinceAmputation.allCases {
+        #expect(TimeSinceAmputation(lowerBoundMonths: band.lowerBoundMonths) == band)
+        #expect(band.lowerBoundMonths >= 0, "a negative bound would not build a profile")
+    }
+
+    let bounds = TimeSinceAmputation.allCases.map(\.lowerBoundMonths)
+    #expect(bounds == bounds.sorted(), "the bands are out of order")
+    #expect(Set(bounds).count == bounds.count, "two bands share a bound and cannot be told apart")
+
+    // A month count from somewhere else — a restore written before the bands
+    // existed — is not silently claimed by one of them.
+    #expect(TimeSinceAmputation(lowerBoundMonths: 7) == nil)
+}
+
+@MainActor
+@Test func theWizardOffersTheFourKLevelsTheScreenDraws() {
+    // The design lists K1 to K4. K0 stays a real `KLevel` so a restored profile
+    // carrying one is readable, but "not walking at present" is not an answer
+    // this wizard asks a walking-app user to give about themselves.
+    #expect(OnboardingDraft.offeredKLevels == [.k1, .k2, .k3, .k4])
+    #expect(OnboardingDraft.offeredKLevels.contains(.k0) == false)
+    #expect(KLevel.allCases.contains(.k0), "K0 left the domain, not just the screen")
 }
 
 // MARK: - Level / side consistency [REC, and UserProfile throws otherwise]
@@ -413,6 +473,12 @@ private func fillRequiredFields(_ model: OnboardingViewModel, level: AmputationL
     positions.append(model.progress?.step)
     await model.advance()
 
+    // Time is required now that it is five bands rather than a wheel with a
+    // default showing, so the walk answers it; the two optional screens after
+    // it still advance untouched.
+    #expect(model.step == .timeSinceAmputation)
+    model.select(timeSinceAmputation: .oneToTwoYears)
+
     for _ in 0..<3 {
         seen.append(model.step)
         positions.append(model.progress?.step)
@@ -450,7 +516,7 @@ private func fillRequiredFields(_ model: OnboardingViewModel, level: AmputationL
     await model.advance()
     model.select(side: .left)
     await model.advance()
-    model.setTimeSinceAmputation(months: 30)
+    model.select(timeSinceAmputation: .threeToFiveYears)
     await model.advance()
     await model.advance()   // prosthesis, left blank
 
@@ -571,8 +637,8 @@ private actor Handoff {
         step: .kLevel,
         amputationLevel: .transfemoral,
         side: .right,
-        timeSinceAmputationMonths: 42,
-        prosthesisType: "Ottobock C-Leg",
+        timeSinceAmputation: .overFiveYears,
+        prosthesisType: .microprocessorKnee,
         kLevel: .k3
     )
 
@@ -668,8 +734,10 @@ private actor Handoff {
     #expect(model.progress?.of == 4, "bilateral was told there are more questions than it will be asked")
 
     await model.advance()
+    #expect(model.step == .timeSinceAmputation)
     #expect(model.progress?.step == 2)
     #expect(model.progress?.of == 4)
+    model.select(timeSinceAmputation: .underSixMonths)
 
     var seen: [OnboardingStep] = [.amputationLevel, .timeSinceAmputation]
     for _ in 0..<2 {
@@ -728,7 +796,7 @@ private actor Handoff {
     let model = makeModel(store: MemoryDraftStore(draft: OnboardingDraft(step: .prosthesisType)))
     await model.start()
 
-    model.setProsthesisType("Genium X3")
+    model.setProsthesisType(.microprocessorKnee)
     #expect(model.draft.prosthesisType != nil)
 
     await model.skip()
@@ -773,7 +841,7 @@ private actor Handoff {
     await model.advance()
     model.select(side: .left)
     await model.advance()
-    model.setTimeSinceAmputation(months: 18)
+    model.select(timeSinceAmputation: .oneToTwoYears)
     await model.advance()
 
     #expect(model.step == .prosthesisType)

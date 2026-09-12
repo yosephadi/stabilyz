@@ -135,18 +135,18 @@ final class OnboardingViewModel {
         persist()
     }
 
-    /// Months since amputation. Zero is a real answer — someone two weeks
-    /// post-amputation is zero months — so this screen has no invalid state.
-    func setTimeSinceAmputation(months: Int) {
-        draft.timeSinceAmputationMonths = max(0, months)
+    /// Which band the amputation falls into. One of five, and until one is
+    /// picked the screen has no answer.
+    func select(timeSinceAmputation band: TimeSinceAmputation) {
+        draft.timeSinceAmputation = band
         persist()
     }
 
-    /// Optional [PRD AC]. Blank stays blank rather than becoming an empty
-    /// string, so "not answered" reads the same in the store as it does here.
-    func setProsthesisType(_ text: String) {
-        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        draft.prosthesisType = trimmed.isEmpty ? nil : trimmed
+    /// Optional [PRD AC]. `nil` is a complete answer and means the screen was
+    /// skipped; `preferNotToSay` is a different thing — the user was asked and
+    /// declined — and is recorded as such rather than collapsed into silence.
+    func setProsthesisType(_ type: ProsthesisType?) {
+        draft.prosthesisType = type
         persist()
     }
 
@@ -166,10 +166,15 @@ final class OnboardingViewModel {
     var canContinue: Bool {
         switch draft.step {
         case .amputationLevel: draft.amputationLevel != nil
+        // Required [PRD §5], and a band has no default. The wheel this replaced
+        // was always showing *something*, so "untouched" and "zero months" were
+        // indistinguishable; five ranges with none selected is an honestly
+        // unanswered screen, and asking for one tap is better than recording an
+        // answer the user never gave.
         case .side: draft.side != nil
-        // Zero months is an answer, and both of these are optional [PRD AC]:
-        // none of the three can block completion.
-        case .timeSinceAmputation, .prosthesisType, .kLevel: true
+        case .timeSinceAmputation: draft.timeSinceAmputation != nil
+        // Both optional [PRD AC]: neither can block completion.
+        case .prosthesisType, .kLevel: true
         case .disclaimer: disclaimerAccepted
         }
     }
@@ -196,13 +201,6 @@ final class OnboardingViewModel {
     /// Advances, or finishes on the last screen.
     func advance() async {
         guard canContinue else { return }
-
-        if draft.step == .timeSinceAmputation, draft.timeSinceAmputationMonths == nil {
-            // The wheel was never touched. Zero is what it was showing, and
-            // zero is a real answer, so record it rather than carry a nil into
-            // a required field.
-            draft.timeSinceAmputationMonths = 0
-        }
 
         guard let next = nextStep() else {
             await complete()
@@ -275,7 +273,10 @@ final class OnboardingViewModel {
     /// [PRD §7] says there is no path to Home without the tick.
     private func complete() async {
         guard disclaimerAccepted else { return }
-        guard let level = draft.amputationLevel, let side = draft.side else { return }
+        guard let level = draft.amputationLevel,
+              let side = draft.side,
+              let timeSinceAmputation = draft.timeSinceAmputation
+        else { return }
 
         saveFailure = nil
         let now = clock.now
@@ -285,8 +286,11 @@ final class OnboardingViewModel {
                 id: UUID(),
                 amputationLevel: level,
                 side: side,
-                timeSinceAmputationMonths: draft.timeSinceAmputationMonths ?? 0,
-                prosthesisType: draft.prosthesisType,
+                // The band's lower bound: the one number in the range that is
+                // true of everyone who picked it, and distinct enough that the
+                // band is recoverable from it.
+                timeSinceAmputationMonths: timeSinceAmputation.lowerBoundMonths,
+                prosthesisType: draft.prosthesisType?.rawValue,
                 kLevel: draft.kLevel,
                 disclaimerAcceptedAt: now,
                 createdAt: now

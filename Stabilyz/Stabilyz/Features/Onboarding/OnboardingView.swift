@@ -218,19 +218,10 @@ struct OnboardingView: View {
 
         case .timeSinceAmputation:
             step("How long has it been since your amputation?", "An estimate is fine.") {
-                OnboardingCard {
-                    CardRow {
-                        Picker("Years", selection: yearsBinding) {
-                            ForEach(0...60, id: \.self) { Text("\($0) years").tag($0) }
-                        }
-                    }
-                    Divider().padding(.horizontal, Space.x4)
-                    CardRow {
-                        Picker("Months", selection: monthsBinding) {
-                            ForEach(0...11, id: \.self) { Text("\($0) months").tag($0) }
-                        }
-                    }
-                }
+                ChoiceCard(
+                    options: TimeSinceAmputation.allCases.map { .init($0, timeLabel($0)) },
+                    selection: timeBinding
+                )
             }
 
         case .prosthesisType:
@@ -238,12 +229,10 @@ struct OnboardingView: View {
                 "What type of prosthesis do you use?",
                 "Optional. This helps you keep a useful record of your setup."
             ) {
-                OnboardingCard {
-                    CardRow {
-                        TextField("Prosthesis or device", text: prosthesisBinding)
-                            .textInputAutocapitalization(.words)
-                    }
-                }
+                ChoiceCard(
+                    options: ProsthesisType.allCases.map { .init($0, prosthesisLabel($0)) },
+                    selection: prosthesisBinding
+                )
             }
 
         case .kLevel:
@@ -252,7 +241,7 @@ struct OnboardingView: View {
                 "Optional. Your prosthetist may have discussed this with you."
             ) {
                 ChoiceCard(
-                    options: KLevel.allCases.map { .init($0, kLevelLabel($0)) }
+                    options: OnboardingDraft.offeredKLevels.map { .init($0, kLevelLabel($0)) }
                         + [.init(nil, "I don't know")],
                     selection: kLevelBinding
                 )
@@ -328,9 +317,31 @@ struct OnboardingView: View {
         }
     }
 
-    /// K1-K4 are worded as the designs word them. K0 is not on that screen —
-    /// it is a real `KLevel` the domain supports, so it keeps a label rather
-    /// than becoming unselectable on the strength of a mockup that omitted it.
+    /// The five bands, worded as the design words them.
+    private func timeLabel(_ band: TimeSinceAmputation) -> String {
+        switch band {
+        case .underSixMonths: "Less than 6 months"
+        case .sixToTwelveMonths: "6–12 months"
+        case .oneToTwoYears: "1–2 years"
+        case .threeToFiveYears: "3–5 years"
+        case .overFiveYears: "More than 5 years"
+        }
+    }
+
+    /// The five answers, worded as the design words them.
+    private func prosthesisLabel(_ type: ProsthesisType) -> String {
+        switch type {
+        case .everydayWalking: "Everyday walking prosthesis"
+        case .activityOrSports: "Activity or sports prosthesis"
+        case .microprocessorKnee: "Microprocessor-controlled knee"
+        case .preferNotToSay: "Prefer not to say"
+        case .other: "Other"
+        }
+    }
+
+    /// K1-K4 are worded as the designs word them. K0 keeps a label without
+    /// being offered: `OnboardingDraft.offeredKLevels` decides what this screen
+    /// shows, and a restored profile carrying K0 still has something to render.
     private func kLevelLabel(_ level: KLevel) -> String {
         switch level {
         case .k0: "K0 — not walking at present"
@@ -357,23 +368,16 @@ struct OnboardingView: View {
         )
     }
 
-    private var yearsBinding: Binding<Int> {
+    private var timeBinding: Binding<TimeSinceAmputation?> {
         Binding(
-            get: { (model.draft.timeSinceAmputationMonths ?? 0) / 12 },
-            set: { model.setTimeSinceAmputation(months: $0 * 12 + (model.draft.timeSinceAmputationMonths ?? 0) % 12) }
+            get: { model.draft.timeSinceAmputation },
+            set: { if let value = $0 { model.select(timeSinceAmputation: value) } }
         )
     }
 
-    private var monthsBinding: Binding<Int> {
+    private var prosthesisBinding: Binding<ProsthesisType?> {
         Binding(
-            get: { (model.draft.timeSinceAmputationMonths ?? 0) % 12 },
-            set: { model.setTimeSinceAmputation(months: ((model.draft.timeSinceAmputationMonths ?? 0) / 12) * 12 + $0) }
-        )
-    }
-
-    private var prosthesisBinding: Binding<String> {
-        Binding(
-            get: { model.draft.prosthesisType ?? "" },
+            get: { model.draft.prosthesisType },
             set: { model.setProsthesisType($0) }
         )
     }

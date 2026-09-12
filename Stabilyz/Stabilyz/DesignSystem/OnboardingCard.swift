@@ -72,20 +72,6 @@ struct ChoiceRow: View {
     }
 }
 
-/// A row holding something other than a choice — a text field, a wheel.
-struct CardRow<Content: View>: View {
-    @ViewBuilder let content: Content
-
-    var body: some View {
-        content
-            .font(StabilyzFont.bodyRegular)
-            .foregroundStyle(StabilyzColor.ink900)
-            .padding(.horizontal, Space.x4)
-            .frame(minHeight: Controls.rowHeight)
-            .frame(maxWidth: .infinity, alignment: .leading)
-    }
-}
-
 /// One answer per row, separated by native `Divider`s inset to the text on
 /// both sides, as Figma node 40:835 draws them.
 struct ChoiceCard<Value: Hashable>: View {
