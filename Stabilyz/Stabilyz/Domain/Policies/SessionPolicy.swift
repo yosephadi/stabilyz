@@ -20,10 +20,12 @@ struct SessionPolicy: Sendable, Equatable {
     /// Valid walking data a session must accumulate to be scoreable
     /// [PRD OQ-3: ~90 seconds for Quick Test, ~4 minutes for Full Test].
     ///
-    /// Pauses, setup time and other non-walking segments do not count toward
-    /// this, even when the advertised length elapsed on the clock. Anything
-    /// below the threshold routes to the noisy/insufficient-data path and is
-    /// never scored [PRD §5].
+    /// Pauses and other non-walking segments do not count toward this, even
+    /// when the advertised length elapsed on the clock. Pre-walk setup is not
+    /// among them any more: the start countdown ends before recording begins,
+    /// so phone-stowing is outside the session rather than inside it awaiting
+    /// exclusion [PRD OQ-6]. Anything below the threshold routes to the
+    /// noisy/insufficient-data path and is never scored [PRD §5].
     func minimumValidWalkingDuration(for mode: TestMode) -> Duration {
         switch mode {
         case .quickTest: quickTestMinimumValidWalking

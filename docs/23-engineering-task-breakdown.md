@@ -95,8 +95,10 @@ EPIC 7 — Audio & Haptics
     Task 7.2.1 Step Feedback wiring (confidence/refractory, off by default) → dep: 4.3.1, 7.1.1
     Task 7.2.2 Metronome engine (baseline BPM scheduling)                  → dep: 7.1.1, 6.1.2
     Task 7.2.3 Scoring-independence test                                    → dep: 7.2.1/7.2.2
-      ↳ neither cue may sound before Go — a metronome running under a haptic countdown
-        is confusable with it, and would pace gait across a window that isn't measured.
+      ↳ countdown-silence half DONE with 8.2.6: neither cue sounds before Go. Structural
+        (only `begin` arms a cue, never `prime`) plus an unconditional `stopMetronome()`
+        before counting. Mutation-verified — sounding a cue mid-countdown fails
+        `noCueSoundsAtAnyPointDuringTheCountdown` and `stepFeedbackIsEquallySilentBeforeGo`.
   Feature 7.3 Haptics
     Task 7.3.1 HapticFeedbackService + tests
       ↳ DONE. `Services/Haptics/`: the `HapticFeedbackService` protocol
@@ -111,8 +113,8 @@ EPIC 7 — Audio & Haptics
         "broken". Wired into both production graphs. Unlike audio it is on-device and
         never routed through an audio device, so the Bluetooth route-change path (7.1.2)
         does not apply. Ledger entry 31.
-      ↳ STILL OPEN for 8.2.6: nothing *calls* these yet. The countdown screen owns the
-        cadence — how many ticks, and firing Go alongside the start tone.
+      ↳ Now driven by `CountdownCoordinator` (8.2.6 logic): a tick per numeral, the
+        distinct Go tap at T-0, the stop pulse on cancel.
 
 EPIC 8 — Core Flows UI
   Feature 8.1 Routing & Onboarding
@@ -136,7 +138,14 @@ EPIC 8 — Core Flows UI
         is still visible ([OPEN] "[define: priming deadline before zero]").
       ↳ 5 seconds is a single fixed constant — not per-mode, not user-adjustable,
         provisional and tunable [PRD OQ-6]. Lives in versioned configuration, not at
-        a call site.
+        a call site: `Domain/Policies/CountdownPolicy.swift`, alongside `SessionPolicy`.
+      ↳ LOGIC DONE: `Features/Session/Countdown/CountdownCoordinator.swift` — states
+        idle → priming → counting(n) → running, plus cancelled/failed; cancellation
+        interrupts a sleeping tick; priming failure lands on `.failed` carrying the
+        real error for ErrorPresenter. Cadence is injected (`CountdownTicker`) so the
+        tests drive it rather than sleep. Ledger entry 32.
+      ↳ STILL OPEN: the SwiftUI screen itself — numerals, Cancel button, VoiceOver
+        announcement per numeral, and the idle-auto-lock/backgrounding wiring.
     Task 8.2.2 Recording cover (elapsed, stop, tones)                       → dep: 8.2.6, 4.2.2, 7.1.1, 7.3.1
       ↳ PRD OQ-6: entered at Go, not at the tap. The elapsed clock anchors to T-0, so
         the countdown contributes nothing to it. Stop stays **instant** — no countdown,

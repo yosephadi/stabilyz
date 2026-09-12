@@ -1698,3 +1698,74 @@ without a prepare still works, and the log assertion branches on
 both production graphs to carrying the real service — the EPIC 7 audit caught
 exactly that omission for audio, where the engine was built, tested, and
 reachable from nothing.
+
+---
+
+## 32. The countdown is a coordinator with an injected cadence
+
+**Date:** 2026-09-13 · **Task:** 8.2.6 (logic) / 7.2.3 (silence) · **Status:** Decided
+
+`Features/Session/Countdown/CountdownCoordinator.swift` drives the countdown:
+`idle → priming → counting(n) → running`, with `cancelled` and `failed` as the
+other two outcomes. `Domain/Policies/CountdownPolicy` holds the five seconds;
+`Utilities/CountdownTicker` holds the waiting.
+
+### Why the cadence is injected
+
+A countdown that slept on the real clock could only be tested by waiting five
+seconds — slow, flaky on a loaded machine, and still unable to say *when*
+cancellation landed. `CountdownTicker` is one method, `waitForTick(_:)`. The
+test double parks each tick until released, which is what makes "cancel at T-1"
+a precise claim rather than a hopeful one: the countdown is provably sitting on
+the last numeral when cancel arrives.
+
+### Why `start` is not `async`
+
+`cancel()` has to interrupt a tick that is already sleeping — a user who taps
+Cancel must not wait out the rest of a second they have already decided
+against. That needs a task to cancel, so `start` stores one and returns.
+`waitUntilFinished()` exists for tests and for a caller that wants the outcome.
+
+### Task 7.2.3, twice over
+
+Neither cue may sound before Go: a metronome under a haptic countdown is
+directly confusable with it, and would pace gait across a window that is not
+being measured. That is already true structurally — only `begin` arms a cue,
+never `prime` — and the coordinator adds an unconditional `stopMetronome()`
+before counting, so a beat left running by an earlier flow is silenced rather
+than counted over. It is a no-op when nothing is running.
+
+**Mutation-verified.** Sounding a cue inside the countdown loop fails
+`noCueSoundsAtAnyPointDuringTheCountdown` and
+`stepFeedbackIsEquallySilentBeforeGo`. Without that check the two tests would
+have been indistinguishable from tests that assert nothing.
+
+### Why cancel refuses a running session
+
+Past T-0 there is a real walk in progress and ending it is `stop()`'s job —
+the same reason `SessionRecorder.abort()` refuses there (entry 30). The
+coordinator logs and declines rather than silently doing nothing.
+
+### The countdown length
+
+`CountdownPolicy` sits beside `SessionPolicy` in `Domain/Policies`, versioned
+for the same reason: five seconds is **provisional and tunable** [PRD OQ-6],
+and a tunable value belongs in one declared place rather than in a view. There
+is deliberately no `length(for: TestMode)` and no stored setting behind it —
+[PRD OQ-6] settles it as a single fixed constant, not a preference.
+
+### What this deliberately does not do
+
+There is no SwiftUI screen yet. The numerals, the Cancel button, the VoiceOver
+announcement per numeral and the backgrounding/auto-lock wiring are the
+remaining half of 8.2.6. This is the part that can be tested without rendering,
+which is where docs/11 §11.5 wants the rules to live anyway.
+
+### Verification
+
+19 tests. The full sequence idle → priming → counting(3, 2, 1) → running, with
+haptics recorded as three ticks then exactly one Go; T-0's anchor surviving into
+the frozen buffer; cancellation at T-1 halting the ticks, aborting the recorder
+and starting no session; priming failure landing on `.failed` with the real
+error, having counted nothing; and silence across the whole countdown under both
+cue configurations.
