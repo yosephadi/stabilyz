@@ -71,6 +71,11 @@ actor SessionRecorder {
     /// cross-check was not available for it.
     private var pedometerAvailable = true
 
+    /// The tail of the serialised audio queue. Survives `resetSessionState`
+    /// on purpose: the next session's `prepare` must not overtake the previous
+    /// session's `teardown`, which is what releases the `AVAudioSession`.
+    private var audioChain: Task<Void, Never>?
+
     private var eventContinuation: AsyncStream<SessionRecordingEvent>.Continuation?
     private var sampleTask: Task<Void, Never>?
     private var pedometerTask: Task<Void, Never>?
@@ -528,7 +533,38 @@ actor SessionRecorder {
     ) {
         let audio = audioFeedback
         let config = audioConfig
-        Task { await work(audio, config) }
+        // Chained to the previous request rather than spawned beside it.
+        //
+        // Two independent `Task`s calling one actor have **no ordering
+        // guarantee** — whichever the scheduler reaches first runs first. This
+        // path was already documented as preserving order "where it is
+        // observable" (ledger 25), and it did not: a stop tone requested a
+        // moment after a start tone could be spoken first. A real session hides
+        // it, because minutes pass between the two, which is exactly why it
+        // surfaced only as an intermittently failing test.
+        //
+        // The data path still awaits nothing. Only the audio work waits on the
+        // audio work before it, which is the order the PRD's two ACs describe:
+        // a distinct start tone, then a distinct, different stop tone.
+        let previous = audioChain
+        audioChain = Task {
+            await previous?.value
+            await work(audio, config)
+        }
+    }
+
+    /// Waits for every requested tone to finish.
+    ///
+    /// **Not on the data path, and never called from it.** This exists for the
+    /// two callers that genuinely need to know the audio layer has finished:
+    /// a test asserting what was played, and any future teardown that has to
+    /// see the session's last sound out before releasing the engine.
+    ///
+    /// Deliberately not `await`ed by `stop()` — that would reintroduce the
+    /// dependency ledger 25 removed, where a wedged audio layer could delay the
+    /// freeze of a walk that is already recorded.
+    func drainPendingAudio() async {
+        await audioChain?.value
     }
 
     // MARK: - Permission

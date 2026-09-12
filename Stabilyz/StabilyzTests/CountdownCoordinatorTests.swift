@@ -1,4 +1,5 @@
 import Foundation
+import SwiftUI
 import Testing
 @testable import Stabilyz
 
@@ -552,4 +553,58 @@ private func makeCoordinator(
     let presentation = ErrorPresenter.presentation(for: error)
     #expect(presentation?.isRecoverable == true)
     #expect(presentation?.offersSettingsLink == true)
+}
+
+// MARK: - Backgrounding, as the guard decides it ([PRD OQ-6])
+
+@MainActor
+@Test func aBackgroundedCountdownLeavesNoSessionBehind() async throws {
+    // `SessionBackgroundGuard` decides; `cancel()` does the work, and this is
+    // the work: the recorder is taken back down, no session exists, and the
+    // state lands on `.cancelled` so the cover closes back to setup.
+    let (coordinator, recorder, haptics, _, ticker, _) = makeCoordinator()
+
+    coordinator.start(mode: .quickTest, audioConfig: .none)
+    await ticker.waitUntilEntered(1)
+
+    // The condition the view watches for.
+    #expect(SessionBackgroundGuard.shouldCancelCountdown(
+        scenePhase: .background,
+        countdown: coordinator.state
+    ))
+
+    async let cancelled: Void = coordinator.cancel()
+    await ticker.releaseAll()
+    await cancelled
+
+    #expect(coordinator.state == .cancelled)
+    #expect(await recorder.isRecording == false)
+    #expect(await recorder.isPrimed == false)
+    // Go never fired, so nothing announced a session that does not exist.
+    #expect(await haptics.count(of: .sessionStart) == 0)
+    #expect(await haptics.count(of: .sessionStop) == 1)
+    await #expect(throws: StabilyzError.recording(.notRecording)) {
+        _ = try await recorder.stop()
+    }
+}
+
+@MainActor
+@Test func aBackgroundedWalkIsNotCancelled() async throws {
+    // Past T-0 this is an interruption, not a cancellation: the recorder marks
+    // the gap and the pipeline decides validity (docs/07 §7.7).
+    let (coordinator, recorder, _, _, ticker, _) = makeCoordinator()
+
+    coordinator.start(mode: .quickTest, audioConfig: .none)
+    for entered in 1...3 {
+        await ticker.waitUntilEntered(entered)
+        await ticker.release()
+    }
+    await coordinator.waitUntilFinished()
+
+    #expect(SessionBackgroundGuard.shouldCancelCountdown(
+        scenePhase: .background,
+        countdown: coordinator.state
+    ) == false)
+    #expect(await recorder.isRecording)
+    _ = try await recorder.stop()
 }

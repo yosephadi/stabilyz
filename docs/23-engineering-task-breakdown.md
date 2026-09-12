@@ -164,8 +164,15 @@ EPIC 8 — Core Flows UI
         rendering. VoiceOver announcement per tick. Idle auto-lock is **not**
         touched here — `SessionRecorder` already holds it across countdown and
         session via `ScreenSleepController` (docs/07 §7.7). Ledger entry 36.
-      ↳ STILL OPEN: backgrounding/interruption during the countdown should call
-        `coordinator.cancel()`; nothing observes the scene phase yet.
+      ↳ Backgrounding handled. `SessionBackgroundGuard` is the pure rule and
+        `SessionCoverView` watches `scenePhase`: `.background` during priming or
+        counting cancels; `.inactive` never does, and a *running* walk is an
+        interruption rather than a cancellation. Ledger entry 40.
+      ↳ ⚠️ STILL OPEN — needs a device: a deliberate screen lock reaches
+        `.background` on hardware, so this currently cancels a countdown
+        [PRD OQ-6] says should survive being pocketed. Distinguishing a lock
+        from an app switch needs `protectedDataWillBecomeUnavailable`, which
+        cannot be validated on the simulator.
     Task 8.2.2 Recording cover (elapsed, stop, tones)                       → dep: 8.2.6, 4.2.2, 7.1.1, 7.3.1
       ↳ BASE DONE. `ActiveSessionView` + `ActiveSessionViewModel`: the 254pt
         depleting ring (clock-like, gap sweeping clockwise from twelve), the

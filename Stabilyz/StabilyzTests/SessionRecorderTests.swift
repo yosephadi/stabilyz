@@ -35,9 +35,11 @@ private final class RecorderLog: LogService, @unchecked Sendable {
 ///
 /// Since decisions.md entry 25 the recorder *requests* audio without awaiting
 /// it, so a tone arrives shortly after the call that asked for it rather than
-/// before that call returns. Order between tones is still guaranteed — they are
-/// requested in order, on one actor — but their arrival is not synchronous with
-/// `begin`/`stop`, so assertions wait for them via `waitForCalls`.
+/// before that call returns. Order between tones **is** guaranteed — the
+/// requests are chained (ledger 39) — but their arrival is not synchronous with
+/// `begin`/`stop`, so assertions call `recorder.drainPendingAudio()` first.
+/// That waits on the audio queue itself rather than on a clock, so there is no
+/// bound to tune and no run to lose to a busy machine.
 private actor ToneSpy: AudioFeedbackService {
     private(set) var calls: [String] = []
     nonisolated var events: AsyncStream<AudioFeedbackEvent> { AsyncStream { $0.finish() } }
@@ -55,30 +57,6 @@ private actor ToneSpy: AudioFeedbackService {
     // ordering the recorder owns and nothing else would catch.
     func prepare() async { calls.append("prepare") }
     func teardown() async { calls.append("teardown") }
-}
-
-extension ToneSpy {
-    /// Waits for the expected tones, then returns whatever arrived.
-    ///
-    /// Bounded so a regression fails with the actual sequence rather than
-    /// hanging, and so "no tone at all" is still a failure rather than a wait.
-    ///
-    /// **5s, not 2.** The tones arrive on a detached `Task` (decisions.md entry
-    /// 25), so this is waiting on the scheduler, not on the recorder — and the
-    /// suite runs in parallel simulator clones on a loaded machine, where a
-    /// detached task can sit unscheduled for far longer than it ever would on a
-    /// device. At 2s this tripped spuriously. The bound is not a latency budget
-    /// and must not be read as one: what is being asserted is that the tones
-    /// arrive and in what order, never how quickly. Nothing waits the full
-    /// 5s — the loop returns the moment the calls land, so the widened ceiling
-    /// costs a green run nothing.
-    func waitForCalls(_ expected: Int) async -> [String] {
-        for _ in 0..<250 {
-            if calls.count >= expected { return calls }
-            try? await Task.sleep(for: .milliseconds(20))
-        }
-        return calls
-    }
 }
 
 /// A motion service that refuses to prime, for the fail-fast path.
@@ -179,10 +157,10 @@ private func collect(_ events: AsyncStream<SessionRecordingEvent>) async -> [Ses
     // The engine is prepared first, inside the same audio task — activating the
     // session is audio's own cost and is not allowed to delay the recording.
     // A prefix, not the whole sequence: `stop()` has already run by the time
-    // this asserts, so the stop tone and the teardown may well have landed too.
-    // What is being pinned is the order of the first two, not the absence of
-    // the rest.
-    #expect(await audio.waitForCalls(2).prefix(2) == ["prepare", "start"])
+    // this asserts, so the stop tone and the teardown have landed too. What is
+    // being pinned is the order of the first two, not the absence of the rest.
+    await recorder.drainPendingAudio()
+    #expect(await audio.calls.prefix(2) == ["prepare", "start"])
 }
 
 @Test func beginStampsOneAnchorEverySampleResolvesAgainst() async throws {
@@ -339,12 +317,50 @@ private struct UndeterminedMotionService: MotionSensorService {
     // play. Since entry 25 the recorder does not await either: it requests them
     // and gets on with freezing the buffer, so the assertion is that they
     // arrive, in order — not that they have arrived by the time stop() returns.
+    //
+    // **Waits on the audio queue, not on a clock.** This used to poll for five
+    // seconds and failed intermittently on a loaded machine — not because five
+    // seconds was too short, but because nothing made the order true: each
+    // request was an independent `Task`, and two of those hitting one actor
+    // race. The requests are chained now, and draining the queue is a
+    // deterministic wait with no bound to tune (ledger 39).
     let (recorder, _, audio, _) = makeRecorder()
     _ = try await recorder.begin(mode: .quickTest, audioConfig: .none)
 
     _ = try await recorder.stop()
+    await recorder.drainPendingAudio()
 
-    #expect(await audio.waitForCalls(4) == ["prepare", "start", "stop", "teardown"])
+    #expect(await audio.calls == ["prepare", "start", "stop", "teardown"])
+}
+
+@Test func theTonesStayInOrderEvenWhenTheWalkIsInstant() async throws {
+    // The race this used to lose. With no walking between begin and stop, the
+    // two audio requests are issued microseconds apart — which is precisely
+    // when an unordered queue would speak the stop tone first.
+    for _ in 0..<20 {
+        let (recorder, _, audio, _) = makeRecorder()
+        _ = try await recorder.begin(mode: .quickTest, audioConfig: .none)
+        _ = try await recorder.stop()
+        await recorder.drainPendingAudio()
+
+        #expect(await audio.calls == ["prepare", "start", "stop", "teardown"])
+    }
+}
+
+@Test func aSecondSessionsPrepareCannotOvertakeTheFirstsTeardown() async throws {
+    // `teardown` releases the `AVAudioSession`; a `prepare` that overtook it
+    // would activate a session the previous walk was still letting go of.
+    let (recorder, _, audio, _) = makeRecorder()
+    _ = try await recorder.begin(mode: .quickTest, audioConfig: .none)
+    _ = try await recorder.stop()
+    _ = try await recorder.begin(mode: .fullTest, audioConfig: .none)
+    _ = try await recorder.stop()
+    await recorder.drainPendingAudio()
+
+    #expect(await audio.calls == [
+        "prepare", "start", "stop", "teardown",
+        "prepare", "start", "stop", "teardown"
+    ])
 }
 
 @Test func theAudioSessionIsReleasedByTheStopThatOpenedIt() async throws {
@@ -355,11 +371,13 @@ private struct UndeterminedMotionService: MotionSensorService {
     let (recorder, _, audio, _) = makeRecorder()
 
     _ = try await recorder.begin(mode: .quickTest, audioConfig: .none)
-    let duringSession = await audio.waitForCalls(2)
+    await recorder.drainPendingAudio()
+    let duringSession = await audio.calls
     #expect(duringSession.contains("teardown") == false, "the session was released mid-walk")
 
     _ = try await recorder.stop()
-    let afterStop = await audio.waitForCalls(4)
+    await recorder.drainPendingAudio()
+    let afterStop = await audio.calls
 
     #expect(afterStop.last == "teardown", "the audio session was never released")
     #expect(afterStop.filter { $0 == "prepare" }.count == 1)

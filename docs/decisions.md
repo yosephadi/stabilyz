@@ -2177,3 +2177,83 @@ not keep ending the walk; the processing copy per mode; and every phase's
 dismissibility.
 
 **Not verified visually**, like everything else on this flow.
+
+---
+
+## 39. Audio requests are a queue, not a scatter of tasks
+
+**Date:** 2026-09-13 · **Task:** flaky-test fix · **Status:** Decided
+
+**Amends entry 25**, which claimed ordering was "preserved where it is
+observable". It was not.
+
+### What was actually wrong
+
+`requestAudio` spawned an independent unstructured `Task` per call. `begin`
+spawned one (prepare → start tone), `stop` spawned another (stop tone →
+teardown). **Two `Task`s calling one actor have no ordering guarantee** —
+whichever the scheduler reaches first runs first. The recorder was therefore
+free to speak the stop tone before the start tone.
+
+A real session hides this completely: minutes pass between the two requests, so
+the first has long finished. It surfaced only in a test where `begin` and `stop`
+are microseconds apart — and was misread as a slow machine, and "fixed" twice by
+widening a timeout, because the symptom was a poll that ran out.
+
+So `bothSessionTonesArePlayedInOrderWithoutTheDataPathWaiting` was not a flaky
+test. It was a correct test of a real race, failing intermittently as races do.
+
+### The fix
+
+Each request now awaits the previous one. The chain is the tail of a queue kept
+across sessions on purpose: a new session's `prepare` must not overtake the
+previous session's `teardown`, which is what releases the `AVAudioSession`.
+
+**The data path still awaits nothing.** Only audio work waits on audio work.
+`theDataPathNeverAwaitsAudio` — thirty-second stalls on every call — still
+passes unchanged, which is what proves the guarantee is intact.
+
+### And the tests stopped guessing
+
+`ToneSpy.waitForCalls` is gone. `SessionRecorder.drainPendingAudio()` waits on
+the queue itself, so there is no bound to tune and nothing to lose to a busy
+machine. Three consecutive full runs, plus a test that replays the instant-walk
+race twenty times per run, all clean.
+
+---
+
+## 40. Backgrounding ends a countdown; screen-off does not
+
+**Date:** 2026-09-13 · **Task:** PRD OQ-6 · **Status:** Decided, with a known gap
+
+`SessionBackgroundGuard.shouldCancelCountdown(scenePhase:countdown:)` is a pure
+function of the two, watched by `SessionCoverView`.
+
+### The rule
+
+- `.background` while **priming or counting** → cancel. The five seconds exist
+  so the user can get situated; a countdown that ran out while the app was away
+  would start a walk nobody was ready for.
+- `.background` while **running** → do nothing. That is an interruption, and the
+  recorder already marks it as a gap the pipeline judges (docs/07 §7.7). Binning
+  a real walk because the user answered a call would throw away data
+  [PRD §6] says to flag rather than discard.
+- `.inactive` → never. The app switcher, a notification banner, and the screen
+  going off all land here.
+
+### ⚠️ The gap, stated plainly
+
+[PRD OQ-6] requires that a deliberate lock — the user pressing the side button
+as they pocket the phone — must **not** cancel. On real hardware a lock reaches
+`.inactive` and then `.background` a moment later, so this guard as written will
+cancel it.
+
+Distinguishing a lock from an app switch needs
+`UIApplication.protectedDataWillBecomeUnavailableNotification`, and that cannot
+be exercised on the simulator. Implementing a heuristic that cannot be validated
+would be worse than recording the gap, so it is recorded: **this needs a device
+before it is correct.**
+
+The idle timer is already disabled across the countdown (ledger 30), so an
+*automatic* lock cannot occur — only a deliberate one, which is the narrower
+case.

@@ -30,6 +30,7 @@ struct SessionCoverView: View {
     /// True for the moment after T-0, while "Go!" clears.
     @State private var isHoldingGo = false
     @State private var phase: SessionFlowPhase = .countdown
+    @Environment(\.scenePhase) private var scenePhase
 
     init(
         mode: TestMode,
@@ -97,6 +98,14 @@ struct SessionCoverView: View {
         }
         .onChange(of: overlay) { _, content in
             announce(content)
+        }
+        .onChange(of: scenePhase) { _, scene in
+            if SessionBackgroundGuard.shouldCancelCountdown(
+                scenePhase: scene,
+                countdown: coordinator.state
+            ) {
+                cancelCountdown()
+            }
         }
         .onChange(of: phase) { _, phase in
             if case .finished = phase { dismiss() }
