@@ -99,17 +99,20 @@ EPIC 7 — Audio & Haptics
         is confusable with it, and would pace gait across a window that isn't measured.
   Feature 7.3 Haptics
     Task 7.3.1 HapticFeedbackService + tests
-      ↳ new Apple-framework dependency (CoreHaptics / UIFeedbackGenerator), so per the
-        layer rules it is protocol-fronted in `Services/` alongside `AudioFeedbackService`,
-        and nothing above Services imports it. Availability check
-        (`CHHapticEngine.capabilitiesForHardware().supportsHaptics`, plus the System
-        Haptics setting); **silent degradation** when unavailable or disabled — no error,
-        no blocked Start, the visible countdown carries the flow alone [PRD §6, §7 AC].
-        Surface: countdown tick, distinct Go tick, stop pulse. Requested, never awaited,
-        on the same grounds as audio (decisions.md 25). Unlike audio it is on-device and
+      ↳ DONE. `Services/Haptics/`: the `HapticFeedbackService` protocol
+        (`prepare`/`playCadenceTick`/`playSessionStart`/`playSessionStop`/`teardown`),
+        `LiveHapticFeedbackService` over `UIImpactFeedbackGenerator` (light tick, heavy
+        Go, medium Stop), and `Mock`/`Silent` doubles. Capability probe is
+        `CHHapticEngine.capabilitiesForHardware().supportsHaptics`; the System Haptics
+        *setting* has no public API, and needs none — the generators no-op when it is
+        off, which is the required behaviour. **Silent degradation**: no error, no
+        blocked Start, the visible countdown carries the flow alone [PRD §6, §7 AC],
+        with one log line per service so "no hardware" stays distinguishable from
+        "broken". Wired into both production graphs. Unlike audio it is on-device and
         never routed through an audio device, so the Bluetooth route-change path (7.1.2)
-        does not apply to it. Tests: a no-haptics fake proves the countdown completes and
-        the session records unchanged, and that Go is distinguishable from a count tick.
+        does not apply. Ledger entry 31.
+      ↳ STILL OPEN for 8.2.6: nothing *calls* these yet. The countdown screen owns the
+        cadence — how many ticks, and firing Go alongside the start tone.
 
 EPIC 8 — Core Flows UI
   Feature 8.1 Routing & Onboarding

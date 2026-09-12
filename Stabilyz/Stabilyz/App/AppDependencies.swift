@@ -31,6 +31,10 @@ struct AppDependencies: Sendable {
     let motionSensor: MotionSensorService
     let pedometer: PedometerService
     let audioFeedback: AudioFeedbackService
+    /// The countdown's haptic channel ([PRD OQ-6], Task 7.3.1). Separate from
+    /// `audioFeedback` because it is: haptics never touch the audio session and
+    /// never route through an audio device (docs/07 §7.1).
+    let hapticFeedback: HapticFeedbackService
     let keyDerivation: KeyDerivation
     let secureArchive: SecureArchiveCoding
 
@@ -65,6 +69,7 @@ struct AppDependencies: Sendable {
         motionSensor: MotionSensorService,
         pedometer: PedometerService,
         audioFeedback: AudioFeedbackService,
+        hapticFeedback: HapticFeedbackService = SilentHapticFeedbackService(),
         keyDerivation: KeyDerivation,
         secureArchive: SecureArchiveCoding,
         sessionRecorder: SessionRecorder,
@@ -80,6 +85,7 @@ struct AppDependencies: Sendable {
         self.motionSensor = motionSensor
         self.pedometer = pedometer
         self.audioFeedback = audioFeedback
+        self.hapticFeedback = hapticFeedback
         self.keyDerivation = keyDerivation
         self.secureArchive = secureArchive
         self.sessionRecorder = sessionRecorder
@@ -113,6 +119,9 @@ extension AppDependencies {
         // session, so constructing it here costs the launch nothing and the app
         // holds no audio route while the user is not walking.
         let audioFeedback = EngineAudioFeedbackService(logService: logService)
+        // Holds no hardware until `prepare()`, so constructing it at launch
+        // costs nothing and nothing is reserved while the user is not walking.
+        let hapticFeedback = LiveHapticFeedbackService(logService: logService)
 
         var dependencies = AppDependencies(
             logService: logService,
@@ -122,6 +131,7 @@ extension AppDependencies {
             motionSensor: motionSensor,
             pedometer: pedometer,
             audioFeedback: audioFeedback,
+            hapticFeedback: hapticFeedback,
             keyDerivation: UnwiredKeyDerivation(),             // Task 10.1.1
             secureArchive: UnwiredSecureArchiveCoding(),       // Task 10.1.2
             sessionRecorder: SessionRecorder(
@@ -167,6 +177,9 @@ extension AppDependencies {
         // the audio route, and the degraded graph is the one a user is most
         // likely to be looking at when they need the app to behave normally.
         let audioFeedback = EngineAudioFeedbackService(logService: logService)
+        // Real haptics here too: the store failing to open says nothing about
+        // the Taptic Engine.
+        let hapticFeedback = LiveHapticFeedbackService(logService: logService)
 
         return AppDependencies(
             logService: logService,
@@ -176,6 +189,7 @@ extension AppDependencies {
             motionSensor: motionSensor,
             pedometer: pedometer,
             audioFeedback: audioFeedback,
+            hapticFeedback: hapticFeedback,
             keyDerivation: UnwiredKeyDerivation(),
             secureArchive: UnwiredSecureArchiveCoding(),
             sessionRecorder: SessionRecorder(

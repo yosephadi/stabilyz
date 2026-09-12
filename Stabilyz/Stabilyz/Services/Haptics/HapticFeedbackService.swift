@@ -1,0 +1,57 @@
+import Foundation
+
+/// The countdown's second channel, and the stop pulse ([PRD OQ-6], docs/07 §7.1).
+///
+/// The countdown is deliberately **both visible and haptic, not one or the
+/// other**: numerals for the user still looking at the phone, a tap per second
+/// for the user who has already pocketed it. Haptics are the convenience half.
+/// The on-screen numerals are the required fallback, so nothing here is ever
+/// load-bearing — a device without a Taptic Engine, or a user with System
+/// Haptics switched off, loses nothing they need.
+///
+/// **No method throws, and no method reports failure.** Haptic trouble is
+/// surfaced only as silence, exactly like audio (docs/10 §10.4): no error, no
+/// blocked Start, the visible countdown carries the flow alone [PRD §7 AC].
+/// A caller cannot tell a played tap from a skipped one, and must not try.
+///
+/// Unlike audio, this never routes through an audio device, so the Bluetooth
+/// route-change path does not apply to it (docs/07 §7.1). There is no `events`
+/// stream here for the same reason: there is no route to change and no
+/// interruption to report.
+protocol HapticFeedbackService: Sendable {
+    /// Pre-warms the haptic hardware so the first tap is not the slow one.
+    ///
+    /// Called when the countdown screen appears, not at Go. Safe to call
+    /// repeatedly, and purely an optimisation — a play without a prepare still
+    /// taps, just with the latency this exists to remove.
+    func prepare() async
+
+    /// One countdown tick, per numeral (5, 4, 3, 2, 1).
+    ///
+    /// Light, because it repeats once a second and because it has to stay
+    /// clearly *lighter* than the tap at Go — a user reading the countdown
+    /// through their pocket has only that contrast to tell "1" from "go"
+    /// [PRD OQ-6].
+    func playCadenceTick() async
+
+    /// T-0. The heavy, perceptibly distinct tap at "Go", alongside the start
+    /// tone [PRD OQ-6].
+    func playSessionStart() async
+
+    /// The single pulse at Stop [PRD OQ-6]. Distinct from both of the above.
+    func playSessionStop() async
+
+    /// Releases the generators. Called when the session ends or the countdown
+    /// is aborted.
+    func teardown() async
+}
+
+extension HapticFeedbackService {
+    /// Nothing to warm, and nothing to release.
+    ///
+    /// Only the live implementation holds hardware. The doubles have no state,
+    /// so requiring them to write two empty methods each would be ceremony —
+    /// but an implementation that *does* hold generators overrides both.
+    func prepare() async {}
+    func teardown() async {}
+}

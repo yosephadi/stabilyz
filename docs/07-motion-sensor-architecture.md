@@ -8,7 +8,7 @@
 | **CoreMotion / CMPedometer** | Steps, cadence, pace, distance — co-recorded live [PRD §5], cross-check input for segmentation & step detection |
 | **CoreMotion / CMMotionActivityManager** | [REC] Coarse walking/stationary classification to assist non-walking segment exclusion [PRD §6 "user stands still"] |
 | **AVFoundation** | Tones & feedback (see §10) — listed here only for completeness of the session stack |
-| **CoreHaptics** | Countdown ticks and the stop pulse [PRD OQ-6] — behind `HapticFeedbackService`, availability-checked, silently degraded when unsupported or disabled; listed here for completeness of the session stack |
+| **CoreHaptics / UIKit feedback generators** | Countdown ticks and the stop pulse [PRD OQ-6] — behind `HapticFeedbackService` in `Services/Haptics`. Taps come from `UIImpactFeedbackGenerator` (light per numeral, heavy at Go, medium at Stop); CoreHaptics supplies only the capability probe. Silently degraded when unsupported or when System Haptics is off; listed here for completeness of the session stack |
 
 ## 7.2 Structure — Strictly Separated Stages [PRD Rule 10]
 

@@ -1628,3 +1628,73 @@ and leaves the recorder reusable; priming timeout, absent hardware and denied
 permission each surface at prime and reset the recorder. Two drive the full
 shape Task 8.2.6 will use — prime, five seconds of countdown, Go — and assert
 the lead-in was rejected and reported rather than silently binned.
+
+---
+
+## 31. Haptics are feedback generators, not a haptic engine
+
+**Date:** 2026-09-13 · **Task:** 7.3.1 · **Status:** Decided
+
+`Services/Haptics/` gains `HapticFeedbackService`, `LiveHapticFeedbackService`,
+and `Mock`/`Silent` doubles, wired into both production graphs.
+
+### What changed
+
+Five calls: `prepare`, `playCadenceTick`, `playSessionStart`, `playSessionStop`,
+`teardown`. Taps come from `UIImpactFeedbackGenerator` — `.light` per numeral,
+`.heavy` at Go, `.medium` at Stop.
+
+### Why UIKit and not CoreHaptics
+
+The PRD asks for three taps of three weights, with the Go tap *perceptibly
+distinct* from the counting ticks so a user reading the countdown through a
+pocket can tell "1" from "go" [PRD OQ-6]. `light → heavy` is the widest contrast
+the generators offer, and they respect the user's System Haptics setting for
+free. `CHHapticEngine` would buy custom envelopes nobody asked for, at the cost
+of an engine lifecycle, a reset handler and a stopped-handler to get wrong.
+
+CoreHaptics is still imported, for one line: `capabilitiesForHardware()
+.supportsHaptics` is the correct hardware probe even when the taps come from
+UIKit.
+
+### What the capability check does not cover
+
+**There is no public API for the System Haptics toggle.** When it is off the
+generators simply do nothing. That is the right outcome and indistinguishable
+from here, so the setting needs no detection — what it needs is that nothing
+downstream depends on a tap having happened, which the protocol already
+guarantees by never reporting success or failure.
+
+### Silent, but not invisible
+
+"No Taptic Engine" and "haptics broken" look identical from outside. One
+`.info` line per service instance — not per countdown, since `prepare()` runs
+every time the countdown screen appears — keeps them distinguishable without
+filling the log with a non-fault.
+
+### Isolation
+
+`UIFeedbackGenerator` must be used from the main thread, but the protocol is
+`nonisolated` and `Sendable`, and a `@MainActor` type cannot witness it under
+this project's default isolation. So the generators live in a `@MainActor`
+box and the service is a nonisolated façade that hops to it. The isolation sits
+with the UIKit objects that need it rather than being spread across the
+protocol.
+
+### What this deliberately does not do
+
+Nothing calls any of it yet. The countdown screen (8.2.6) owns the cadence —
+how many ticks, and firing Go alongside the start tone. Building the caller
+here would mean guessing at a screen that does not exist.
+
+### Verification
+
+14 tests. The double proves the countdown's shape — five ticks then exactly one
+Go, Go never collapsing into a tick, an aborted countdown taps no Go. The live
+service is exercised on the simulator, where `supportsHaptics` is false: every
+method is a no-op that returns, repeated `prepare`/`teardown` are safe, a tap
+without a prepare still works, and the log assertion branches on
+`isSupported` so it stays true when the suite runs on a phone. One test holds
+both production graphs to carrying the real service — the EPIC 7 audit caught
+exactly that omission for audio, where the engine was built, tested, and
+reachable from nothing.
