@@ -1371,3 +1371,171 @@ outside a `Button`, `maxWidth: .infinity` stretches the control while its hit
 area stays wrapped around the word "Next" — a ~30pt target on a 354pt button,
 and the failure this user base would hit hardest. Putting it in the style means
 no caller can get it wrong.
+
+---
+
+## 28. The session starts at Go, not at the tap
+
+**Date:** 2026-09-12 · **Task:** PRD OQ-6 (pre-8.2.6) · **Status:** Decided (behaviour) / Provisional (the 5 seconds)
+
+**Amends** PRD §5, §6, §7 and OQ-3; docs/04 §4.5-4.6; docs/07 §7.1, §7.3, §7.4,
+§7.7, §7.8; docs/23 EPICs 4, 5, 7, 8. All have been updated to match.
+
+### What changed
+
+Tapping Start Test no longer begins recording. It begins a **5-second countdown**,
+and recording — including the valid-walking-data timer — begins at the final tick
+("Go"):
+
+```
+tap Start Test → prime sensors, count 5 4 3 2 1 → Go: stamp T-0, open buffer, start tone
+Stop           → instant, no countdown
+```
+
+The countdown is **both visible and haptic, not one or the other**: numerals on
+screen for the user still looking at the phone, a haptic tick per second for the
+user who has already pocketed it, a perceptibly distinct tick at Go so haptics
+alone can separate "1" from "go", and a VoiceOver announcement per numeral. The
+five counting ticks play no tone; the existing start tone sounds once, at Go.
+
+### Why
+
+Two reasons, and the second is the load-bearing one.
+
+The obvious one is that a user cannot tap Start and be walking in the same
+instant — they have to stow the phone first, and that fumble was previously
+recorded.
+
+The one that matters more: the spec excluded "setup time" from valid-walking-data
+without ever defining where setup ended. The final tick now defines that boundary
+precisely. Everything before Go is **outside the session** rather than recorded and
+then filtered — `RawSessionBuffer`'s first sample is the first at or after the T-0
+anchor, and persisted `startedAt` is T-0, not the tap.
+
+This does **not** retire `WalkingSegmentDetector`. A user still takes a few steps
+to get going and still stops at crosswalks; those segments are still excluded
+after Go. The narrower, true claim is that phone-stowing has left the recording,
+not that non-walking exclusion is solved.
+
+### Why visible *and* haptic
+
+Haptic-only would fail any user who cannot perceive haptic feedback, so the
+on-screen numerals are the **required fallback channel, not a redundancy** — the
+countdown is never gated on haptic hardware being present or enabled, and degrades
+silently when it isn't. The VoiceOver announcement closes the converse gap: a
+VoiceOver user with the phone already pocketed would otherwise have had neither
+channel until the tone at Go.
+
+### Why Stop stays instant
+
+The delay at Start buys something real — time to get situated — that has no
+equivalent at Stop, where the user has already finished walking. The asymmetry is
+deliberate and should not be "fixed" into symmetry by a later reading. Stop keeps
+its single haptic pulse and its existing distinct stop tone, unchanged.
+
+### What this costs
+
+A new Apple-framework dependency (CoreHaptics), which per the layer rules means a
+new protocol-fronted `HapticFeedbackService` in `Services/` — Task 7.3.1, and the
+reason EPIC 7 is now "Audio & Haptics" rather than "Audio". A new screen (8.2.6)
+with its own cancellation semantics. And a new failure mode to defend against:
+priming that fails *at* Go, after the phone is pocketed, would be a silent failure
+of exactly the kind [PRD §6] forbids — hence priming runs inside the countdown
+window and aborts while the screen is still being watched.
+
+### The alternative considered and rejected
+
+**Proximity sensor + accelerometer stability detection** — auto-firing the start
+haptic once the phone was detected as "settled" in a pocket, instead of counting
+down a fixed interval. Rejected: it is a heuristic with real misfire modes (phone
+in a bag rather than a pocket, wrong orientation, a user who carries the phone in
+hand, a pocket loose enough that it never settles), and every misfire either starts
+a session the user isn't ready for or hangs without starting one at all. That is a
+new failure class and meaningful engineering risk for an uncertain payoff over a
+fixed countdown the user can see, feel and count on. **Not to be reintroduced.**
+
+### What would change it
+
+Device sessions showing 5 seconds is the wrong duration — in which case **the
+constant moves; it does not become a user preference**. Per-mode or user-set values
+were considered and rejected: the countdown is a setup affordance, not a measurement
+parameter, and making it adjustable would add a settings surface and a second
+setup-time definition for no measurement benefit.
+
+### Still open
+
+`[define: priming deadline before zero]` — how long priming may take inside the
+countdown window before the abort fires. Replaces the old
+`[define: e.g. 1 second]` start-latency placeholder, which the countdown reframes
+rather than resolves. Due with the device campaign (11.2.2), alongside audio
+latency validation.
+
+---
+
+## 29. One admission gate, at the buffer boundary
+
+**Date:** 2026-09-12 · **Task:** 5.1.1 · **Status:** Decided
+
+Implements the T-0 contract from entry 28. `SampleAdmission` (Domain) states the
+rule; `SessionSampleBuffer` is the single place that applies it.
+
+### What changed
+
+`SessionSampleBuffer` is now armed rather than open: `arm(at:)` sets T-0,
+`append` returns whether the sample was admitted, and an unarmed buffer admits
+nothing. `freeze()` rehydrates against the anchor it was armed with rather than
+one passed in at freeze time, so the gate and the thaw cannot disagree.
+`RawSessionBuffer.honoursAdmissionContract` asserts the result.
+
+`SessionRecorder.ingest` gates by asking the buffer:
+
+```
+guard sampleBuffer?.append(sample) == true else { return }
+```
+
+### Why one gate and not two
+
+The first cut had the recorder check `SampleAdmission` itself and *then* hand
+the sample to the buffer, which also checked. Both were correct and the tests
+still passed — but the recorder's early return meant the buffer never saw a
+rejected sample, so the buffer's rejection counter read zero on a real session
+and the drop went unlogged. A test asserting the logged count is what caught it.
+
+That is the general shape of the problem with two gates: they do not disagree
+about the verdict, they disagree about everything *around* the verdict —
+counters, logs, and which component's rejection is the one that happened.
+Asking the buffer keeps one rule, one count, one log line.
+
+The cost is that buffering moved ahead of gap detection and step detection in
+`ingest`. Nothing observable changed — a rejected sample must not move the gap
+cursor or fire a footfall either — and the ordering that docs/10 §10.4 actually
+requires (detection after buffering, so feedback can never delay the recording)
+is strengthened, not weakened.
+
+### Why the buffer and not the recorder
+
+The buffer is the boundary the samples cross. Gating at the recorder would leave
+the buffer independently appendable, so a future caller — a replay tool, a
+capture harness — could fill it with pre-T-0 samples and nothing would object.
+
+### What would change it
+
+Priming moving out of the recorder entirely (Task 4.2.2 splits `prime()` from
+`begin()`). The gate stays at the buffer; what changes is who arms it and when.
+
+### Verification
+
+32 tests across three files. `SampleAdmissionTests` holds the rule, including
+that the boundary is closed on the session's side and that it is anchored to
+uptime rather than wall clock. `SessionSampleBufferTests` holds the buffer,
+including that rejected samples never reach the scratch file and that the gate
+survives degraded spilling. `SessionRecorderTests` drives 500 samples of
+lead-in through the real recorder and asserts the frozen buffer honours the
+contract, that the lead-in produces no phantom gap, and that it does not stretch
+the recorded span.
+
+**A float note, since it cost a test.** At an uptime of 1000 the representable
+gap is ~1.1e-13, so `uptime - .ulpOfOne` rounds straight back to `uptime`: the
+"just before T-0" case was silently testing *at* T-0 and passing for the wrong
+reason. Boundary tests use `nextDown`, which is the real predecessor at whatever
+magnitude the anchor happens to sit at.

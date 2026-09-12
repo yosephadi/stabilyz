@@ -87,4 +87,5 @@ These ACs are hard constraints on the architecture (full list is in PRD §7; the
 8. **Terminology enforcement** — user-facing "gait consistency"; "asymmetry" reserved strictly for the unilateral limb comparison [PRD OQ-1].
 9. **Start-button permission degradation** — Motion & Fitness state must be checkable before session start.
 10. **Onboarding resumability** across relaunch.
-11. **Start latency** is a PRD placeholder `[define: e.g. 1 second]` — treated as an [OPEN] tuning target, not a fixed number.
+11. **Start latency** — superseded by the start countdown [PRD OQ-6]: sensors prime inside the countdown window, so the open target is now `[define: priming deadline before zero]` rather than a post-tap latency budget. Still an [OPEN] tuning target, not a fixed number.
+12. **Session start is the countdown's final tick** [PRD OQ-6] — recording, the elapsed clock, `startedAt` and the valid-walking timer all anchor to T-0 ("Go"), never to the Start Test tap; samples captured while priming are never admitted to the buffer.

@@ -8,6 +8,7 @@
 | **CoreMotion / CMPedometer** | Steps, cadence, pace, distance — co-recorded live [PRD §5], cross-check input for segmentation & step detection |
 | **CoreMotion / CMMotionActivityManager** | [REC] Coarse walking/stationary classification to assist non-walking segment exclusion [PRD §6 "user stands still"] |
 | **AVFoundation** | Tones & feedback (see §10) — listed here only for completeness of the session stack |
+| **CoreHaptics** | Countdown ticks and the stop pulse [PRD OQ-6] — behind `HapticFeedbackService`, availability-checked, silently degraded when unsupported or disabled; listed here for completeness of the session stack |
 
 ## 7.2 Structure — Strictly Separated Stages [PRD Rule 10]
 
@@ -19,14 +20,16 @@
 
 ## 7.3 Start / Stop
 
-- Start: `SessionRecorder.begin(mode:audioConfig:)` → start accelerometer + deviceMotion + pedometer updates → confirm first samples arriving → signal readiness → **request** the start tone [PRD AC]. If priming exceeds the latency target, fail fast into a plain-language error (no silent failure [PRD §6 permission analog]).
+- **Countdown (before Start) [PRD OQ-6]:** tapping Start Test does not call `begin`. It starts a 5-second countdown during which `SessionRecorder.prime(mode:audioConfig:)` starts sensor updates and confirms samples are arriving, so delivery is already established at Go. Priming failure aborts the countdown with a plain-language error while the screen is still visible — never at Go, when the phone may already be pocketed. Cancellation (user Cancel, backgrounding, or an interruption; **not** screen-off) tears the primed sensors back down and creates no session.
+- Start: at the final countdown tick ("Go"), `SessionRecorder.begin()` → stamp the **T-0 time anchor** → open the buffer → signal readiness → **request** the start tone [PRD AC], which sounds at Go alongside the distinct final haptic tick. Sensors are already running by this point; priming is no longer on this path.
+- **Discard before zero [PRD OQ-6]:** samples delivered during priming carry timestamps earlier than the T-0 anchor. They are **never** admitted to `RawSessionBuffer` — the buffer's first sample is the first at or after T-0. The countdown window is outside the session entirely, not a segment recorded and later filtered.
 - Stop: user Stop button (always visible [PRD §5]) → disarm feedback → **request** the stop tone → stop sensor updates → drain → freeze buffer → hand off to `SessionProcessor`.
 - **Audio is requested, never awaited, in both directions** (decisions.md entry 25). The tones are handed off to a separate task, so the data path — start sensors / disarm → stop sensors → drain → freeze → handoff — cannot be delayed by the audio layer. The PRD requires both behaviours (a session records; distinct start and stop tones play); it does not require the recorder to block on the second to guarantee the first. Under a wedged or dead audio layer the walk is still measured, frozen and scored, and the tone is simply lost — the same best-effort treatment every other sound gets (docs/10 §10.4).
 
 ## 7.4 Timestamps
 
 - **Primary clock:** CoreMotion sample timestamps (`CMLogItem.timestamp`, device uptime seconds) — monotonic, gap-revealing.
-- **Anchor:** at start, capture `(Date(), uptimeNow())` once; every sample's wall-clock time = anchor + (deviceTimestamp − anchorUptime). This survives wall-clock changes mid-session and makes gap detection arithmetic trivial.
+- **Anchor:** at **Go (T-0), not at the Start Test tap**, capture `(Date(), uptimeNow())` once; every sample's wall-clock time = anchor + (deviceTimestamp − anchorUptime). The persisted `startedAt` (docs/05, a queried scalar column) is this T-0 anchor, so a session's stored start time, its elapsed clock and its valid-walking window all share one origin and the countdown contributes to none of them. This survives wall-clock changes mid-session and makes gap detection arithmetic trivial.
 - Pedometer events mapped onto the same timeline.
 - All durations (`validWalkingDuration`, elapsed) computed from device timestamps, never from Date arithmetic [REC].
 
@@ -44,12 +47,13 @@ A `MotionAcquisitionPolicy` value (rate, axes, deviceMotion on/off) and a `Sessi
 - App observes `UIApplication` lifecycle (will-resign-active / did-enter-background / suspend) and `AVAudioSession` interruption events during a session.
 - **Policy [REC within PRD's allowed space]:** any suspension produces a sensor gap (CMMotionManager delivers nothing while suspended). The recorder marks the gap; walking analysis excludes it; the session carries an `interruptionCount`/gap record; validity is then determined by the normal pipeline (if remaining valid walking ≥ mode threshold → still scoreable — this is PRD-permitted "pause/resume cleanly"; else → invalid/noisy path). A CMPedometer historical query across the gap verifies continuity context [REC].
 - **Never:** continue as if nothing happened and emit a clean score [PRD §6 — "must not silently produce a corrupted 'clean' score"].
-- **Screen lock prevention [REC]:** disable idle timer during a session; on backgrounding, surface a clear message per PRD ("prevent backgrounding during a session with a clear message" is one of PRD's two sanctioned options). No background motion mode is added in v1.
+- **Screen lock prevention [REC]:** disable the idle timer for the **countdown *and* the session** — the countdown exists so the user can stow the phone, so an idle auto-lock partway through it would defeat the feature. On backgrounding, surface a clear message per PRD ("prevent backgrounding during a session with a clear message" is one of PRD's two sanctioned options). No background motion mode is added in v1.
+- **Countdown interruptions are cancellations, not gaps [PRD OQ-6]:** backgrounding or an interruption *during the countdown* cancels it outright — no session is created, so there is nothing to mark invalid and no gap machinery to run. This is deliberately unlike an interruption *during* recording, handled above. **Screen-off is excluded**: a deliberate lock as the phone goes into a pocket must not cancel the countdown or the session.
 - Thermal/battery throttling: sensor rate drops or gaps → same gap/quality machinery → graceful noisy failure, never a crash [PRD §6].
 
 ## 7.8 Non-Walking Periods & Noisy Classification (detection home)
 
-- Non-walking detection is a **pipeline stage** (`WalkingSegmentDetector`, §8.3): standing still, pauses, setup time are excluded segments and do not count toward the valid-walking requirement [PRD §6, §7 AC].
+- Non-walking detection is a **pipeline stage** (`WalkingSegmentDetector`, §8.3): standing still and pauses are excluded segments and do not count toward the valid-walking requirement [PRD §6, §7 AC]. Pre-walk **setup is no longer among them** — the countdown (§7.3) ends before recording starts, so phone-stowing sits outside the buffer rather than inside it awaiting exclusion. What the detector still owns is everything *after* T-0: the first few steps of getting going, a pause at a crosswalk [PRD §6].
 - Noisy classification = `SignalQualityValidation` stage (§8.4): excessive noise (threshold [OPEN]) OR valid-walking duration below the mode minimum → `SessionOutcome.invalid` → noisy screen [PRD §5].
 - The classification *consumes* gap/quality metadata produced by the recorder — single source of truth for validity.
 

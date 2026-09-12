@@ -40,6 +40,10 @@ EPIC 4 — Motion & Recording
   Feature 4.2 Recorder
     Task 4.2.1 Time anchors + gap detection                                 → dep: 4.1.1
     Task 4.2.2 SessionRecorder actor lifecycle (begin/stop, priming budget)
+      ↳ PRD OQ-6 splits this in two: `prime()` runs during the countdown (sensors up,
+        delivery confirmed, abort-on-failure while the screen is still visible) and
+        `begin()` runs at Go (stamp T-0, open buffer, request start tone). Pre-T-0
+        samples are dropped at admission, not filtered downstream.
     Task 4.2.3 Interruption observation (lifecycle + audio session events)
     Task 4.2.4 RawSessionBuffer freeze + scratch-file behavior
   Feature 4.3 Live Step Detection
@@ -48,6 +52,11 @@ EPIC 4 — Motion & Recording
 EPIC 5 — Processing & Algorithms
   Feature 5.1 Pipeline Skeleton
     Task 5.1.1 SessionProcessor actor + GaitScoringAlgorithm contract + version stamping
+      ↳ carries the PRD OQ-6 buffer contract: the session begins at Go (T-0), so
+        `RawSessionBuffer`'s first sample is the first at or after the T-0 anchor and
+        samples captured while the countdown was priming are never admitted. Persisted
+        `startedAt` is T-0, not the Start Test tap. Enforced at the recorder (4.2.2);
+        asserted here because the pipeline is what the contract protects.
     Task 5.1.2 AlgorithmConfiguration (all tunables) + DataQualityPolicy
   Feature 5.2 Stages
     Task 5.2.1 Preprocessing (filter, resample, orientation)                → dep: 5.1.1
@@ -68,14 +77,34 @@ EPIC 6 — Baseline & Scoring
     Task 6.2.3 MetricBreakdown + encouraging-summary generator v0
     Task 6.2.4 Score persistence on session commit                          → dep: 3.2.1
 
-EPIC 7 — Audio
+EPIC 7 — Audio & Haptics
   Feature 7.1 Tones & Engine
     Task 7.1.1 AVAudioEngine service: start/stop tones, session config
+      ↳ substance unchanged by PRD OQ-6; the **trigger point moves**. The start tone
+        fires when the countdown reaches Go, not when Start is tapped or when sensors
+        report ready — it sounds alongside the distinct final haptic tick. Still
+        requested, never awaited (decisions.md 25). Start/stop tones stay distinct;
+        the countdown's own ticks are haptic and visual only and play no tone.
     Task 7.1.2 Route-change/interruption silent degradation
   Feature 7.2 Feedback
     Task 7.2.1 Step Feedback wiring (confidence/refractory, off by default) → dep: 4.3.1, 7.1.1
     Task 7.2.2 Metronome engine (baseline BPM scheduling)                  → dep: 7.1.1, 6.1.2
     Task 7.2.3 Scoring-independence test                                    → dep: 7.2.1/7.2.2
+      ↳ neither cue may sound before Go — a metronome running under a haptic countdown
+        is confusable with it, and would pace gait across a window that isn't measured.
+  Feature 7.3 Haptics
+    Task 7.3.1 HapticFeedbackService + tests
+      ↳ new Apple-framework dependency (CoreHaptics / UIFeedbackGenerator), so per the
+        layer rules it is protocol-fronted in `Services/` alongside `AudioFeedbackService`,
+        and nothing above Services imports it. Availability check
+        (`CHHapticEngine.capabilitiesForHardware().supportsHaptics`, plus the System
+        Haptics setting); **silent degradation** when unavailable or disabled — no error,
+        no blocked Start, the visible countdown carries the flow alone [PRD §6, §7 AC].
+        Surface: countdown tick, distinct Go tick, stop pulse. Requested, never awaited,
+        on the same grounds as audio (decisions.md 25). Unlike audio it is on-device and
+        never routed through an audio device, so the Bluetooth route-change path (7.1.2)
+        does not apply to it. Tests: a no-haptics fake proves the countdown completes and
+        the session records unchanged, and that Go is distinguishable from a count tick.
 
 EPIC 8 — Core Flows UI
   Feature 8.1 Routing & Onboarding
@@ -83,7 +112,28 @@ EPIC 8 — Core Flows UI
     Task 8.1.2 Onboarding wizard + draft persistence + disclaimer gate + resume → dep: 8.1.1, 3.2.3
   Feature 8.2 Session Flow
     Task 8.2.1 Setup screen (mode, audio selector, permission pre-flight, first-session framing) → dep: 6.1.2
-    Task 8.2.2 Recording cover (elapsed, stop, tones)                       → dep: 4.2.2, 7.1.1
+      ↳ PRD OQ-6: the Start Test button's action becomes **begin countdown**, not begin
+        session. It hands mode + audio config to 8.2.6 and creates no `GaitSession`;
+        a cancelled countdown returns here with both selections intact.
+    Task 8.2.6 Countdown screen                                             → dep: 8.2.1, 7.3.1, 7.1.1, 4.2.2
+      ↳ listed here because it runs before 8.2.2; numbered 8.2.6 so the existing
+        8.2.2-8.2.5 identifiers (referenced from the EPIC 7 audit) stay stable.
+      ↳ numerals 5→1 at one per second then "Go"; haptic tick per numeral with a
+        perceptibly **distinct tick at Go**; VoiceOver announcement per numeral;
+        explicit, always-reachable Cancel. Visible channel is never suppressed in
+        favour of haptics — it is the required fallback [PRD OQ-6].
+      ↳ backgrounding/interruption cancels; **screen-off does not**. Idle auto-lock
+        suppressed across the countdown *and* the session. Sensor priming runs inside
+        the countdown window with abort-on-priming-failure surfaced while the screen
+        is still visible ([OPEN] "[define: priming deadline before zero]").
+      ↳ 5 seconds is a single fixed constant — not per-mode, not user-adjustable,
+        provisional and tunable [PRD OQ-6]. Lives in versioned configuration, not at
+        a call site.
+    Task 8.2.2 Recording cover (elapsed, stop, tones)                       → dep: 8.2.6, 4.2.2, 7.1.1, 7.3.1
+      ↳ PRD OQ-6: entered at Go, not at the tap. The elapsed clock anchors to T-0, so
+        the countdown contributes nothing to it. Stop stays **instant** — no countdown,
+        a single haptic pulse plus the stop tone; the asymmetry with Start is deliberate
+        and must not be "fixed" into symmetry.
       ↳ carries EPIC 7 audit finding 2: swap `EngineAudioFeedbackService` into
         `AppDependencies.live()` (and `.storeUnavailable()`), replacing
         `SilentAudioFeedbackService`, and own its `prepare()`/`teardown()`

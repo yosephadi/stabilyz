@@ -35,17 +35,19 @@ Feature boundaries derived from the PRD flows (§5), not from the template list.
 
 ### 4.5 Gait Test Configuration (Session Setup)
 - **Responsibility:** Mode selection (Quick 2-min / Full 6-min) [PRD AC]; audio feedback selector whose contents depend on that mode's baseline existence [PRD §5]; first-session "walk normally — there's no target pace" framing [PRD AC]; permission pre-flight; user instructions (straight-line walking; phone placement guidance [REC — placement is OPEN, see §21]).
+- **Start action:** the Start Test button **begins the countdown, not the session** [PRD OQ-6]. It hands the selected `TestMode` and `SessionAudioConfig` to §4.6's `countingDown` phase; no `GaitSession` exists until the countdown reaches Go.
 - **State:** `baselineState(for: mode)` drives which toggle is shown (Step Feedback pre-baseline; Metronome post-baseline); permission state drives Start-button enabled/degraded copy [PRD AC].
 - **Domain models:** `TestMode`, `BaselineState`, `SessionAudioConfig`.
 - **Error states:** Motion & Fitness denied → inline explanation, Start disabled-with-reason [PRD AC].
 
 ### 4.6 Gait Session Recording
-- **Responsibility:** Live recording: start tone on Start, CMMotionManager + CMPedometer capture, elapsed display, visible Stop button, stop tone on Stop, interruption/suspension handling. [PRD §5, §7]
-- **Screens:** full-screen recording cover.
-- **State machine:** `preparing → running → (interrupted → running)* → stopping → handingOffToProcessing`.
-- **Services:** `SessionRecorder` actor, `AudioFeedbackService` (tones + optional feedback), `LiveStepDetector`.
-- **Edge cases:** phone call/notification, backgrounding/lock, standing still (handled downstream by segmentation), thermal/battery → graceful failure into noisy path [PRD §6].
-- **Loading:** sensor priming must complete within the start-latency target ([OPEN], PRD placeholder "[define: e.g. 1 second]").
+- **Responsibility:** Countdown, then live recording: a 5-second countdown on Start Test [PRD OQ-6], start tone at Go, CMMotionManager + CMPedometer capture, elapsed display, visible Stop button, stop tone on Stop, interruption/suspension handling. [PRD §5, §7]
+- **Screens:** full-screen countdown, then full-screen recording cover.
+- **State machine:** `countingDown → (cancelled)? → preparing → running → (interrupted → running)* → stopping → handingOffToProcessing`. `countingDown` is the only phase with a non-destructive exit: `cancelled` returns to §4.5 with selections intact, and **no session is created** [PRD §6, §7 AC].
+- **Countdown behaviour [PRD OQ-6]:** numerals 5→1 at one per second then "Go"; a haptic tick per numeral with a **perceptibly distinct tick at Go**; a VoiceOver announcement per numeral; an always-reachable Cancel. The visible channel is never suppressed in favour of the haptic one — it is the required fallback, not a redundancy. Sensors prime *during* the countdown; recording, the elapsed clock and the valid-walking timer all begin at **Go (T-0)**, never at the tap.
+- **Services:** `SessionRecorder` actor, `AudioFeedbackService` (tones + optional feedback), `HapticFeedbackService` (countdown ticks, stop pulse), `LiveStepDetector`.
+- **Edge cases:** phone call/notification, backgrounding/lock, standing still (handled downstream by segmentation), thermal/battery → graceful failure into noisy path [PRD §6]. **During the countdown specifically:** backgrounding or an interruption cancels it (no session, nothing marked invalid); **screen-off does not** — a user locking the phone as they pocket it is the countdown working as intended; haptics unavailable or disabled degrades silently to the visible channel alone, never an error and never a blocked Start.
+- **Loading:** sensor priming runs inside the countdown window and must complete before Go ([OPEN], PRD placeholder "[define: priming deadline before zero]"). Priming failure aborts the countdown with a plain-language error **while the screen is still being watched**, rather than failing silently after the phone has been put away [PRD §7 AC].
 - **Errors:** sensor failure mid-session → stop cleanly, session invalid, plain-language message.
 
 ### 4.7 Motion Data Ingestion Engine *(non-UI subsystem)*

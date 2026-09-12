@@ -12,7 +12,8 @@ Sensor sampling rate (rec: 100 Hz) · orientation/axis derivation for ML/VT axes
 
 1. **Composite formula & weights** — completely unspecified; algorithm version 1 must be built with provisional weights and stamped as such [PRD OQ-1 context].
 2. **Noise threshold** — PRD literally says "(define threshold)".
-3. **Start latency target** — PRD placeholder "[define: e.g. 1 second]".
+3. **Priming deadline inside the countdown** — PRD placeholder "[define: priming deadline before zero]" [PRD OQ-6], replacing the old post-tap start-latency target. How long sensor priming may take within the 5-second countdown before the abort fires.
+3a. **Countdown duration** — 5 seconds is provisional and tunable [PRD OQ-6], a single fixed constant (not per-mode, not user-adjustable). Needs device validation that it is long enough to stow a phone unhurried.
 4. **SD floor values** — required to exist; values unspecified.
 5. **Phone placement** — PRD never specifies where the phone is carried; trunk-proxy and autocorrelation quality depend on it. Recommend product-level guidance (e.g., waist-level pocket) — flagged, not assumed.
 6. **"Side reliably identifiable"** definition for the asymmetry feature.
