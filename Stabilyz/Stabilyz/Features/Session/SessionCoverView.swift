@@ -48,10 +48,16 @@ struct SessionCoverView: View {
             clock: dependencies.clock,
             logService: dependencies.logService
         ))
+        let recorder = dependencies.sessionRecorder
         _session = State(initialValue: ActiveSessionViewModel(
             mode: mode,
             audioConfig: audioConfig,
-            onStop: {}
+            onStop: {},
+            onSilenceAudioCue: {
+                // Fire and forget, like every other audio request: the walk
+                // must not wait on the engine going quiet (ledger 25).
+                Task { await recorder.silenceAudioCues() }
+            }
         ))
     }
 

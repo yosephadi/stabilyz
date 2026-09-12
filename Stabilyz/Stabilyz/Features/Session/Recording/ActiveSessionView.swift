@@ -2,9 +2,17 @@ import SwiftUI
 
 /// The walk in progress (Figma node 128:2591, underneath the countdown).
 ///
-/// The ring, the clock inside it, a record of the cues this session was started
-/// with, and Stop. No navigation chrome: this is a full-screen cover, and the
-/// only way out is the button (docs/11 §11.2).
+/// The ring, the clock inside it, the session's cues, and Stop. No navigation
+/// chrome: this is a full-screen cover, and the only way out is the button
+/// (docs/11 §11.2).
+///
+/// The two cue rows behave differently on purpose. Haptics fire at T-0 and at
+/// Stop, so toggling one mid-walk cannot touch the measurement and it is free
+/// in both directions. The audio cue **can be silenced but never started**: a
+/// walk that was unpaced and then paced would produce one set of metrics
+/// spanning two conditions, compared against a baseline established under one
+/// [PRD §5, OQ-5]. Silencing only ever removes influence, and the alternative
+/// for a user with failing earphones is abandoning the walk.
 struct ActiveSessionView: View {
     @Bindable var model: ActiveSessionViewModel
     /// A depleting ring is motion for its own sake to a reader who has asked
@@ -89,7 +97,7 @@ struct ActiveSessionView: View {
         .multilineTextAlignment(.center)
     }
 
-    // MARK: - Cues, as a record rather than a control
+    // MARK: - Cues
 
     private var cuesGroup: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -103,30 +111,68 @@ struct ActiveSessionView: View {
                 )
 
             VStack(spacing: 0) {
-                cueRow(title: model.audioCueTitle, isOn: model.isAudioCueOn)
+                audioCueRow
                 Divider().overlay(StabilyzColor.ink200)
-                cueRow(title: SessionSetupViewModel.hapticsTitle, isOn: true)
+                hapticsRow
             }
             .background(StabilyzColor.bgElevated)
             .clipShape(RoundedRectangle(cornerRadius: Radius.card, style: .continuous))
         }
     }
 
-    /// Deliberately disabled. Changing a cue mid-walk would change the
-    /// conditions being measured, so this shows what the session was started
-    /// with and nothing more [PRD §5].
-    private func cueRow(title: String, isOn: Bool) -> some View {
-        Toggle(isOn: .constant(isOn)) {
-            Text(title)
-                .font(StabilyzFont.bodyRegular)
-                .foregroundStyle(StabilyzColor.ink900)
+    /// One way. The binding accepts `false` and ignores `true`, so the cue can
+    /// be silenced but never started mid-walk — a walk that was unpaced and
+    /// then paced would produce one score spanning two conditions [PRD §5].
+    private var audioCueRow: some View {
+        cueRow(
+            title: model.audioCueTitle,
+            status: model.audioCueStatus,
+            hint: ActiveSessionViewModel.audioCueSilenceHint,
+            isEnabled: model.canSilenceAudioCue,
+            isOn: Binding(
+                get: { model.isAudioCueOn },
+                set: { isOn in if !isOn { model.silenceAudioCue() } }
+            )
+        )
+    }
+
+    /// Free in both directions: these fire at T-0 and at Stop, so changing one
+    /// mid-walk cannot touch the measurement [PRD OQ-6].
+    private var hapticsRow: some View {
+        cueRow(
+            title: SessionSetupViewModel.hapticsTitle,
+            status: nil,
+            hint: ActiveSessionViewModel.hapticsHint,
+            isEnabled: true,
+            isOn: $model.isHapticsOn
+        )
+    }
+
+    private func cueRow(
+        title: String,
+        status: String?,
+        hint: String,
+        isEnabled: Bool,
+        isOn: Binding<Bool>
+    ) -> some View {
+        Toggle(isOn: isOn) {
+            VStack(alignment: .leading, spacing: Space.x1) {
+                Text(title)
+                    .font(StabilyzFont.bodyRegular)
+                    .foregroundStyle(StabilyzColor.ink900)
+                if let status {
+                    Text(status)
+                        .font(StabilyzFont.smallRegular)
+                        .foregroundStyle(StabilyzColor.ink600)
+                }
+            }
         }
         .tint(StabilyzColor.primary600)
-        .disabled(true)
+        .disabled(!isEnabled)
         .padding(.horizontal, Space.x4)
         .padding(.vertical, Space.x3)
         .frame(minHeight: Controls.rowHeight)
-        .accessibilityHint("Set before the walk started, and fixed for its duration.")
+        .accessibilityHint(hint)
     }
 
     // MARK: - Stop

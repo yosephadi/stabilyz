@@ -8,6 +8,10 @@ struct GaitSessionPayload: Codable, Equatable {
     let metrics: GaitMetrics?
     let score: SessionScore?
     let audioConfig: SessionAudioConfig
+    /// Optional for the same reason as `pedometerAvailable` below: absent means
+    /// the session was never silenced, which is what every row written before
+    /// this field existed was.
+    let audioSilencedAt: Duration?
     let appVersion: String
     let deviceModel: String
     let interruptionCount: Int

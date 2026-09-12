@@ -173,6 +173,11 @@ EPIC 8 — Core Flows UI
         Stop capsule. The clock is driven by the recorder's `.elapsed` events
         rather than a UI `Timer`, so it tracks the recording rather than running
         beside it. Ledger entry 36.
+      ↳ Cues are live mid-walk, asymmetrically: haptics toggle freely (they fire
+        at T-0 and Stop, so they cannot touch the measurement), the audio cue can
+        be **silenced but never started** via `SessionRecorder.silenceAudioCues()`.
+        `GaitSession.audioSilencedAt` records where the sound stopped; the config
+        stays what the session started with. Ledger entry 37.
       ↳ STILL OPEN: Stop does not yet stop — `onStop` is a no-op pending the
         processing/score route (8.2.3). Interruption and gap events are drained
         but not surfaced.

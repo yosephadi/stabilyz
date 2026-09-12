@@ -2040,3 +2040,69 @@ cleared, and hidden on both cancel and failure. Release build clean.
 **Not verified visually.** The ring geometry is read from the SVG (band radius
 109.55→127, gradient #1D3963→#294E88) and the layout from node metadata, but
 nothing has been rendered.
+
+---
+
+## 37. A cue can be silenced mid-walk, never started
+
+**Date:** 2026-09-13 · **Task:** 8.2.2 (design review) · **Status:** Decided
+
+The session cues were read-only during a walk (entry 36). They are now live,
+but the two rows are treated differently, because they are different kinds of
+thing.
+
+### Haptics: free, both directions
+
+"Start & Stop Haptics" fires at T-0 and at Stop. Toggling it mid-walk changes
+whether the user feels the stop pulse and nothing else — no effect on gait, no
+effect on the data. Live, unconditionally.
+
+### The audio cue: one way, off
+
+A metronome measurably regularises cadence; that is what it is for. A walk that
+was unpaced for three minutes and paced for three more still yields **one** set
+of metrics — Ad1, Ad2, step-time CV — computed across the whole valid-walking
+window, and compared against a baseline established under a single regime. That
+score is not slightly off, it is uninterpretable. For sessions 1–5 it is worse:
+a contaminated baseline propagates into every later score for that mode
+[PRD §5, OQ-5].
+
+So turning a cue **on** mid-walk is refused outright, at the recorder rather
+than only in the view.
+
+### Why off is nevertheless allowed
+
+Turning one off only ever removes influence, and the asymmetry matters in
+practice. Earphones fail, or the ticking turns out to be distracting — and
+before this the user's only options were to endure it or abandon the walk,
+which costs them the whole session. Step Feedback in particular is reactive by
+construction and "never implies a tempo" [PRD OQ-4], so silencing it is
+low-risk.
+
+### The record stays honest
+
+`GaitSession.audioConfig` keeps what the session **started** with — that is what
+the user chose and what the first part of the walk actually had — and
+`audioSilencedAt` says where the sound stopped. One value claimed for a walk
+that had two states would be a lie in the stored row.
+
+Optional in `GaitSessionPayload`, which needs no schema bump: absent means never
+silenced, which is what every row written before this field existed was. The
+same treatment `pedometerAvailable` already gets.
+
+### Where the refusal lives
+
+`SessionRecorder.silenceAudioCues()` is idempotent, returns whether it did
+anything, and refuses unless the session is `.running` with a cue actually
+playing. The view's binding accepts `false` and ignores `true`. Both, rather
+than either: the view keeps the control honest and the recorder keeps the data
+honest, and a future caller cannot route around the second.
+
+### Verification
+
+12 tests. The view model's one-way silencing, its idempotence, that a silent
+session has nothing to silence and a stopped one can no longer be changed; and
+at the recorder, that the timestamp lands on the frozen buffer, keeps the first
+moment across repeated calls, refuses before T-0 (nothing is playing during the
+countdown anyway — cues are armed by `begin`, never `prime`), and does not
+survive into the next session.

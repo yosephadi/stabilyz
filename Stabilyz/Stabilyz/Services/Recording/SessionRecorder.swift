@@ -65,6 +65,8 @@ actor SessionRecorder {
     private var mode: TestMode?
     private var audioConfig: SessionAudioConfig = .none
     private var interruptionCount = 0
+    /// When the user silenced the audio cue, from T-0. Nil unless they did.
+    private var audioSilencedAt: Duration?
     /// Recorded on the session so later analysis knows the pedometer
     /// cross-check was not available for it.
     private var pedometerAvailable = true
@@ -366,6 +368,47 @@ actor SessionRecorder {
         logService.log(.info, .session, "countdown aborted before T-0; no session created")
     }
 
+    // MARK: - Silencing the cue
+
+    /// Turns this session's audio cue off, mid-walk, for good.
+    ///
+    /// **One way.** A cue can be silenced but never started, because a walk
+    /// that was unpaced and then paced would produce one set of metrics
+    /// spanning two different conditions, compared against a baseline
+    /// established under one [PRD §5, OQ-5]. Silencing only ever removes
+    /// influence, and the alternative — a user with failing earphones
+    /// abandoning the walk — costs them the whole session.
+    ///
+    /// The session keeps the config it started with; `audioSilencedAt` records
+    /// where the sound stopped, so the stored row describes what actually
+    /// happened rather than claiming one state for a walk that had two.
+    ///
+    /// Idempotent, and a no-op unless a cue is actually running.
+    @discardableResult
+    func silenceAudioCues() -> Bool {
+        guard state == .running, audioConfig != .none, audioSilencedAt == nil, let anchor else {
+            return false
+        }
+
+        audioSilencedAt = .seconds(clock.uptime - anchor.uptime)
+
+        // Disarm before asking the engine to stop, so a footfall already in
+        // flight cannot schedule a tick behind the silence.
+        await_stepFeedbackStop()
+        requestAudio { audio, config in
+            if case .metronome = config { await audio.stopMetronome() }
+        }
+
+        logService.log(.info, .session, "audio cues silenced mid-session")
+        return true
+    }
+
+    /// `StepFeedbackBridge.stop()` is synchronous on the bridge's own
+    /// isolation; this keeps the call out of the guard above.
+    private func await_stepFeedbackStop() {
+        Task { [stepFeedback] in await stepFeedback.stop() }
+    }
+
     // MARK: - Stop
 
     /// Stops recording and returns the frozen buffer (docs/07 §7.3).
@@ -420,6 +463,7 @@ actor SessionRecorder {
             startedAt: startedAt,
             endedAt: clock.now,
             advertisedClockElapsed: elapsed,
+            audioSilencedAt: audioSilencedAt,
             interruptionCount: interruptionCount,
             pedometerAvailable: pedometerAvailable
         )
@@ -617,6 +661,7 @@ actor SessionRecorder {
         mode = nil
         audioConfig = .none
         interruptionCount = 0
+        audioSilencedAt = nil
         pedometerAvailable = true
         suspendedAt = nil
         primedSampleStream = nil

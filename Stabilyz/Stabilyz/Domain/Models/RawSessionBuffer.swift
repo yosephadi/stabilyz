@@ -29,6 +29,16 @@ struct RawSessionBuffer: Sendable, Equatable {
     /// What the clock ran, from the monotonic timebase — not what counted
     /// [PRD OQ-3].
     let advertisedClockElapsed: Duration
+    /// When the audio cue was silenced mid-walk, measured from T-0. Nil when it
+    /// never was.
+    ///
+    /// The session keeps the config it *started* with, because that is what the
+    /// user chose and what the first part of the walk actually had. This says
+    /// the rest of it was silent. Only ever set by the user turning a cue off —
+    /// there is no way to turn one on mid-walk, so a session is never part
+    /// unpaced and part paced [PRD §5].
+    let audioSilencedAt: Duration?
+
     /// Populated by interruption observation in Task 4.2.3.
     let interruptionCount: Int
     /// False when the pedometer cross-check was not available for this session.
@@ -36,6 +46,35 @@ struct RawSessionBuffer: Sendable, Equatable {
     /// (docs/08 stage 3), so later analysis needs to know it was missing rather
     /// than inferring it from an absent event list.
     let pedometerAvailable: Bool
+
+    /// Spelled out rather than synthesised, so `audioSilencedAt` can default to
+    /// nil — a session that was never silenced is the ordinary case, and every
+    /// construction site saying so explicitly would be noise.
+    init(
+        mode: TestMode,
+        audioConfig: SessionAudioConfig,
+        anchor: TimeAnchor,
+        series: AlignedSampleSeries,
+        pedometerEvents: [PedometerEvent],
+        startedAt: Date,
+        endedAt: Date,
+        advertisedClockElapsed: Duration,
+        audioSilencedAt: Duration? = nil,
+        interruptionCount: Int,
+        pedometerAvailable: Bool
+    ) {
+        self.mode = mode
+        self.audioConfig = audioConfig
+        self.anchor = anchor
+        self.series = series
+        self.pedometerEvents = pedometerEvents
+        self.startedAt = startedAt
+        self.endedAt = endedAt
+        self.advertisedClockElapsed = advertisedClockElapsed
+        self.audioSilencedAt = audioSilencedAt
+        self.interruptionCount = interruptionCount
+        self.pedometerAvailable = pedometerAvailable
+    }
 
     var samples: [SensorSample] { series.samples }
     var gapInfo: SessionGapInfo { series.gapInfo }

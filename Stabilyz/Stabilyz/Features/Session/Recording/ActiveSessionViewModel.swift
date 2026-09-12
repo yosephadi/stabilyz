@@ -19,16 +19,30 @@ final class ActiveSessionViewModel {
     /// Set when the walk has been stopped, so the button cannot fire twice.
     private(set) var isStopping = false
 
+    /// Set once the user turns the audio cue off. **One way** — see
+    /// `silenceAudioCue()`.
+    private(set) var isAudioCueSilenced = false
+
+    /// The countdown taps and the stop pulse. Free in both directions: these
+    /// fire at T-0 and at Stop, so changing one mid-walk cannot affect the
+    /// measurement [PRD OQ-6].
+    var isHapticsOn: Bool
+
     private let onStop: @MainActor () -> Void
+    private let onSilenceAudioCue: @MainActor () -> Void
 
     init(
         mode: TestMode,
         audioConfig: SessionAudioConfig,
-        onStop: @escaping @MainActor () -> Void
+        isHapticsOn: Bool = true,
+        onStop: @escaping @MainActor () -> Void,
+        onSilenceAudioCue: @escaping @MainActor () -> Void = {}
     ) {
         self.mode = mode
         self.audioConfig = audioConfig
+        self.isHapticsOn = isHapticsOn
         self.onStop = onStop
+        self.onSilenceAudioCue = onSilenceAudioCue
     }
 
     // MARK: - The clock
@@ -79,15 +93,39 @@ final class ActiveSessionViewModel {
 
     static let stopTitle = "Stop"
 
-    /// Shown on the cues list while the walk runs. The toggles are a record of
-    /// what this session was started with, not a control — changing a cue
-    /// mid-walk would change the conditions being measured [PRD §5].
     var audioCueTitle: String {
         if case .metronome = audioConfig { return "Metronome Cue" }
         return "Audio Step Feedback"
     }
 
-    var isAudioCueOn: Bool { audioConfig != .none }
+    /// Whether this session started with any audio cue at all. A session
+    /// started silent has nothing to silence.
+    var hasAudioCue: Bool { audioConfig != .none }
+
+    var isAudioCueOn: Bool { hasAudioCue && !isAudioCueSilenced }
+
+    /// The toggle is live only while there is something to turn off.
+    var canSilenceAudioCue: Bool { hasAudioCue && !isAudioCueSilenced && !isStopping }
+
+    /// Shown beside the title once the cue is off, so the row explains why it
+    /// will not go back on.
+    var audioCueStatus: String? { isAudioCueSilenced ? "Silenced for this walk" : nil }
+
+    static let audioCueSilenceHint = "Turning this off cannot be undone during this walk."
+    static let hapticsHint = "Affects the tap when the walk ends."
+
+    /// Turns the cue off for the rest of the walk.
+    ///
+    /// **One way, deliberately.** A walk that was unpaced and then paced would
+    /// produce one set of metrics spanning two conditions, compared against a
+    /// baseline established under one [PRD §5, OQ-5]. Silencing only removes
+    /// influence — and the alternative for a user with failing earphones is
+    /// abandoning the walk, which costs them the whole session.
+    func silenceAudioCue() {
+        guard canSilenceAudioCue else { return }
+        isAudioCueSilenced = true
+        onSilenceAudioCue()
+    }
 
     // MARK: - Events
 

@@ -1093,3 +1093,84 @@ private actor CountingMotionService: MotionSensorService {
     }
     #expect(await audio.calls.isEmpty)
 }
+
+// MARK: - Silencing a cue mid-session
+
+@Test func silencingRecordsWhenTheWalkWentQuiet() async throws {
+    // The session keeps the config it started with; this says the rest of it
+    // was silent, so the stored row describes what actually happened rather
+    // than claiming one state for a walk that had two.
+    let clock = SteppableClock()
+    let (recorder, _, _, log) = makeRecorder(clock: clock)
+
+    try await recorder.prime(mode: .quickTest, audioConfig: .stepFeedback)
+    _ = try await recorder.begin(at: TimeAnchor(clock: clock))
+    clock.advance(by: 45)
+    #expect(await recorder.silenceAudioCues())
+
+    let buffer = try await recorder.stop()
+
+    #expect(buffer.audioConfig == .stepFeedback)
+    #expect(buffer.audioSilencedAt == .seconds(45))
+    #expect(log.entries.withLock { $0.contains { $0.contains("audio cues silenced") } })
+}
+
+@Test func silencingIsIdempotentAndKeepsTheFirstMoment() async throws {
+    let clock = SteppableClock()
+    let (recorder, _, _, _) = makeRecorder(clock: clock)
+
+    try await recorder.prime(mode: .quickTest, audioConfig: .stepFeedback)
+    _ = try await recorder.begin(at: TimeAnchor(clock: clock))
+    clock.advance(by: 10)
+    #expect(await recorder.silenceAudioCues())
+    clock.advance(by: 30)
+    // The second call changes nothing — the walk went quiet once.
+    #expect(await recorder.silenceAudioCues() == false)
+
+    let buffer = try await recorder.stop()
+    #expect(buffer.audioSilencedAt == .seconds(10))
+}
+
+@Test func aSilentSessionHasNothingToSilence() async throws {
+    let clock = SteppableClock()
+    let (recorder, _, _, _) = makeRecorder(clock: clock)
+
+    try await recorder.prime(mode: .quickTest, audioConfig: .none)
+    _ = try await recorder.begin(at: TimeAnchor(clock: clock))
+
+    #expect(await recorder.silenceAudioCues() == false)
+
+    let buffer = try await recorder.stop()
+    #expect(buffer.audioSilencedAt == nil)
+}
+
+@Test func aCueCannotBeSilencedBeforeTheWalkStarts() async throws {
+    // There is nothing playing during the countdown — cues are armed by
+    // `begin`, never by `prime` (Task 7.2.3).
+    let clock = SteppableClock()
+    let (recorder, _, _, _) = makeRecorder(clock: clock)
+
+    try await recorder.prime(mode: .quickTest, audioConfig: .stepFeedback)
+    #expect(await recorder.silenceAudioCues() == false)
+
+    _ = try await recorder.begin(at: TimeAnchor(clock: clock))
+    #expect(await recorder.silenceAudioCues())
+    _ = try await recorder.stop()
+}
+
+@Test func silencingDoesNotSurviveIntoTheNextSession() async throws {
+    let clock = SteppableClock()
+    let (recorder, _, _, _) = makeRecorder(clock: clock)
+
+    try await recorder.prime(mode: .quickTest, audioConfig: .stepFeedback)
+    _ = try await recorder.begin(at: TimeAnchor(clock: clock))
+    clock.advance(by: 5)
+    #expect(await recorder.silenceAudioCues())
+    _ = try await recorder.stop()
+
+    try await recorder.prime(mode: .fullTest, audioConfig: .stepFeedback)
+    _ = try await recorder.begin(at: TimeAnchor(clock: clock))
+    let second = try await recorder.stop()
+
+    #expect(second.audioSilencedAt == nil)
+}

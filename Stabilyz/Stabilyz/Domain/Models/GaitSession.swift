@@ -28,6 +28,15 @@ struct GaitSession: Sendable, Equatable, Identifiable {
     /// session onward [PRD §7].
     let score: SessionScore?
     let audioConfig: SessionAudioConfig
+    /// When the audio cue was silenced mid-walk, measured from T-0. Nil when it
+    /// never was.
+    ///
+    /// The session keeps the config it *started* with, because that is what the
+    /// user chose and what the first part of the walk actually had. This says
+    /// the rest of it was silent. Only ever set by the user turning a cue off —
+    /// there is no way to turn one on mid-walk, so a session is never part
+    /// unpaced and part paced [PRD §5].
+    let audioSilencedAt: Duration?
     let algorithmVersion: String
     let appVersion: String
     /// [REC] for future diagnostics.
@@ -50,6 +59,7 @@ struct GaitSession: Sendable, Equatable, Identifiable {
         metrics: GaitMetrics?,
         score: SessionScore?,
         audioConfig: SessionAudioConfig,
+        audioSilencedAt: Duration? = nil,
         algorithmVersion: String,
         appVersion: String,
         deviceModel: String,
@@ -67,6 +77,7 @@ struct GaitSession: Sendable, Equatable, Identifiable {
         self.metrics = metrics
         self.score = score
         self.audioConfig = audioConfig
+        self.audioSilencedAt = audioSilencedAt
         self.algorithmVersion = algorithmVersion
         self.appVersion = appVersion
         self.deviceModel = deviceModel
@@ -87,6 +98,7 @@ struct GaitSession: Sendable, Equatable, Identifiable {
         metrics: GaitMetrics,
         score: SessionScore? = nil,
         audioConfig: SessionAudioConfig,
+        audioSilencedAt: Duration? = nil,
         algorithmVersion: String,
         appVersion: String,
         deviceModel: String,
@@ -105,6 +117,7 @@ struct GaitSession: Sendable, Equatable, Identifiable {
             metrics: metrics,
             score: score,
             audioConfig: audioConfig,
+            audioSilencedAt: audioSilencedAt,
             algorithmVersion: algorithmVersion,
             appVersion: appVersion,
             deviceModel: deviceModel,
@@ -125,6 +138,7 @@ struct GaitSession: Sendable, Equatable, Identifiable {
         advertisedClockElapsed: Duration,
         validWalkingDuration: Duration,
         audioConfig: SessionAudioConfig,
+        audioSilencedAt: Duration? = nil,
         algorithmVersion: String,
         appVersion: String,
         deviceModel: String,
@@ -143,6 +157,7 @@ struct GaitSession: Sendable, Equatable, Identifiable {
             metrics: nil,
             score: nil,
             audioConfig: audioConfig,
+            audioSilencedAt: audioSilencedAt,
             algorithmVersion: algorithmVersion,
             appVersion: appVersion,
             deviceModel: deviceModel,
