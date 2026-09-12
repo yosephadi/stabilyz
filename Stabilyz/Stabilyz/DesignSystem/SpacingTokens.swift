@@ -54,6 +54,26 @@ enum Controls {
     /// 156pt card). Above the 44pt floor, because these rows are the whole
     /// interaction on their screen.
     static let rowHeight: CGFloat = 52
+    /// A grouped-list section header block (Figma node 123:914 draws each
+    /// "Section Title" 39pt tall).
+    ///
+    /// The height is the header *and* the gap under it: the node puts its
+    /// content at y=39 with nothing between. Implemented as a minimum with the
+    /// text at the top, so the gap is what gives way when Dynamic Type grows
+    /// the label rather than the label being clipped.
+    static let sectionHeaderHeight: CGFloat = 39
+    /// The **large** segmented control — Test Mode (Figma node 123:1485 draws
+    /// it 50pt tall, with its two 46pt options inset 2pt).
+    ///
+    /// SwiftUI's `.segmented` picker is ~32pt by default, which is the compact
+    /// variant. This is the size the node specifies (`variantSize="Large"`),
+    /// and it matters for the same reason `rowHeight` does: choosing the test
+    /// is the first real decision on the screen, and 32pt of tap target for it
+    /// is mean on a hand that may not be steady.
+    ///
+    /// Equal to `buttonHeight` by coincidence rather than derivation — the two
+    /// are read from different nodes and neither follows the other.
+    static let segmentedControlHeight: CGFloat = 50
     /// One capsule of the onboarding progress bar (Figma 40:835).
     static let progressBarHeight: CGFloat = 14
     /// The wave mark above the app name on Welcome (Figma 47:1275).

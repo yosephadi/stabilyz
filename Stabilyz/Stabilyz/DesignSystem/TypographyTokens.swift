@@ -26,12 +26,21 @@ enum StabilyzFont {
     static let subheading2Regular = Font.title3.weight(.medium)
     /// 17 Bold — emphasised body copy, button labels.
     static let bodyBold = Font.body.weight(.bold)
-    /// 17 Medium — default body copy.
-    static let bodyRegular = Font.body.weight(.medium)
+    /// 17 Regular — default body copy.
+    ///
+    /// Regular, not Medium. §3's table said Medium until Figma node 123:914
+    /// was read, which declares this style as SF Pro Regular at weight 400 —
+    /// so the document was carrying a mistranscription from the earlier nodes.
+    /// The design is the authority on its own weights; §3 has been corrected.
+    static let bodyRegular = Font.body
     /// 15 Bold — metadata labels, timestamps.
     static let smallBold = Font.subheadline.weight(.bold)
-    /// 15 Medium — captions and footnotes. **The floor** (§3).
-    static let smallRegular = Font.subheadline.weight(.medium)
+    /// 15 Regular — captions and footnotes. **The floor** (§3).
+    ///
+    /// Regular for the same reason as `bodyRegular`. The floor is about
+    /// *size*, which is unchanged at 15 — nothing here gets lighter than the
+    /// system's own body weight, and nothing gets smaller.
+    static let smallRegular = Font.subheadline
     /// 17 Semibold — the label on a filled primary button.
     ///
     /// `.headline` rather than `bodyBold`, because a `.borderedProminent`

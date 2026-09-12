@@ -1906,3 +1906,58 @@ seeded, per-mode segregation, the unreadable-store path in both its display and
 its "you can still record" halves, and the stale-cue drop — which failed first
 and is what found the dead guard. Release build for the simulator confirmed
 clean, which is the configuration where `mainRoot` takes its `#else` branch.
+
+---
+
+## 35. Body and caption are Regular; setup's sections breathe at 24pt
+
+**Date:** 2026-09-13 · **Task:** 8.2.1 (design review) · **Status:** Decided
+
+Three changes from a design pass over the session setup screen.
+
+### The segmented control is the Large variant
+
+Figma node 123:1485 draws it **50pt** tall, with its two options 46pt inset by
+2pt. SwiftUI's `.segmented` picker is ~32pt — the compact variant — so the
+height is now set explicitly from `Controls.segmentedControlHeight`.
+`.controlSize(.large)` alone does not resize a segmented picker on iOS.
+
+It matters beyond fidelity: choosing the test is the first real decision on the
+screen, and 32pt of tap target for it is mean on a hand that may not be steady.
+
+### Body and caption move from Medium to Regular — globally
+
+design-system.md §3 said `Body Text Regular | 17px | Medium`. Figma node
+123:914 declares that style as **SF Pro Regular, weight 400**. The document was
+carrying a mistranscription from the earlier nodes (40:835, 47:1275) rather than
+recording a different decision — the design has been Regular throughout.
+
+The design is the authority on its own weights, so `bodyRegular` and
+`smallRegular` are now unweighted system styles and §3 has been corrected. This
+is deliberately **global**: Welcome, the onboarding wizard and session setup all
+moved together, because one screen's reading of a shared token is not a reason
+for the app to carry two body weights. Medium survives on the 28px and 20px
+numeral/title styles, which the design does draw at Medium.
+
+**The 15pt floor is untouched.** It is a rule about size, and nothing got
+smaller — nor lighter than the system's own body weight.
+
+### Sections separate at 24pt, and headers are 39pt blocks
+
+The node draws 16pt between the three groups, and that is what was built. It
+read as cramped, for two reasons rather than one:
+
+- The gap itself. `Space.x6` (24) is what design-system.md §4 already calls
+  "gap between unrelated groups", which is exactly what these three are.
+- **The headers were ~7pt short.** The node's Section Title is a 39pt block and
+  its content starts immediately after, so the space under a header belongs to
+  the header. It was implemented as a 20pt label plus 8pt of padding — about
+  32pt — so every group was losing height above its content on top of the gap.
+
+`Controls.sectionHeaderHeight` is that 39pt block, applied as a minimum with the
+text at the top so Dynamic Type spends the gap before it grows the block.
+
+### Not verified visually
+
+All three are unrendered changes: the suite is green and both configurations
+build, but nothing has been looked at on a simulator.

@@ -17,7 +17,7 @@ struct SessionSetupView: View {
     var body: some View {
         VStack(spacing: 0) {
             ScrollView {
-                VStack(alignment: .leading, spacing: Space.x4) {
+                VStack(alignment: .leading, spacing: Space.x6) {
                     if model.permissionMessage != nil {
                         permissionCard
                     }
@@ -51,6 +51,11 @@ struct SessionSetupView: View {
             }
             .pickerStyle(.segmented)
             .labelsHidden()
+            // The node's Large variant. `controlSize` alone does not resize a
+            // segmented picker on iOS, so the height is set explicitly to the
+            // 50pt the node draws.
+            .controlSize(.large)
+            .frame(height: Controls.segmentedControlHeight)
 
             footnote(model.modeSubtitle)
                 .padding(.top, Space.x2)
@@ -172,11 +177,20 @@ struct SessionSetupView: View {
     // MARK: - Shared bits
 
     /// The grey group header the node draws above each section.
+    ///
+    /// A 39pt block rather than a label with padding: the node's Section Title
+    /// is 39pt tall and its content begins immediately after, so the space
+    /// under the header belongs to the header. Text at the top, so Dynamic
+    /// Type spends the gap before it grows the block.
     private func sectionHeader(_ text: String) -> some View {
         Text(text)
             .font(StabilyzFont.subheading2Bold)
             .foregroundStyle(StabilyzColor.ink600)
-            .padding(.bottom, Space.x2)
+            .frame(
+                maxWidth: .infinity,
+                minHeight: Controls.sectionHeaderHeight,
+                alignment: .topLeading
+            )
     }
 
     /// Supporting copy under a group. `smallRegular` is the 15pt floor (§3) —

@@ -115,7 +115,7 @@ document does not contain.
 
 ## 3. Typography
 
-**SF Pro**, non-italic, Medium and Bold only, 15pt minimum per HIG.
+**SF Pro**, non-italic, Regular / Medium / Bold only, 15pt minimum per HIG.
 
 | Style | Size | Weight | Use |
 |---|---|---|---|
@@ -126,11 +126,23 @@ document does not contain.
 | Subheading 2 Reg | 20px | Medium | Card titles, less emphasis |
 | Body Text Bold | 17px | Bold | Emphasized body copy |
 | Button Label | 17px | Semibold | Label on a filled primary button (`.headline`) |
-| Body Text Regular | 17px | Medium | Default body copy |
+| Body Text Regular | 17px | Regular | Default body copy |
 | Small Body Text Bold | 15px | Bold | Metadata labels, timestamps (bold) |
-| Small Body Text Regular | 15px | Medium | Metadata, captions, helper text — **floor size** |
+| Small Body Text Regular | 15px | Regular | Metadata, captions, helper text — **floor size** |
 
 Never go below 15px. Never use SF Pro's italic styles.
+
+**Body and caption are Regular (400), not Medium.** This table said Medium
+until Figma node 123:914 was read, which declares both styles as SF Pro
+Regular at weight 400. The earlier reading came from nodes 40:835 and
+47:1275 and was a mistranscription rather than a different decision — the
+design has been Regular throughout. Corrected 2026-09-13, and the change is
+global: Welcome, the onboarding wizard and the session setup screen all moved
+together. Medium survives only on the 28px and 20px numeral/title styles,
+which the design does draw at Medium.
+
+The floor is about **size** and is unaffected: 15px is still the smallest text
+in the app, and nothing is lighter than the system's own body weight.
 
 **There is no exception to the floor.** A 13px `Footnote` token existed
 briefly, for the single line under a disabled primary button. On a screen
