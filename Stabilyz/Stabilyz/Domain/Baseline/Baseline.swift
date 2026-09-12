@@ -14,6 +14,14 @@ struct Baseline: Sendable, Equatable, Identifiable {
     /// [PRD OQ-5 — locked in].
     static let requiredValidSessionCount = 5
 
+    /// What an established baseline scores, by construction [PRD §7].
+    ///
+    /// Every relative index is read against this: a session at 112 is 12 above
+    /// the user's own normal, not 12% better at anything. Named here rather
+    /// than typed into the screens that show it, so the reference point and the
+    /// scoring that produces it cannot drift apart.
+    static let referenceIndex = 100
+
     enum ValidationError: Error, Equatable {
         /// A baseline must be derived from exactly five valid same-mode sessions.
         case wrongSourceSessionCount(expected: Int, actual: Int)

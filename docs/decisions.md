@@ -1769,3 +1769,66 @@ the frozen buffer; cancellation at T-1 halting the ticks, aborting the recorder
 and starting no session; priming failure landing on `.failed` with the real
 error, having counted nothing; and silence across the whole countdown under both
 cue configurations.
+
+---
+
+## 33. The session setup copy matrix lives in the view model
+
+**Date:** 2026-09-13 · **Task:** 8.2.1 · **Status:** Decided
+
+`Features/Session/Setup/` — `SessionSetupViewModel` decides every string,
+`SessionSetupView` draws Figma node 123:914 with design tokens.
+
+### Where the Figma node and the PRD disagree
+
+The node is the authority on layout. It is **not** the authority on defaults,
+and three things in it are settled the other way:
+
+- **The audio cue toggle is drawn ON.** [PRD §7 AC] says off by default — "the
+  user must explicitly opt in for any audio during baseline-establishing
+  sessions", because even a footfall-triggered sound can nudge step timing in
+  the sessions that define the reference point. Off, in every state.
+- **"Start & Stop Haptics" is drawn OFF.** The task spec says on by default,
+  and that is right: unlike the audio cues, haptics do not influence gait —
+  they mark when the measurement starts and stops [PRD OQ-6]. On.
+- **The node's first toggle reads "Audio Walking Cues".** The task's copy
+  matrix specifies "Metronome Cue" post-baseline and "Audio Step Feedback"
+  before. The matrix wins, because the toggle's *identity* changes with the
+  baseline and one neutral label would hide that: "Audio Walking Cues" reads as
+  one feature you switch on, when it is two mutually exclusive ones [PRD §5].
+
+### Where the spec's copy was changed
+
+"Complete \(remaining) more valid Quick Tests" is ungrammatical at
+`remaining == 1` — which is the session before last, when the line matters
+most. It reads "Complete 1 more valid Quick Tests". Pluralisation agrees with
+the number instead. On a screen built for readers in their seventies, the
+sentence telling them how close they are is the last one to get sloppy.
+
+### The gates are on the config, not the toggle
+
+`audioConfig` is derived from the baseline state every time it is read, so a
+toggle left on cannot smuggle a metronome into a pre-baseline session or
+strand step feedback in a post-baseline one. `MetronomeCue` has no initializer
+taking a bare BPM, so a cue can only ever carry this mode's own cadence
+[PRD OQ-5].
+
+### 100 comes from the domain
+
+`Baseline.referenceIndex` is new. The card shows the reference index, and a
+`100` typed into a view would be a number that could drift from the scoring
+that produces it.
+
+### What this deliberately does not do
+
+`onStart(mode:audioConfig:)` hands the choice outward. This screen chooses a
+session; it does not begin one — the countdown (8.2.6) does. Nothing routes to
+the screen yet either, so it compiles and its logic is fully tested but it has
+**not been seen running**.
+
+### Verification
+
+20 tests covering all six cells of the matrix, both toggle identities, the
+off-by-default and on-by-default rules, both gates including the cross-boundary
+case, and all four permission outcomes. The design-token guard and the 15pt
+typography floor both scan `Features/` and passed with the new view in scope.
