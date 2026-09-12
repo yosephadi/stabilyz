@@ -28,7 +28,9 @@ final class ActiveSessionViewModel {
     /// measurement [PRD OQ-6].
     var isHapticsOn: Bool
 
-    private let onStop: @MainActor () -> Void
+    /// Assigned by the cover once it exists — the closure has to reach the
+    /// view's own state, which is not available while this is being built.
+    var onStop: @MainActor () -> Void
     private let onSilenceAudioCue: @MainActor () -> Void
 
     init(
@@ -139,10 +141,29 @@ final class ActiveSessionViewModel {
         for await event in events {
             if case .elapsed(let duration) = event {
                 elapsed = duration
+                stopIfElapsed()
             }
         }
     }
 
+    /// Ends the walk when the advertised length runs out.
+    ///
+    /// The user asked for two minutes, so two minutes is what the app takes —
+    /// leaving them walking past a clock reading `00:00`, waiting to be told
+    /// they may stop, would be the app failing to finish what it started. It
+    /// goes through `stop()`, so the natural end and the tapped one are the
+    /// same path and neither can fire twice.
+    private func stopIfElapsed() {
+        guard remaining == .zero else { return }
+        stop()
+    }
+
+    /// Ends the walk — tapped, or the clock running out.
+    ///
+    /// The button is disabled first so a second tap cannot land while the
+    /// recorder is freezing, and the stop pulse is requested before the
+    /// hand-off so the user feels the end at the moment it happens rather than
+    /// after the processing screen has appeared.
     func stop() {
         guard !isStopping else { return }
         isStopping = true

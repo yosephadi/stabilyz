@@ -75,6 +75,13 @@ enum Controls {
     /// indicator = 840 safe-area bottom, less the button's 745 bottom edge.
     static let coverFooterBottomGap: CGFloat = 95
 
+    /// The gap under the mark on the Processing screen.
+    ///
+    /// Larger than any step on the 4pt scale, because this screen is one
+    /// column of centred text with nothing else in it: the mark has to read as
+    /// separate from the sentence under it rather than as its heading.
+    static let processingLogoGap: CGFloat = 60
+
     /// A grouped-list section header block (Figma node 123:914 draws each
     /// "Section Title" 39pt tall).
     ///

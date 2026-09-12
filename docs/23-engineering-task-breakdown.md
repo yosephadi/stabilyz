@@ -178,9 +178,11 @@ EPIC 8 — Core Flows UI
         be **silenced but never started** via `SessionRecorder.silenceAudioCues()`.
         `GaitSession.audioSilencedAt` records where the sound stopped; the config
         stays what the session started with. Ledger entry 37.
-      ↳ STILL OPEN: Stop does not yet stop — `onStop` is a no-op pending the
-        processing/score route (8.2.3). Interruption and gap events are drained
-        but not surfaced.
+      ↳ Stop now stops (8.2.3). Two triggers — the tapped capsule and the clock
+        reaching 00:00 — both through `stop()`, so neither can fire twice.
+        Sequence: disable, request the stop pulse, `recorder.stop()`, then the
+        pipeline. Ledger entry 38.
+      ↳ STILL OPEN: interruption and gap events are drained but not surfaced.
       ↳ PRD OQ-6: entered at Go, not at the tap. The elapsed clock anchors to T-0, so
         the countdown contributes nothing to it. Stop stays **instant** — no countdown,
         a single haptic pulse plus the stop tone; the asymmetry with Start is deliberate
@@ -195,6 +197,15 @@ EPIC 8 — Core Flows UI
         `AVAudioSession` and something must deactivate it. Delete the stale
         "Task 7.1.1 replaces this" comment at the same time.
     Task 8.2.3 Processing screen + routing to Score/Noisy                   → dep: 5.1.1
+      ↳ DONE except the destination. `ProcessingView` (mark, title, mode-named
+        body, privacy line) is non-dismissible while the pipeline runs — after
+        processing the flow routes to Noisy or Score, never neither [PRD §5].
+        `SessionFlowPhase` is the cover's pure state machine; `SessionOutcomeService`
+        runs buffer → `SessionProcessor` → `GaitSession` → `SessionCommitService`,
+        and both production graphs carry it (nil in the degraded one, which has no
+        store to commit to). Ledger entry 38.
+      ↳ STILL OPEN: `.finished` and `.failed` currently just close the cover —
+        the Score and Noisy screens are 8.2.4/8.2.5.
     Task 8.2.4 Score screen (building/relative states, expandable signals)  → dep: 6.2.3
       ↳ carries EPIC 6 audit ACs 7/9/10: the building state, the
         "vs. your baseline" rendering, and the provisional framing.

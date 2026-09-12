@@ -42,6 +42,16 @@ struct AppDependencies: Sendable {
     /// its lifecycle methods rather than recreated (docs/12 §12.3).
     let sessionRecorder: SessionRecorder
 
+    /// Turns a frozen recording into a committed session (docs/08, docs/11 §11.3).
+    ///
+    /// **Nil when the store could not be opened.** Unlike the repositories,
+    /// this cannot be stood up as a loudly-failing stand-in: it is built from
+    /// concrete `StoreReader`/`StoreWriter`, which need a container there is
+    /// none of. Nil is the honest answer — a session genuinely cannot be
+    /// committed — and the session flow surfaces it as a persistence failure
+    /// rather than recording a walk it can never save.
+    let sessionOutcomes: SessionOutcomeService?
+
     /// Whether the onboarding wizard has something to resume (docs/04 §4.1).
     /// Task 8.1.2 replaces the empty store with the real UserDefaults-backed one.
     let onboardingDrafts: OnboardingDraftStore
@@ -73,6 +83,7 @@ struct AppDependencies: Sendable {
         keyDerivation: KeyDerivation,
         secureArchive: SecureArchiveCoding,
         sessionRecorder: SessionRecorder,
+        sessionOutcomes: SessionOutcomeService? = nil,
         onboardingDrafts: OnboardingDraftStore = EmptyOnboardingDraftStore(),
         userProfileRepository: UserProfileRepository,
         gaitSessionRepository: GaitSessionRepository,
@@ -89,6 +100,7 @@ struct AppDependencies: Sendable {
         self.keyDerivation = keyDerivation
         self.secureArchive = secureArchive
         self.sessionRecorder = sessionRecorder
+        self.sessionOutcomes = sessionOutcomes
         self.onboardingDrafts = onboardingDrafts
         self.userProfileRepository = userProfileRepository
         self.gaitSessionRepository = gaitSessionRepository
@@ -123,6 +135,26 @@ extension AppDependencies {
         // costs nothing and nothing is reserved while the user is not walking.
         let hapticFeedback = LiveHapticFeedbackService(logService: logService)
 
+        let sessions = SwiftDataGaitSessionRepository(reader: reader, writer: writer)
+        let baselines = SwiftDataBaselineRepository(reader: reader, writer: writer)
+        let profiles = SwiftDataUserProfileRepository(reader: reader, writer: writer)
+        let outcomes = SessionOutcomeService(
+            processor: SessionProcessor(algorithm: GaitAnalysisPipeline(), logService: logService),
+            commits: SessionCommitService(
+                sessions: sessions,
+                baselines: baselines,
+                writer: writer,
+                reader: reader,
+                stateStore: BaselineStateStore(sessions: sessions, baselines: baselines),
+                logService: logService,
+                clock: clock
+            ),
+            baselines: baselines,
+            profiles: profiles,
+            buildInfo: SystemBuildInfo(),
+            logService: logService
+        )
+
         var dependencies = AppDependencies(
             logService: logService,
             clock: clock,
@@ -144,10 +176,11 @@ extension AppDependencies {
                 logService: logService,
                 fileIO: fileIO
             ),
+            sessionOutcomes: outcomes,
             onboardingDrafts: UserDefaultsOnboardingDraftStore(),
-            userProfileRepository: SwiftDataUserProfileRepository(reader: reader, writer: writer),
-            gaitSessionRepository: SwiftDataGaitSessionRepository(reader: reader, writer: writer),
-            baselineRepository: SwiftDataBaselineRepository(reader: reader, writer: writer)
+            userProfileRepository: profiles,
+            gaitSessionRepository: sessions,
+            baselineRepository: baselines
         )
 
         #if DEBUG
@@ -202,6 +235,8 @@ extension AppDependencies {
                 logService: logService,
                 fileIO: fileIO
             ),
+            // No store, so nothing can be committed. See the slot's note.
+            sessionOutcomes: nil,
             // UserDefaults is unaffected by the store failing to open, so a
             // half-finished wizard still survives the degraded launch.
             onboardingDrafts: UserDefaultsOnboardingDraftStore(),

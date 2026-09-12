@@ -2106,3 +2106,74 @@ at the recorder, that the timestamp lands on the frozen buffer, keeps the first
 moment across repeated calls, refuses before T-0 (nothing is playing during the
 countdown anyway — cues are armed by `begin`, never `prime`), and does not
 survive into the next session.
+
+---
+
+## 38. Stop runs the pipeline, and the processing screen cannot be left
+
+**Date:** 2026-09-13 · **Task:** 8.2.3 / 8.2.4 · **Status:** Decided
+
+`SessionOutcomeService` joins Stop to the store; `SessionFlowPhase` is the
+cover's state machine; `ProcessingView` covers the gap.
+
+### The orchestration adds no rules
+
+`SessionProcessor` and `SessionCommitService` already existed and are tested on
+their own. `SessionOutcomeService` only sequences them: fetch the mode's own
+baseline, run the pipeline, build the `GaitSession`, commit. It deliberately
+does **not** attach the score — only the commit knows whether a baseline existed
+*before* this session, which is what decides whether a score may exist at all
+[PRD §7, docs/09 §9.5].
+
+Nothing is written until the pipeline has finished, so a run that throws or is
+cancelled costs the user their walk but never their history (docs/14 §14.3).
+
+### Two stop triggers, one path
+
+The tapped capsule and the clock reaching `00:00` both go through
+`ActiveSessionViewModel.stop()`, guarded by `isStopping`. A tap landing on the
+last second therefore cannot end the walk twice. The natural end matters on its
+own: the user asked for two minutes, and leaving them walking past a clock at
+zero waiting to be told they may stop would be the app failing to finish what it
+started.
+
+Order at Stop: disable the button, **request** the stop pulse, `recorder.stop()`
+to freeze the buffer and release the sensors, then the pipeline. The pulse is
+requested and never awaited, like every other haptic (ledger 25) — a wedged
+engine costs the walk its tap, never its data — and it goes first so the user
+feels the end when it happens rather than after the screen has changed.
+
+### Processing is non-dismissible
+
+There is no Cancel and no swipe. The walk is already recorded, and the analysis
+is the only thing standing between it and a result — cancelling would leave a
+session the user can never see, where [PRD §5] requires routing to Noisy or
+Score, never neither.
+
+### The degraded graph cannot commit, and says so
+
+`sessionOutcomes` is nil when the store could not be opened. Unlike the
+repositories it cannot be stood up as a loudly-failing stand-in — it is built
+from concrete `StoreReader`/`StoreWriter`, which need a container there is none
+of. Nil is the honest answer, and the cover surfaces it as a persistence failure
+rather than recording a walk it can never save.
+
+### A test that was wrong, and what it found
+
+`eachModeIsCountedOnItsOwn` handed the same 120-second golden signal to both
+modes. It failed, correctly: **a 120-second walk is a complete Quick Test and a
+failed Full Test**, because a Full Test needs ~4 minutes of valid walking
+[PRD OQ-3]. The fixture is now mode-aware. Reusing it would have quietly
+exercised the invalid path while claiming to test the valid one.
+
+### Verification
+
+17 tests. The hand-off from a frozen buffer to a stored, counted session; the
+build stamp and the recording's audio history travelling into the row; an empty
+recording stored as invalid and never counted; per-mode segregation; the fifth
+valid walk settling the baseline either way without restarting calibration; both
+stop triggers including that neither fires twice and walking past the end does
+not keep ending the walk; the processing copy per mode; and every phase's
+dismissibility.
+
+**Not verified visually**, like everything else on this flow.

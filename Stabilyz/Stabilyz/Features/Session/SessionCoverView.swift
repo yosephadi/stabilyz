@@ -29,6 +29,7 @@ struct SessionCoverView: View {
     @State private var session: ActiveSessionViewModel
     /// True for the moment after T-0, while "Go!" clears.
     @State private var isHoldingGo = false
+    @State private var phase: SessionFlowPhase = .countdown
 
     init(
         mode: TestMode,
@@ -52,6 +53,8 @@ struct SessionCoverView: View {
         _session = State(initialValue: ActiveSessionViewModel(
             mode: mode,
             audioConfig: audioConfig,
+            // Assigned below, once `self` exists — the closure has to reach the
+            // view's state, which the initializer is still building.
             onStop: {},
             onSilenceAudioCue: {
                 // Fire and forget, like every other audio request: the walk
@@ -66,6 +69,43 @@ struct SessionCoverView: View {
     }
 
     var body: some View {
+        ZStack {
+            switch phase {
+            case .countdown, .recording:
+                walk
+            case .processing:
+                ProcessingView(mode: mode)
+                    .transition(.opacity)
+            case .finished, .failed:
+                // Task 8.2.5 puts the Score and Noisy screens here. Until then
+                // the outcome is held on `phase` and the cover closes.
+                ProcessingView(mode: mode)
+                    .transition(.opacity)
+            }
+        }
+        .animation(.easeOut(duration: Motion.countdownDismiss), value: phase)
+        // No swipe-to-dismiss while the walk or its analysis is in flight
+        // [PRD §5]: a recorded session the user can never see is worse than a
+        // few seconds of waiting.
+        .interactiveDismissDisabled(!phase.isDismissible)
+        .task {
+            session.onStop = endWalk
+            coordinator.start(mode: mode, audioConfig: audioConfig)
+        }
+        .onChange(of: coordinator.state) { _, state in
+            handle(state)
+        }
+        .onChange(of: overlay) { _, content in
+            announce(content)
+        }
+        .onChange(of: phase) { _, phase in
+            if case .finished = phase { dismiss() }
+            if case .failed = phase { dismiss() }
+        }
+    }
+
+    /// The walk, with the countdown over it until T-0.
+    private var walk: some View {
         ZStack {
             ActiveSessionView(model: session)
                 // Nothing to read behind a countdown; VoiceOver should be on
@@ -82,12 +122,49 @@ struct SessionCoverView: View {
             }
         }
         .animation(.easeOut(duration: Motion.countdownDismiss), value: overlay)
-        .task { coordinator.start(mode: mode, audioConfig: audioConfig) }
-        .onChange(of: coordinator.state) { _, state in
-            handle(state)
+    }
+
+    // MARK: - Stop
+
+    /// Stop, tapped or reached (docs/11 §11.3).
+    ///
+    /// Order matters: the pulse is requested first so the user feels the end at
+    /// the moment it happens rather than after the screen has changed, then the
+    /// recorder freezes the buffer and releases the sensors, and only then does
+    /// the pipeline run. Like every other haptic it is requested, never awaited
+    /// (ledger 25) — a wedged engine costs the walk its tap, never its data.
+    private func endWalk() {
+        guard phase.isRecording else { return }
+        phase = .processing
+
+        let recorder = dependencies.sessionRecorder
+        let haptics = dependencies.hapticFeedback
+        let log = dependencies.logService
+        guard let outcomes = dependencies.sessionOutcomes else {
+            // The store never opened, so this walk cannot be saved. Said
+            // plainly rather than recorded into nothing (docs/15 §15.1).
+            log.log(.error, .session, "session cannot be committed: no store")
+            Task { _ = try? await dependencies.sessionRecorder.stop() }
+            phase = .failed(.persistence(.saveFailed))
+            return
         }
-        .onChange(of: overlay) { _, content in
-            announce(content)
+
+        if session.isHapticsOn {
+            Task { await haptics.playSessionStop() }
+        }
+
+        Task {
+            do {
+                let buffer = try await recorder.stop()
+                phase = .finished(try await outcomes.finish(buffer))
+            } catch let error as StabilyzError {
+                log.log(.error, .session, "session could not be completed")
+                phase = .failed(error)
+            } catch {
+                log.log(.error, .session, "session could not be completed")
+                phase = .failed(.processing(.cancelled))
+            }
+            await haptics.teardown()
         }
     }
 
@@ -96,6 +173,7 @@ struct SessionCoverView: View {
     private func handle(_ state: CountdownCoordinator.State) {
         switch state {
         case .running:
+            phase = .recording
             reachedT0()
         case .cancelled:
             dismiss()

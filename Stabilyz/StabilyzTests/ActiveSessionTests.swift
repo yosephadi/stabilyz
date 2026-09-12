@@ -360,3 +360,55 @@ private func elapsedStream(_ seconds: [Int]) -> AsyncStream<SessionRecordingEven
     #expect(session.audioConfig == .stepFeedback)
     #expect(session.audioSilencedAt == .seconds(45))
 }
+
+// MARK: - The two ways a walk ends
+
+@MainActor
+@Test func reachingZeroEndsTheWalkWithoutATap() async {
+    // The user asked for two minutes, so two minutes is what the app takes.
+    // Leaving them walking past a clock reading 00:00, waiting to be told they
+    // may stop, would be the app failing to finish what it started.
+    let stops = Locked(0)
+    let model = makeSession(mode: .quickTest) { stops.withLock { $0 += 1 } }
+
+    await model.observe(elapsedStream([60, 119, 120]))
+
+    #expect(model.timerText == "00:00")
+    #expect(stops.withLock { $0 } == 1)
+    #expect(model.isStopping)
+}
+
+@MainActor
+@Test func theClockDoesNotEndTheWalkEarly() async {
+    let stops = Locked(0)
+    let model = makeSession(mode: .fullTest) { stops.withLock { $0 += 1 } }
+
+    // Two minutes into a six-minute walk.
+    await model.observe(elapsedStream([60, 120]))
+
+    #expect(stops.withLock { $0 } == 0)
+    #expect(model.isStopping == false)
+}
+
+@MainActor
+@Test func aTappedStopAndAnElapsedOneAreTheSameEnding() async {
+    // Both go through `stop()`, so neither can fire twice and a tap landing on
+    // the last second cannot end the walk twice over.
+    let stops = Locked(0)
+    let model = makeSession(mode: .quickTest) { stops.withLock { $0 += 1 } }
+
+    model.stop()
+    await model.observe(elapsedStream([120, 121]))
+
+    #expect(stops.withLock { $0 } == 1)
+}
+
+@MainActor
+@Test func walkingPastTheEndDoesNotKeepEndingTheWalk() async {
+    let stops = Locked(0)
+    let model = makeSession(mode: .quickTest) { stops.withLock { $0 += 1 } }
+
+    await model.observe(elapsedStream([120, 130, 140, 200]))
+
+    #expect(stops.withLock { $0 } == 1)
+}
