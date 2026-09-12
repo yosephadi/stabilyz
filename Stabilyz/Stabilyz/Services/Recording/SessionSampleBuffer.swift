@@ -35,6 +35,14 @@ final class SessionSampleBuffer {
     /// Set when a spill fails. The samples stay in memory instead, so a disk
     /// problem degrades the buffer rather than losing the recording.
     private var scratchDisabled = false
+    /// The T-0 gate. Nil until `arm(at:)` — an unarmed buffer admits nothing
+    /// (docs/07 §7.3).
+    private var admission: SampleAdmission?
+    /// The anchor the session is being recorded against, kept so `freeze()`
+    /// cannot rehydrate scratch records against a different one than the gate
+    /// used.
+    private var anchor: TimeAnchor?
+    private var rejectedCount = 0
 
     init(
         fileIO: FileIO,
@@ -53,18 +61,58 @@ final class SessionSampleBuffer {
 
     var isSpilling: Bool { hasScratchFile }
 
-    func append(_ sample: SensorSample) {
+    /// True once the session origin is known and the buffer will admit samples.
+    var isArmed: Bool { admission != nil }
+
+    /// Samples turned away by the gate since the last reset — the countdown
+    /// lead-in, in a real session.
+    var rejectedSampleCount: Int { rejectedCount }
+
+    /// Opens the buffer at T-0 (docs/07 §7.3, [PRD OQ-6]).
+    ///
+    /// Called at Go, not when Start Test was tapped. Until this runs the buffer
+    /// is closed: samples arriving while the sensors are merely primed have no
+    /// session to belong to yet, so they are dropped rather than held on the
+    /// chance that one starts.
+    func arm(at anchor: TimeAnchor) {
+        self.anchor = anchor
+        self.admission = SampleAdmission(anchor: anchor)
+    }
+
+    /// Offers a sample to the buffer, returning whether it was admitted.
+    ///
+    /// The gate is the buffer boundary itself, so nothing downstream — the
+    /// scratch file, the frozen buffer, the pipeline — can ever see a pre-T-0
+    /// sample to have to filter. Appends in the order offered: ordering and
+    /// de-duplication stay with pipeline stage 1 (docs/08).
+    @discardableResult
+    func append(_ sample: SensorSample) -> Bool {
+        guard let admission, admission.admits(sample) else {
+            rejectedCount += 1
+            return false
+        }
+
         inMemory.append(sample)
         if inMemory.count >= capacity && !scratchDisabled {
             spill()
         }
+        return true
     }
 
-    /// Returns every sample in acquisition order and clears the buffer.
+    /// Returns every admitted sample in acquisition order and clears the buffer.
+    ///
+    /// Rehydrates against the anchor the buffer was armed with, so the frozen
+    /// samples resolve on the same timebase the gate measured them against.
+    /// An unarmed buffer has nothing to freeze.
     ///
     /// The scratch file is deleted once its contents have been read back; a
     /// session's raw samples never outlive the session (docs/06 §6.4).
-    func freeze(anchor: TimeAnchor) -> [SensorSample] {
+    func freeze() -> [SensorSample] {
+        guard let anchor else {
+            reset()
+            return []
+        }
+
         if !inMemory.isEmpty && hasScratchFile && !scratchDisabled {
             spill()
         }
@@ -74,6 +122,13 @@ final class SessionSampleBuffer {
             samples = readScratch(anchor: anchor)
         }
         samples.append(contentsOf: inMemory)
+
+        if rejectedCount > 0 {
+            logService.log(
+                .info, .session,
+                "admission gate dropped \(rejectedCount) pre-T-0 samples"
+            )
+        }
 
         reset()
         return samples
@@ -127,10 +182,18 @@ final class SessionSampleBuffer {
             .map { $0.sensorSample(anchor: anchor) }
     }
 
+    /// Returns the buffer to its closed, unarmed state.
+    ///
+    /// Disarming is the point: T-0 belongs to one session, and a buffer that
+    /// kept a previous session's origin would silently admit the next
+    /// recording's countdown. Reuse requires a fresh `arm(at:)`.
     private func reset() {
         inMemory.removeAll()
         spilledCount = 0
         scratchDisabled = false
+        admission = nil
+        anchor = nil
+        rejectedCount = 0
         if hasScratchFile {
             try? fileIO.remove(at: scratchURL)
             hasScratchFile = false

@@ -594,3 +594,122 @@ private struct UndeterminedMotionService: MotionSensorService {
     _ = try await recorder.stop()
     #expect(await interruptions.isObserving == false)
 }
+
+// MARK: - The T-0 admission gate ([PRD OQ-6], docs/07 §7.3)
+
+/// Streams a countdown lead-in before the walk.
+///
+/// The recorder stamps the anchor from the clock immediately before calling
+/// `start`, and `SteppableClock` only moves when a test moves it — so reading
+/// `clock.uptime` here yields exactly the T-0 the session was opened at, and
+/// negative offsets from it are unambiguously pre-T-0.
+private struct LeadInMotionService: MotionSensorService {
+    let fixture: GaitFixture
+    let clock: Clock
+    /// Samples of sensor delivery before T-0, as priming inside a countdown
+    /// would produce. A count rather than a duration so the number the gate
+    /// should reject is exact, with no float stride to argue with.
+    let leadInSampleCount: Int
+    let leadInRateHz: Double = 100
+
+    var isAvailable: Bool { get async { true } }
+    var authorizationStatus: MotionAuthorizationStatus { get async { .authorized } }
+    func requestAuthorization() async -> MotionAuthorizationStatus { .authorized }
+
+    func start(policy: MotionAcquisitionPolicy) async throws -> AsyncStream<SensorSample> {
+        let anchor = TimeAnchor(clock: clock)
+        let interval = 1 / leadInRateHz
+        let leadInSamples = (1...leadInSampleCount).reversed().map { step in
+            SensorSample(
+                deviceTimestamp: anchor.uptime - Double(step) * interval,
+                anchor: anchor,
+                acceleration: Vector3(x: 9, y: 9, z: 9),
+                gravity: Vector3(x: 0, y: 0, z: -1)
+            )
+        }
+        let walk = fixture.sensorSamples(anchoredAt: anchor)
+
+        return AsyncStream { continuation in
+            for sample in leadInSamples + walk { continuation.yield(sample) }
+            continuation.finish()
+        }
+    }
+
+    func stop() async {}
+}
+
+@Test func countdownSamplesNeverReachTheFrozenBuffer() async throws {
+    // The load-bearing case: five seconds of primed delivery before Go, and
+    // none of it in the session. Dropped at admission, not filtered later.
+    let clock = SteppableClock()
+    let (recorder, _, _, _) = makeRecorder(
+        clock: clock,
+        motion: LeadInMotionService(fixture: .steadyWalk, clock: clock, leadInSampleCount: 500)
+    )
+
+    let events = try await recorder.begin(mode: .quickTest, audioConfig: .none)
+    let collector = Task { await collect(events) }
+    let buffer = try await recorder.stop()
+    _ = await collector.value
+
+    #expect(buffer.isEmpty == false)
+    #expect(buffer.honoursAdmissionContract)
+    #expect(buffer.samples.allSatisfy { $0.deviceTimestamp >= buffer.anchor.uptime })
+}
+
+@Test func theLeadInDoesNotShowUpAsASensorGap() async throws {
+    // A rejected sample must not move the gap detector's cursor either. If the
+    // lead-in were merely excluded from the buffer but still observed, the jump
+    // from the last countdown sample to the first walk sample would read as a
+    // dropout the session never had.
+    let clock = SteppableClock()
+    let (recorder, _, _, log) = makeRecorder(
+        clock: clock,
+        motion: LeadInMotionService(fixture: .steadyWalk, clock: clock, leadInSampleCount: 500)
+    )
+
+    let events = try await recorder.begin(mode: .quickTest, audioConfig: .none)
+    let collector = Task { await collect(events) }
+    let buffer = try await recorder.stop()
+    let collected = await collector.value
+
+    #expect(buffer.gapInfo.gapCount == 0)
+    #expect(collected.contains { if case .gapDetected = $0 { return true } else { return false } } == false)
+    #expect(log.entries.withLock { $0.contains { $0.contains("sensor gap observed") } } == false)
+}
+
+@Test func theLeadInDoesNotStretchTheRecordedSpan() async throws {
+    // The session's span is measured from Go. A five-second countdown that
+    // leaked in would inflate it by five seconds, and with it every duration
+    // derived from it.
+    let clock = SteppableClock()
+    let (withLeadIn, _, _, _) = makeRecorder(
+        clock: clock,
+        motion: LeadInMotionService(fixture: .steadyWalk, clock: clock, leadInSampleCount: 500)
+    )
+    let cleanClock = SteppableClock()
+    let (clean, _, _, _) = makeRecorder(fixture: .steadyWalk, clock: cleanClock)
+
+    _ = try await withLeadIn.begin(mode: .quickTest, audioConfig: .none)
+    let leadInBuffer = try await withLeadIn.stop()
+    _ = try await clean.begin(mode: .quickTest, audioConfig: .none)
+    let cleanBuffer = try await clean.stop()
+
+    #expect(leadInBuffer.samples.count == cleanBuffer.samples.count)
+    #expect(leadInBuffer.series.recordedSpan == cleanBuffer.series.recordedSpan)
+}
+
+@Test func theDroppedLeadInIsReported() async throws {
+    // Silent dropping would be indistinguishable from a sensor that delivered
+    // nothing, so the count is logged once the session freezes.
+    let clock = SteppableClock()
+    let (recorder, _, _, log) = makeRecorder(
+        clock: clock,
+        motion: LeadInMotionService(fixture: .steadyWalk, clock: clock, leadInSampleCount: 200)
+    )
+
+    _ = try await recorder.begin(mode: .quickTest, audioConfig: .none)
+    _ = try await recorder.stop()
+
+    #expect(log.entries.withLock { $0.contains { $0.contains("admission gate dropped 200 pre-T-0 samples") } })
+}

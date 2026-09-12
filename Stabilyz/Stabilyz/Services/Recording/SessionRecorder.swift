@@ -127,9 +127,14 @@ actor SessionRecorder {
         }
 
         // The anchor is stamped before any sample can arrive, so every sample
-        // resolves against it (docs/07 §7.4).
+        // resolves against it (docs/07 §7.4). It is also T-0: arming the buffer
+        // with it opens the session at this instant and closes it to anything
+        // earlier ([PRD OQ-6], docs/07 §7.3). Today the sensors start below, so
+        // nothing earlier exists to turn away; the gate is what keeps that true
+        // once priming moves into the countdown window (Task 4.2.2).
         let anchor = TimeAnchor(clock: clock)
         self.anchor = anchor
+        sampleBuffer?.arm(at: anchor)
         startedAt = anchor.wallClock
 
         let sampleStream: AsyncStream<SensorSample>
@@ -277,7 +282,7 @@ actor SessionRecorder {
         let elapsed = Duration.seconds(clock.uptime - anchor.uptime)
         // Freezing reads back memory and scratch together, then deletes the
         // scratch file — raw samples never outlive the session (docs/06 §6.4).
-        let frozenSamples = sampleBuffer?.freeze(anchor: anchor) ?? []
+        let frozenSamples = sampleBuffer?.freeze() ?? []
         let series = SampleIngestion.align(
             frozenSamples,
             sampleRateHz: configuration.motionAcquisition.sampleRateHz,
@@ -390,6 +395,18 @@ actor SessionRecorder {
     private func ingest(_ sample: SensorSample) {
         guard state == .recording else { return }
 
+        // The T-0 gate ([PRD OQ-6], docs/07 §7.3), and the reason buffering
+        // moved ahead of everything else here: the buffer is the one place the
+        // admission rule is applied, so asking it whether the sample was
+        // admitted is what keeps a second copy of the rule from existing.
+        //
+        // A sample from before Go is outside the session entirely, so a
+        // rejection returns before anything observes it — it must not move the
+        // gap detector's cursor, fire a footfall, or advance the elapsed clock.
+        // The countdown is not a segment to be filtered later; it is not part
+        // of the recording at all.
+        guard sampleBuffer?.append(sample) == true else { return }
+
         // A live gap notice for the UI, measured against the requested rate
         // because no median exists yet mid-stream. The authoritative list is
         // recomputed from the observed median at freeze time, so a missed or
@@ -403,8 +420,6 @@ actor SessionRecorder {
             }
         }
         lastSampleTimestamp = sample.deviceTimestamp
-
-        sampleBuffer?.append(sample)
 
         // Detection is deliberately after buffering: the recording is what
         // matters, and feedback must never delay or alter it (docs/10 §10.4).
