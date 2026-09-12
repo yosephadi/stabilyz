@@ -40,10 +40,15 @@ EPIC 4 — Motion & Recording
   Feature 4.2 Recorder
     Task 4.2.1 Time anchors + gap detection                                 → dep: 4.1.1
     Task 4.2.2 SessionRecorder actor lifecycle (begin/stop, priming budget)
-      ↳ PRD OQ-6 splits this in two: `prime()` runs during the countdown (sensors up,
-        delivery confirmed, abort-on-failure while the screen is still visible) and
-        `begin()` runs at Go (stamp T-0, open buffer, request start tone). Pre-T-0
-        samples are dropped at admission, not filtered downstream.
+      ↳ DONE. PRD OQ-6 splits this in three: `prime(mode:audioConfig:)` during the
+        countdown (permission, hardware availability, sensors up, delivery confirmed,
+        streams held, screen kept awake), `begin(at: TimeAnchor)` at Go (arm the buffer
+        at the anchor the countdown stamped, drain the held streams, request the start
+        tone), and `abort()` for a cancelled countdown or a failed priming. States:
+        idle → priming → primed → running → idle. `begin(at:)` unprimed is
+        `recording(.notPrimed)`; `abort()` while running is refused, since `stop()` is
+        the only exit past T-0. Pre-T-0 samples are dropped at admission, not filtered
+        downstream. Ledger entry 30.
     Task 4.2.3 Interruption observation (lifecycle + audio session events)
     Task 4.2.4 RawSessionBuffer freeze + scratch-file behavior
   Feature 4.3 Live Step Detection

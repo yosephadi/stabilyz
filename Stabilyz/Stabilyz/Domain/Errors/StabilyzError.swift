@@ -35,6 +35,10 @@ enum StabilyzError: Error, Equatable {
         case unrecoverableInterruption
         case alreadyRecording
         case notRecording
+        /// `begin(at:)` reached a recorder whose sensors were never primed
+        /// (docs/07 §7.3). A caller bug: the countdown is what primes, so this
+        /// means Go arrived without a countdown having run.
+        case notPrimed
     }
 
     /// Pipeline validity outcomes (docs/08 stages 3-5).

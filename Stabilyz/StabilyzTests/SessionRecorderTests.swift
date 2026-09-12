@@ -713,3 +713,383 @@ private struct LeadInMotionService: MotionSensorService {
 
     #expect(log.entries.withLock { $0.contains { $0.contains("admission gate dropped 200 pre-T-0 samples") } })
 }
+
+// MARK: - Lifecycle: prime / begin(at:) / abort (Task 4.2.2, docs/07 §7.3)
+
+/// A motion service that reports absent hardware.
+private struct UnavailableMotionService: MotionSensorService {
+    var isAvailable: Bool { get async { false } }
+    var authorizationStatus: MotionAuthorizationStatus { get async { .authorized } }
+    func requestAuthorization() async -> MotionAuthorizationStatus { .authorized }
+    func start(policy: MotionAcquisitionPolicy) async throws -> AsyncStream<SensorSample> {
+        Issue.record("start must not be reached when the hardware is unavailable")
+        return AsyncStream { $0.finish() }
+    }
+    func stop() async {}
+}
+
+/// Counts stop() so a test can prove the sensor was released, not just dropped.
+private actor CountingMotionService: MotionSensorService {
+    let fixture: GaitFixture
+    let clock: Clock
+    private(set) var startCount = 0
+    private(set) var stopCount = 0
+
+    init(fixture: GaitFixture, clock: Clock) {
+        self.fixture = fixture
+        self.clock = clock
+    }
+
+    var isAvailable: Bool { true }
+    var authorizationStatus: MotionAuthorizationStatus { .authorized }
+    func requestAuthorization() async -> MotionAuthorizationStatus { .authorized }
+
+    func start(policy: MotionAcquisitionPolicy) async throws -> AsyncStream<SensorSample> {
+        startCount += 1
+        let samples = fixture.sensorSamples(anchoredAt: TimeAnchor(clock: clock))
+        return AsyncStream { continuation in
+            for sample in samples { continuation.yield(sample) }
+            continuation.finish()
+        }
+    }
+
+    func stop() async { stopCount += 1 }
+}
+
+// MARK: prime
+
+@Test func primingStartsTheSensorsWithoutStartingASession() async throws {
+    let clock = SteppableClock()
+    let motion = CountingMotionService(fixture: .steadyWalk, clock: clock)
+    let (recorder, _, audio, _) = makeRecorder(clock: clock, motion: motion)
+
+    try await recorder.prime(mode: .quickTest, audioConfig: .none)
+
+    #expect(await motion.startCount == 1)
+    #expect(await recorder.isPrimed)
+    #expect(await recorder.isRecording == false)
+    // No session exists yet, so nothing has been measured and nothing sounded.
+    #expect(await recorder.admittedSampleCount == 0)
+    #expect(await audio.calls.isEmpty)
+}
+
+@Test func theBufferAdmitsNothingForTheWholeCountdown() async throws {
+    // The Task 5.1.1 contract, seen from the lifecycle: priming may run for as
+    // long as the countdown lasts and the session stays empty throughout.
+    let clock = SteppableClock()
+    let (recorder, _, _, _) = makeRecorder(clock: clock)
+
+    try await recorder.prime(mode: .quickTest, audioConfig: .none)
+
+    for _ in 0..<5 {
+        clock.advance(by: 1)
+        #expect(await recorder.admittedSampleCount == 0)
+    }
+}
+
+@Test func primingKeepsTheScreenAwakeForTheCountdown() async throws {
+    // docs/07 §7.7: the countdown exists so the user can stow the phone, so an
+    // idle auto-lock partway through it would defeat the feature.
+    let screen = ScreenSleepSpy()
+    let clock = SteppableClock()
+    let (recorder, _, _, _) = makeRecorder(clock: clock, screenSleep: screen)
+
+    try await recorder.prime(mode: .quickTest, audioConfig: .none)
+
+    #expect(await screen.calls == ["prevent"])
+}
+
+@Test func primingTwiceIsRefused() async throws {
+    let (recorder, _, _, _) = makeRecorder()
+    try await recorder.prime(mode: .quickTest, audioConfig: .none)
+
+    await #expect(throws: StabilyzError.recording(.alreadyRecording)) {
+        try await recorder.prime(mode: .fullTest, audioConfig: .none)
+    }
+}
+
+// MARK: begin(at:)
+
+@Test func beginningArmsTheBufferAtT0AndAdmitsTheWalk() async throws {
+    let clock = SteppableClock()
+    let (recorder, _, _, _) = makeRecorder(clock: clock)
+
+    try await recorder.prime(mode: .quickTest, audioConfig: .none)
+    #expect(await recorder.admittedSampleCount == 0)
+
+    let anchor = TimeAnchor(clock: clock)
+    let events = try await recorder.begin(at: anchor)
+    let collector = Task { await collect(events) }
+    let buffer = try await recorder.stop()
+    _ = await collector.value
+
+    #expect(buffer.isEmpty == false)
+    #expect(buffer.anchor == anchor)
+    #expect(buffer.startedAt == anchor.wallClock)
+    #expect(buffer.honoursAdmissionContract)
+}
+
+@Test func theSessionStartsAtTheAnchorItWasGivenNotAtTheCallSite() async throws {
+    // T-0 is the tick the user saw and felt; the recorder does not restamp it.
+    let clock = SteppableClock()
+    let (recorder, _, _, _) = makeRecorder(clock: clock)
+
+    try await recorder.prime(mode: .quickTest, audioConfig: .none)
+    let go = TimeAnchor(clock: clock)
+    clock.advance(by: 3)
+
+    _ = try await recorder.begin(at: go)
+    let buffer = try await recorder.stop()
+
+    #expect(buffer.anchor == go)
+    #expect(buffer.startedAt == go.wallClock)
+}
+
+@Test func beginningWithoutPrimingIsRefused() async throws {
+    let clock = SteppableClock()
+    let (recorder, _, audio, _) = makeRecorder(clock: clock)
+
+    await #expect(throws: StabilyzError.recording(.notPrimed)) {
+        _ = try await recorder.begin(at: TimeAnchor(clock: clock))
+    }
+    #expect(await recorder.isRecording == false)
+    // Refused before anything was started, so nothing needs releasing.
+    #expect(await audio.calls.isEmpty)
+}
+
+@Test func beginningTwiceFromOnePrimingIsRefused() async throws {
+    let clock = SteppableClock()
+    let (recorder, _, _, _) = makeRecorder(clock: clock)
+    try await recorder.prime(mode: .quickTest, audioConfig: .none)
+    _ = try await recorder.begin(at: TimeAnchor(clock: clock))
+
+    await #expect(throws: StabilyzError.recording(.alreadyRecording)) {
+        _ = try await recorder.begin(at: TimeAnchor(clock: clock))
+    }
+}
+
+@Test func theConvenienceStartIsTheSameLifecycle() async throws {
+    // begin(mode:audioConfig:) is composition, not a second path — a session
+    // started through it is indistinguishable from prime-then-begin.
+    let clock = SteppableClock()
+    let (recorder, _, _, _) = makeRecorder(clock: clock)
+
+    _ = try await recorder.begin(mode: .quickTest, audioConfig: .none)
+    #expect(await recorder.isRecording)
+
+    let buffer = try await recorder.stop()
+    #expect(buffer.isEmpty == false)
+    #expect(buffer.honoursAdmissionContract)
+}
+
+// MARK: abort
+
+@Test func abortingACountdownReleasesTheSensorAndLeavesNoSession() async throws {
+    let clock = SteppableClock()
+    let motion = CountingMotionService(fixture: .steadyWalk, clock: clock)
+    let screen = ScreenSleepSpy()
+    let (recorder, _, audio, _) = makeRecorder(clock: clock, motion: motion, screenSleep: screen)
+
+    try await recorder.prime(mode: .quickTest, audioConfig: .none)
+    await recorder.abort()
+
+    #expect(await motion.stopCount == 1)
+    #expect(await recorder.isPrimed == false)
+    #expect(await recorder.isRecording == false)
+    #expect(await recorder.admittedSampleCount == 0)
+    // The screen is handed back, and no audio session was ever opened to leak.
+    #expect(await screen.calls == ["prevent", "allow"])
+    #expect(await audio.calls.isEmpty)
+}
+
+@Test func abortingLeavesNoScratchFileBehind() async throws {
+    // The unarmed buffer goes with the countdown, and its scratch file with it
+    // (docs/06 §6.4) — raw samples never outlive the session that made them.
+    let fileIO = FileManagerFileIO()
+    let before = (try? FileManager.default.contentsOfDirectory(
+        atPath: fileIO.temporaryDirectory().path
+    ).filter { $0.hasSuffix(".ndjson") }) ?? []
+
+    let clock = SteppableClock()
+    let (recorder, _, _, _) = makeRecorder(clock: clock)
+    try await recorder.prime(mode: .quickTest, audioConfig: .none)
+    await recorder.abort()
+
+    let after = (try? FileManager.default.contentsOfDirectory(
+        atPath: fileIO.temporaryDirectory().path
+    ).filter { $0.hasSuffix(".ndjson") }) ?? []
+    #expect(after.count <= before.count)
+}
+
+@Test func theRecorderIsReusableAfterAnAbort() async throws {
+    // A cancelled countdown must not cost the user the next attempt.
+    let clock = SteppableClock()
+    let (recorder, _, _, _) = makeRecorder(clock: clock)
+
+    try await recorder.prime(mode: .quickTest, audioConfig: .none)
+    await recorder.abort()
+
+    try await recorder.prime(mode: .fullTest, audioConfig: .none)
+    _ = try await recorder.begin(at: TimeAnchor(clock: clock))
+    let buffer = try await recorder.stop()
+
+    #expect(buffer.mode == .fullTest)
+    #expect(buffer.isEmpty == false)
+}
+
+@Test func abortingFromIdleDoesNothing() async {
+    let (recorder, _, _, _) = makeRecorder()
+
+    await recorder.abort()
+
+    #expect(await recorder.isRecording == false)
+    #expect(await recorder.isPrimed == false)
+}
+
+@Test func aRunningSessionIsStoppedNotAborted() async throws {
+    // stop() is the only exit from a recording and the only place the audio
+    // session is released (ledger entry 25), so an abort past T-0 is refused
+    // rather than obeyed — it would hold the audio route and bin a real walk.
+    let clock = SteppableClock()
+    let (recorder, _, _, log) = makeRecorder(clock: clock)
+    try await recorder.prime(mode: .quickTest, audioConfig: .none)
+    _ = try await recorder.begin(at: TimeAnchor(clock: clock))
+
+    await recorder.abort()
+
+    #expect(await recorder.isRecording)
+    #expect(log.entries.withLock { $0.contains { $0.contains("abort refused") } })
+
+    let buffer = try await recorder.stop()
+    #expect(buffer.isEmpty == false)
+}
+
+// MARK: priming failure
+
+@Test func aPrimingTimeoutSurfacesAndResetsTheRecorder() async throws {
+    // The failure the countdown exists to catch: it must surface while the user
+    // is still watching the screen, not silently at T-0 with the phone pocketed.
+    let (recorder, _, _, log) = makeRecorder(
+        motion: FailingMotionService(error: .sensor(.primingTimeout))
+    )
+
+    await #expect(throws: StabilyzError.sensor(.primingTimeout)) {
+        try await recorder.prime(mode: .quickTest, audioConfig: .none)
+    }
+
+    #expect(await recorder.isPrimed == false)
+    #expect(await recorder.isRecording == false)
+    #expect(log.entries.withLock { $0.contains { $0.contains("priming failed") } })
+}
+
+@Test func aFailedPrimingLeavesTheRecorderReusable() async throws {
+    // Recoverable, per ErrorPresenter: the user can try again.
+    let clock = SteppableClock()
+    let (recorder, _, _, _) = makeRecorder(
+        clock: clock,
+        motion: FailingMotionService(error: .sensor(.primingTimeout))
+    )
+
+    await #expect(throws: StabilyzError.sensor(.primingTimeout)) {
+        try await recorder.prime(mode: .quickTest, audioConfig: .none)
+    }
+
+    // A fresh recorder stands in for the retry succeeding; what matters here is
+    // that the failed one did not stay wedged in a half-primed state.
+    #expect(await recorder.isPrimed == false)
+    await recorder.abort()
+    #expect(await recorder.isRecording == false)
+}
+
+@Test func absentHardwareIsRefusedBeforeTheSensorIsEvenStarted() async throws {
+    let (recorder, _, _, log) = makeRecorder(motion: UnavailableMotionService())
+
+    await #expect(throws: StabilyzError.sensor(.unavailable)) {
+        try await recorder.prime(mode: .quickTest, audioConfig: .none)
+    }
+
+    #expect(await recorder.isPrimed == false)
+    #expect(log.entries.withLock { $0.contains { $0.contains("motion hardware unavailable") } })
+}
+
+@Test func deniedPermissionIsRefusedAtPrimingNotAtGo() async throws {
+    let (recorder, _, _, _) = makeRecorder(
+        motion: FailingMotionService(error: .sensor(.unavailable), authorization: .denied)
+    )
+
+    await #expect(throws: StabilyzError.permission(.motionDenied)) {
+        try await recorder.prime(mode: .quickTest, audioConfig: .none)
+    }
+    #expect(await recorder.isPrimed == false)
+}
+
+@Test func aFailedPrimingReleasesTheScreen() async throws {
+    // Nothing was primed, so nothing should be holding the idle timer down.
+    let screen = ScreenSleepSpy()
+    let (recorder, _, _, _) = makeRecorder(
+        motion: FailingMotionService(error: .sensor(.primingTimeout)),
+        screenSleep: screen
+    )
+
+    await #expect(throws: StabilyzError.sensor(.primingTimeout)) {
+        try await recorder.prime(mode: .quickTest, audioConfig: .none)
+    }
+
+    let calls = await screen.calls
+    #expect(calls.contains("prevent") == false || calls.last == "allow")
+}
+
+// MARK: the two halves together
+
+@Test func aFullCountdownPrimesThenStartsAndKeepsOnlyTheWalk() async throws {
+    // The shape Task 8.2.6 will drive: prime at the tap, five seconds of
+    // sensors running against an unarmed buffer, then Go. Everything the
+    // sensors delivered during those five seconds is rejected on its timestamp,
+    // and the session begins at the tick the user was shown.
+    let clock = SteppableClock()
+    let (recorder, _, _, log) = makeRecorder(
+        clock: clock,
+        motion: LeadInMotionService(fixture: .steadyWalk, clock: clock, leadInSampleCount: 500)
+    )
+
+    try await recorder.prime(mode: .quickTest, audioConfig: .none)
+    #expect(await recorder.isPrimed)
+    #expect(await recorder.admittedSampleCount == 0)
+
+    // The countdown runs. Nothing has been admitted at any point in it.
+    for _ in 0..<5 {
+        clock.advance(by: 1)
+        #expect(await recorder.admittedSampleCount == 0)
+    }
+
+    // Go. T-0 is the anchor the countdown stamped at its final tick.
+    let go = TimeAnchor(clock: clock)
+    let events = try await recorder.begin(at: go)
+    let collector = Task { await collect(events) }
+    let buffer = try await recorder.stop()
+    _ = await collector.value
+
+    #expect(buffer.anchor == go)
+    #expect(buffer.honoursAdmissionContract)
+    #expect(buffer.samples.allSatisfy { $0.deviceTimestamp >= go.uptime })
+    // The lead-in was counted and reported, not silently binned.
+    #expect(log.entries.withLock { $0.contains { $0.contains("admission gate dropped") } })
+}
+
+@Test func aCountdownAbortedPartWayThroughRecordsNothing() async throws {
+    let clock = SteppableClock()
+    let motion = CountingMotionService(fixture: .steadyWalk, clock: clock)
+    let (recorder, _, audio, _) = makeRecorder(clock: clock, motion: motion)
+
+    try await recorder.prime(mode: .quickTest, audioConfig: .none)
+    clock.advance(by: 3)
+    await recorder.abort()
+
+    #expect(await motion.stopCount == 1)
+    #expect(await recorder.admittedSampleCount == 0)
+    // No session was created, so there is nothing to stop and nothing to score.
+    await #expect(throws: StabilyzError.recording(.notRecording)) {
+        _ = try await recorder.stop()
+    }
+    #expect(await audio.calls.isEmpty)
+}

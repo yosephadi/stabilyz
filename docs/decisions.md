@@ -1539,3 +1539,92 @@ gap is ~1.1e-13, so `uptime - .ulpOfOne` rounds straight back to `uptime`: the
 "just before T-0" case was silently testing *at* T-0 and passing for the wrong
 reason. Boundary tests use `nextDown`, which is the real predecessor at whatever
 magnitude the anchor happens to sit at.
+
+---
+
+## 30. The recorder primes, begins and aborts as three separate calls
+
+**Date:** 2026-09-12 · **Task:** 4.2.2 · **Status:** Decided
+
+Implements the lifecycle docs/07 §7.3 describes. `SessionRecorder` gains
+`prime(mode:audioConfig:)`, `begin(at: TimeAnchor)` and `abort()`; states run
+`idle → priming → primed → running → idle`.
+
+### What changed
+
+Everything that can fail moved into `prime`: permission, hardware availability,
+sensor start, delivery confirmation. `begin(at:)` does nothing that can throw
+except refuse an unprimed recorder — it arms the buffer at T-0 and starts
+draining. `abort()` ends a countdown without a session.
+
+### Why every failure belongs in priming
+
+At Go the phone may already be in a pocket. A failure discovered there is a
+failure nobody sees: the user walks two minutes and gets an error screen at the
+end of it. Priming runs while the screen is still being watched, so the same
+failure costs a retry instead of a walk. That is the whole reason for the split
+— not tidiness.
+
+The recorder does **not** impose its own priming timeout. `CoreMotionSensorService`
+already enforces the budget and throws `sensor(.primingTimeout)` if the first
+sample never arrives, so `start` returning means the sensor is genuinely
+delivering. A second timer here would be one budget in two places, which is two
+budgets. The recorder adds only the check the service cannot make for it:
+`isAvailable`, so a countdown never starts against absent hardware.
+
+### The lead-in is held, not drained
+
+The first cut consumed samples during the countdown, letting the unarmed buffer
+turn them away as they arrived. It had a race. `begin(at:)` must await
+`stepFeedback.start` and the interruption observer, and every await lets the
+consumer run — so a sample genuinely at-or-after T-0 could be read while the
+buffer was still unarmed and be rejected, punching a hole in the recording
+exactly at its start. It also broke fixture replay, where the whole capture is
+yielded before `start` returns and would have been consumed and discarded before
+Go ever arrived.
+
+Both streams are unbounded, so the countdown's samples now accumulate and are
+drained at Go, after arming. The timestamp decides every sample's fate, which is
+what the admission contract is for (entry 29). "Dropped at admission" is about
+*where* they are dropped, not when.
+
+### Why `begin` does not prime for you
+
+It would put a variable, multi-hundred-millisecond sensor spin-up *after* the
+instant the session claims to have started — the exact ambiguity the countdown
+was introduced to remove. `begin(at:)` on an unprimed recorder is
+`recording(.notPrimed)`.
+
+`begin(mode:audioConfig:)` survives as a convenience for a start with no
+countdown in front of it, but it is strictly `prime` then `begin(at:)` — one
+lifecycle, so the two entry points cannot drift.
+
+### Why the anchor is passed in
+
+The countdown stamps T-0 at its final tick, so T-0 is the instant the user was
+shown and felt rather than whenever `begin` happened to be scheduled.
+
+### Why `abort()` refuses a running session
+
+`stop()` is the only exit past T-0 and the only place the `AVAudioSession` is
+released (entry 25). An abort that obeyed while running would hold the audio
+route after the walk and bin a real recording. It logs and declines instead.
+`abort()` is non-throwing on purpose: cancellation paths are the last place that
+should have to handle an error.
+
+### There is no `stopped` state
+
+A recorder is reused across sessions (docs/12 §12.3), so the only thing a
+terminal state could mean is "ready for the next session" — which `idle`
+already means. Adding one would be a state with no behaviour of its own.
+
+### Verification
+
+21 tests. Priming starts sensors with zero admitted samples and holds there for
+the length of a countdown; `begin(at:)` arms at the anchor it was given and the
+frozen buffer carries that anchor and honours the contract; `abort()` releases
+the sensor, restores the screen, opens no audio session, leaves no scratch file
+and leaves the recorder reusable; priming timeout, absent hardware and denied
+permission each surface at prime and reset the recorder. Two drive the full
+shape Task 8.2.6 will use — prime, five seconds of countdown, Go — and assert
+the lead-in was rejected and reported rather than silently binned.

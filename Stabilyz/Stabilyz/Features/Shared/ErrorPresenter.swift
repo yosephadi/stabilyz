@@ -60,6 +60,12 @@ enum ErrorPresenter {
                 message: "There's no session running to stop.",
                 isRecoverable: true
             )
+        case .recording(.notPrimed):
+            ErrorPresentation(
+                message: "Couldn't start that session — please try again.",
+                isRecoverable: true,
+                reassuresDataUnchanged: true
+            )
 
         case .recording(.unrecoverableInterruption):
             ErrorPresentation(
