@@ -33,6 +33,58 @@ private struct StubMotionService: MotionSensorService {
 
 private let establishedBaseline = BaselineState.established(.fixture(mode: .quickTest))
 
+/// Answers whatever the test set up, or throws when `failing` — the store
+/// being unreadable is its own case, not the same thing as having no sessions.
+private actor StubSessionRepository: GaitSessionRepository {
+    struct Unreadable: Error {}
+    var counts: [TestMode: Int] = [:]
+    var failing = false
+
+    init(counts: [TestMode: Int] = [:], failing: Bool = false) {
+        self.counts = counts
+        self.failing = failing
+    }
+
+    func save(_ session: GaitSession) async throws {}
+    func session(id: UUID) async throws -> GaitSession? { nil }
+    func sessions(mode: TestMode, includeInvalid: Bool, limit: Int?) async throws -> [GaitSession] { [] }
+    func validSessionCount(mode: TestMode) async throws -> Int {
+        if failing { throw Unreadable() }
+        return counts[mode] ?? 0
+    }
+}
+
+private actor StubBaselineRepository: BaselineRepository {
+    var stored: [TestMode: Baseline] = [:]
+
+    init(stored: [TestMode: Baseline] = [:]) {
+        self.stored = stored
+    }
+
+    func baseline(mode: TestMode) async throws -> Baseline? { stored[mode] }
+    func save(_ baseline: Baseline) async throws { stored[baseline.mode] = baseline }
+    func allBaselines() async throws -> [Baseline] { Array(stored.values) }
+}
+
+/// Turns a `BaselineState` back into the store rows that would produce it, so
+/// a test can name the state it means and let the real state machine derive it.
+private func stores(
+    for state: BaselineState,
+    mode: TestMode
+) -> (StubSessionRepository, StubBaselineRepository) {
+    switch state {
+    case .notStarted:
+        return (StubSessionRepository(), StubBaselineRepository())
+    case .building(let count):
+        return (StubSessionRepository(counts: [mode: count]), StubBaselineRepository())
+    case .established(let baseline):
+        return (
+            StubSessionRepository(counts: [mode: Baseline.requiredValidSessionCount]),
+            StubBaselineRepository(stored: [mode: baseline])
+        )
+    }
+}
+
 @MainActor
 private func makeModel(
     mode: TestMode = .quickTest,
@@ -41,14 +93,20 @@ private func makeModel(
     onStart: @escaping @MainActor (TestMode, SessionAudioConfig) -> Void = { _, _ in },
     openSettings: @escaping @MainActor () -> Void = {}
 ) -> SessionSetupViewModel {
-    SessionSetupViewModel(
+    let (sessions, baselines) = stores(for: baseline, mode: mode)
+    let model = SessionSetupViewModel(
         mode: mode,
-        baselineState: baseline,
+        sessions: sessions,
+        baselines: baselines,
         motionSensor: StubMotionService(authorization: authorization),
         logService: SetupLog(),
         openSettings: openSettings,
         onStart: onStart
     )
+    // The copy tests care about a state, not about how it was read, so seed it
+    // directly; `refreshBaselineStates` has its own tests below.
+    model.apply(baseline, for: mode)
+    return model
 }
 
 // MARK: - A: the mode selector
@@ -236,7 +294,7 @@ private func makeModel(
     model.isAudioCueOn = true
     #expect(model.audioConfig == .stepFeedback)
 
-    model.updateBaselineState(establishedBaseline)
+    model.apply(establishedBaseline, for: .quickTest)
     guard case .metronome = model.audioConfig else {
         Issue.record("expected the cue to follow the state")
         return
@@ -337,4 +395,155 @@ private func makeModel(
     model.openSystemSettings()
 
     #expect(opened.withLock { $0 })
+}
+
+// MARK: - Reading both modes from the store
+
+@MainActor
+@Test func refreshingReadsBothModesNotJustTheSelectedOne() async {
+    // A mode switch must not have to wait on a query, or it would show the
+    // wrong card for as long as the read took.
+    let sessions = StubSessionRepository(counts: [.quickTest: 2, .fullTest: 4])
+    let model = SessionSetupViewModel(
+        sessions: sessions,
+        baselines: StubBaselineRepository(),
+        motionSensor: StubMotionService(),
+        logService: SetupLog(),
+        onStart: { _, _ in }
+    )
+
+    await model.refreshBaselineStates()
+
+    #expect(model.baselineState == .building(validCount: 2))
+    model.select(.fullTest)
+    #expect(model.baselineState == .building(validCount: 4))
+}
+
+@MainActor
+@Test func anEstablishedBaselineIsReadThroughTheRealStateMachine() async {
+    let baseline = Baseline.fixture(mode: .fullTest)
+    let model = SessionSetupViewModel(
+        mode: .fullTest,
+        sessions: StubSessionRepository(counts: [.fullTest: 5]),
+        baselines: StubBaselineRepository(stored: [.fullTest: baseline]),
+        motionSensor: StubMotionService(),
+        logService: SetupLog(),
+        onStart: { _, _ in }
+    )
+
+    await model.refreshBaselineStates()
+
+    #expect(model.baselineState.isEstablished)
+    #expect(model.audioCueTitle == "Metronome Cue")
+    #expect(model.baselineHeadline == "100")
+}
+
+@MainActor
+@Test func eachModeKeepsItsOwnProgress() async {
+    // [PRD OQ-5] One mode's baseline must never appear under the other's name.
+    let model = SessionSetupViewModel(
+        sessions: StubSessionRepository(counts: [.quickTest: 5, .fullTest: 1]),
+        baselines: StubBaselineRepository(stored: [.quickTest: .fixture(mode: .quickTest)]),
+        motionSensor: StubMotionService(),
+        logService: SetupLog(),
+        onStart: { _, _ in }
+    )
+
+    await model.refreshBaselineStates()
+
+    #expect(model.baselineState.isEstablished)
+    #expect(model.audioCueTitle == "Metronome Cue")
+
+    model.select(.fullTest)
+    #expect(model.baselineState == .building(validCount: 1))
+    // The other mode's established baseline must not offer this one a metronome.
+    #expect(model.audioCueTitle == "Audio Step Feedback")
+    #expect(model.baselineCardHeader == "Full Test Baseline")
+}
+
+@MainActor
+@Test func anUnreadableStoreSaysSoRatherThanClaimingNoSessions() async {
+    // `AppDependencies.storeUnavailable` refuses to report empty data for
+    // exactly this reason: "no sessions yet" would misreport baseline progress
+    // to someone who has five sessions behind them.
+    let log = SetupLog()
+    let model = SessionSetupViewModel(
+        sessions: StubSessionRepository(failing: true),
+        baselines: StubBaselineRepository(),
+        motionSensor: StubMotionService(),
+        logService: log,
+        onStart: { _, _ in }
+    )
+
+    await model.refreshBaselineStates()
+
+    #expect(model.baselineLoadFailed)
+    #expect(model.baselineHeadline == "Baseline unavailable")
+    #expect(model.baselineHeadline != "Start building your baseline")
+    #expect(model.baselineHeadlineIsMetric == false)
+    #expect(model.baselineSupportingCopy == SessionSetupViewModel.baselineUnavailableCopy)
+    #expect(log.entries.withLock { $0.contains { $0.contains("could not read baseline state") } })
+}
+
+@MainActor
+@Test func anUnreadableStoreStillLetsTheUserRecord() async {
+    // Not knowing the baseline says nothing about whether the sensors work.
+    let model = SessionSetupViewModel(
+        sessions: StubSessionRepository(failing: true),
+        baselines: StubBaselineRepository(),
+        motionSensor: StubMotionService(),
+        logService: SetupLog(),
+        onStart: { _, _ in }
+    )
+
+    await model.refreshBaselineStates()
+    await model.refreshPermission()
+
+    #expect(model.isStartEnabled)
+}
+
+@MainActor
+@Test func aBaselineLandingWhileTheScreenIsOpenDropsAStaleCue() async {
+    // Step Feedback is pre-baseline only. If the fifth session commits while
+    // this screen is open, a toggle left on would silently become a metronome
+    // the user never chose.
+    let sessions = StubSessionRepository(counts: [.quickTest: 4])
+    let baselines = StubBaselineRepository()
+    let model = SessionSetupViewModel(
+        sessions: sessions,
+        baselines: baselines,
+        motionSensor: StubMotionService(),
+        logService: SetupLog(),
+        onStart: { _, _ in }
+    )
+    await model.refreshBaselineStates()
+    model.isAudioCueOn = true
+    #expect(model.audioConfig == .stepFeedback)
+
+    try? await baselines.save(.fixture(mode: .quickTest))
+    await model.refreshBaselineStates()
+
+    #expect(model.isAudioCueOn == false)
+    #expect(model.audioConfig == SessionAudioConfig.none)
+}
+
+@MainActor
+@Test func aFailedReadDoesNotWipeWhatWasAlreadyKnown() async {
+    let model = makeModel(baseline: establishedBaseline)
+    #expect(model.baselineState.isEstablished)
+
+    let failing = SessionSetupViewModel(
+        sessions: StubSessionRepository(failing: true),
+        baselines: StubBaselineRepository(),
+        motionSensor: StubMotionService(),
+        logService: SetupLog(),
+        onStart: { _, _ in }
+    )
+    failing.apply(establishedBaseline, for: .quickTest)
+    await failing.refreshBaselineStates()
+
+    // The flag wins for display, but the known state is still underneath it
+    // rather than having been replaced with zeros.
+    #expect(failing.baselineLoadFailed)
+    #expect(failing.baselineState.isEstablished)
 }

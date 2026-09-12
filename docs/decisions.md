@@ -1832,3 +1832,77 @@ the screen yet either, so it compiles and its logic is fully tested but it has
 off-by-default and on-by-default rules, both gates including the cross-boundary
 case, and all four permission outcomes. The design-token guard and the 15pt
 typography floor both scan `Features/` and passed with the new view in scope.
+
+---
+
+## 34. Setup roots the Walk tab; the session cover starts at the countdown
+
+**Date:** 2026-09-13 · **Task:** 8.2.1 (wiring) · **Status:** Decided
+
+**Supersedes docs/11 §11.1-11.3**, which have been amended to match.
+
+### What changed
+
+`MainShellView` is the Walk / Result / You shell. The Walk tab roots
+`SessionSetupView` in a `NavigationStack` titled "Walk"; `ContentView.main`
+shows the shell instead of the Home placeholder.
+
+### Two departures from docs/11, both from the same source
+
+docs/11 §11.1 recommended a `TabView` with **Home / History / Settings**, and
+§11.2 put the whole session flow — **setup** → recording → processing → result
+— inside a full-screen cover. Figma node 123:914 disagrees on both, and it is
+the design authority:
+
+- **The tabs are Walk / Result / You.** Same three persistent surfaces, the
+  node's names.
+- **Setup is not in the cover.** The node draws the tab bar *under* the setup
+  screen, which makes choosing a mode and its cues an ordinary place in the app
+  rather than a step already inside a modal flow. The cover now opens at the
+  countdown — the first moment an interruption would actually cost the user
+  something [PRD OQ-6]. `SessionFlowCoordinator` therefore starts at
+  `countdown`, not at `modeSelection`.
+
+Neither was a PRD requirement: §11.1 was explicitly a `[REC]`, and the PRD does
+not mandate layout.
+
+### Both modes are read, not just the selected one
+
+`refreshBaselineStates()` loads Quick and Full together through
+`BaselineStateMachine`. A switch that had to wait on a query would show the
+wrong card for as long as the read took, and one mode's baseline must never
+appear under the other's name [PRD OQ-5].
+
+### An unreadable store is not "no sessions yet"
+
+`baselineLoadFailed` is kept separate from `.notStarted`. Defaulting a failed
+read to zero would tell a user with five sessions behind them to start building
+a baseline — the exact misreport `AppDependencies.storeUnavailable` already
+refuses to make. The card says it could not load, and Start stays enabled,
+because not knowing the baseline says nothing about whether the sensors work.
+
+### A bug this wiring surfaced
+
+The cue toggle's stale-state guard was dead code. It cleared the toggle when
+*neither* cue was allowed, which never happens — one of the two always is. The
+real hazard is the toggle changing **identity**: if the fifth session commits
+while the screen is open, "Audio Step Feedback" becomes "Metronome Cue" and a
+toggle left on would silently start a metronome the user never chose. The guard
+now compares `allowsMetronome` across the refresh, the same rule `select(_:)`
+applies across a mode switch.
+
+### What this deliberately does not do
+
+`onStart` records a `PendingSession(mode:audioConfig:)` and logs it. The
+countdown cover is 8.2.6; the hand-off is already the shape that cover will
+consume, so wiring it is a presentation change rather than a plumbing one.
+Result and You are named placeholders.
+
+### Verification
+
+Seven new tests on top of the existing twenty: both modes read independently,
+an established baseline derived through the real state machine rather than
+seeded, per-mode segregation, the unreadable-store path in both its display and
+its "you can still record" halves, and the stale-cue drop — which failed first
+and is what found the dead guard. Release build for the simulator confirmed
+clean, which is the configuration where `mainRoot` takes its `#else` branch.

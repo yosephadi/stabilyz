@@ -30,8 +30,24 @@ final class SessionSetupViewModel {
     }
 
     private(set) var mode: TestMode
-    private(set) var baselineState: BaselineState
+
+    /// Both modes' states, held together so switching mode is instant and can
+    /// never show one mode's progress under the other's name [PRD OQ-5].
+    private(set) var baselineStates: [TestMode: BaselineState] = [:]
+
+    /// Set when the store could not be read.
+    ///
+    /// Kept distinct from "no sessions yet" on purpose: defaulting a failed
+    /// read to `.notStarted` would tell a user with an established baseline to
+    /// start building one, which is the misreport `AppDependencies` refuses to
+    /// make anywhere else.
+    private(set) var baselineLoadFailed = false
+
     private(set) var permission: PermissionState = .clear
+
+    /// This mode's state. `.notStarted` only when the store actually said so —
+    /// `baselineLoadFailed` covers the case where it said nothing.
+    var baselineState: BaselineState { baselineStates[mode] ?? .notStarted }
 
     /// The pre-baseline audio cue. **Off by default** [PRD §7 AC].
     var isAudioCueOn = false
@@ -40,6 +56,8 @@ final class SessionSetupViewModel {
     /// starts and stops [PRD OQ-6].
     var isHapticsOn = true
 
+    private let sessions: GaitSessionRepository
+    private let baselines: BaselineRepository
     private let motionSensor: MotionSensorService
     private let logService: LogService
     /// Opens the system Settings page for this app. Handed in rather than
@@ -52,14 +70,16 @@ final class SessionSetupViewModel {
 
     init(
         mode: TestMode = .quickTest,
-        baselineState: BaselineState = .notStarted,
+        sessions: GaitSessionRepository,
+        baselines: BaselineRepository,
         motionSensor: MotionSensorService,
         logService: LogService,
         openSettings: @escaping @MainActor () -> Void = {},
         onStart: @escaping @MainActor (TestMode, SessionAudioConfig) -> Void
     ) {
         self.mode = mode
-        self.baselineState = baselineState
+        self.sessions = sessions
+        self.baselines = baselines
         self.motionSensor = motionSensor
         self.logService = logService
         self.openSettings = openSettings
@@ -78,12 +98,53 @@ final class SessionSetupViewModel {
         isAudioCueOn = false
     }
 
-    /// Replaces the baseline state when the store answers.
-    func updateBaselineState(_ state: BaselineState) {
-        baselineState = state
-        if !state.allowsStepFeedback && !state.allowsMetronome {
+    /// Reads both modes' baseline states from the store.
+    ///
+    /// Both, not just the selected one: the user can switch modes at any time,
+    /// and a switch that had to wait on a query would show the wrong card for
+    /// as long as the read took. Re-runnable — the screen calls it on appear,
+    /// and again whenever a session commits.
+    func refreshBaselineStates() async {
+        var loaded: [TestMode: BaselineState] = [:]
+        do {
+            for mode in TestMode.allCases {
+                loaded[mode] = try BaselineStateMachine.state(
+                    for: mode,
+                    validSessionCount: try await sessions.validSessionCount(mode: mode),
+                    baseline: try await baselines.baseline(mode: mode)
+                )
+            }
+        } catch {
+            // Leave whatever was already known rather than replacing it with
+            // zeros. The card says it could not load, instead of telling a user
+            // with five sessions behind them to start building a baseline.
+            baselineLoadFailed = true
+            logService.log(.error, .app, "session setup: could not read baseline state")
+            return
+        }
+
+        // Which cue the toggle currently means, before the new states land.
+        let wasMetronome = baselineState.allowsMetronome
+
+        baselineStates = loaded
+        baselineLoadFailed = false
+
+        // The toggle changes *identity* at the baseline boundary rather than
+        // going away — Step Feedback before, the Metronome after. If the fifth
+        // session commits while this screen is open, a toggle left on would
+        // silently become a metronome the user never switched on, which is the
+        // opposite of the opt-in the PRD requires [PRD §5]. Same reasoning as
+        // `select(_:)`, for the same reason.
+        if baselineState.allowsMetronome != wasMetronome {
             isAudioCueOn = false
         }
+    }
+
+    /// Applies a state directly — the post-restore invalidation broadcast
+    /// (docs/11 §11.5), and tests.
+    func apply(_ state: BaselineState, for mode: TestMode) {
+        baselineStates[mode] = state
+        baselineLoadFailed = false
     }
 
     // MARK: - Copy: the mode selector
@@ -113,21 +174,29 @@ final class SessionSetupViewModel {
     /// The card's headline. The established state shows the reference index
     /// itself, which is what the Figma node draws at heading size.
     var baselineHeadline: String {
+        if baselineLoadFailed { return Self.baselineUnavailableHeadline }
         switch baselineState {
         case .notStarted:
-            "Start building your baseline"
+            return "Start building your baseline"
         case .building(let completed):
-            "\(completed) of \(Baseline.requiredValidSessionCount) sessions complete"
+            return "\(completed) of \(Baseline.requiredValidSessionCount) sessions complete"
         case .established:
-            "\(Baseline.referenceIndex)"
+            return "\(Baseline.referenceIndex)"
         }
     }
 
+    static let baselineUnavailableHeadline = "Baseline unavailable"
+
     /// True when the headline is the reference index rather than a sentence —
     /// the one case the view renders at heading size.
-    var baselineHeadlineIsMetric: Bool { baselineState.isEstablished }
+    var baselineHeadlineIsMetric: Bool { !baselineLoadFailed && baselineState.isEstablished }
+
+    /// Shown instead of the state copy when the store could not be read.
+    static let baselineUnavailableCopy =
+        "We couldn't read your baseline just now. You can still record a session."
 
     var baselineSupportingCopy: String {
+        if baselineLoadFailed { return Self.baselineUnavailableCopy }
         let required = Baseline.requiredValidSessionCount
         switch baselineState {
         case .notStarted:

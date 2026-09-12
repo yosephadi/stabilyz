@@ -130,9 +130,14 @@ EPIC 8 — Core Flows UI
         building / established), the cue toggle that changes identity with the
         baseline, haptics, permission pre-flight with a Settings link, and an
         `onStart(mode:audioConfig:)` callback. Ledger entry 33.
-      ↳ STILL OPEN: nothing routes to this screen yet, so it has not been seen
-        running — wiring it into `AppRouter` and feeding `baselineState` from
-        `BaselineRepository` belong to the navigation task.
+      ↳ WIRED. `Features/Main/MainShellView.swift` is the Walk / Result / You
+        shell (Figma 123:914); the Walk tab roots `SessionSetupView` in a
+        `NavigationStack` titled "Walk", and `ContentView.main` shows the shell.
+        Baseline state is read for **both** modes via `BaselineStateMachine` over
+        `GaitSessionRepository` + `BaselineRepository`; an unreadable store says
+        so rather than reporting "no sessions yet". `onStart` records a
+        `PendingSession` until the countdown cover lands (8.2.6). Result and You
+        are named placeholders. Ledger entry 34.
     Task 8.2.6 Countdown screen                                             → dep: 8.2.1, 7.3.1, 7.1.1, 4.2.2
       ↳ listed here because it runs before 8.2.2; numbered 8.2.6 so the existing
         8.2.2-8.2.5 identifiers (referenced from the EPIC 7 audit) stay stable.

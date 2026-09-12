@@ -8,7 +8,8 @@ First Launch ──┬── Restore (file → passphrase → validate → succe
                └── Get Started ⇒ Onboarding (resumable) ⇒ Home
 Existing User ───── Home
 ```
-- **Main UI [REC]: `TabView` with Home / History / Settings** — matches the PRD's three persistent surfaces; PRD does not mandate layout, so this is a labeled recommendation.
+- **Main UI: `TabView` with Walk / Result / You** (`MainShellView`). Superseded the earlier Home / History / Settings recommendation when Figma node 123:914 named the three tabs; the PRD still does not mandate layout, and the node is the design authority. Same three persistent surfaces, different names: Walk is the session surface, Result is history and the clinician summary, You is profile and settings.
+- **Session setup roots the Walk tab** rather than opening inside the session cover. Node 123:914 draws the tab bar *under* the setup screen, so choosing a mode and its cues is an ordinary place in the app rather than a step already inside a modal flow. The cover begins at the countdown — see §11.3.
 - Onboarding draft persistence makes the router resume mid-wizard, including on the final disclaimer screen pre-tick [PRD §6 AC].
 
 ## 11.2 Presentation Modes
@@ -16,7 +17,7 @@ Existing User ───── Home
 | Mode | Used for |
 |---|---|
 | Root switch (router) | Welcome / Onboarding / Main |
-| Full-screen cover | **Session flow** (setup → recording → processing → result) — a deliberately modal, interruption-free context |
+| Full-screen cover | **Session flow** (countdown → recording → processing → result) — a deliberately modal, interruption-free context. **Setup is outside it**: it roots the Walk tab (§11.1), and the cover opens at the countdown, which is the first moment an interruption would cost the user something [PRD OQ-6] |
 | Sheets | Export wizard (passphrase), Restore, About/Disclaimer |
 | Alerts / confirmation dialogs | Plain-language errors; the Restore **conflict dialog** with exactly three actions: Cancel / Export current data first / Replace with backup [PRD §5] |
 | Navigation stack | History → Clinician Summary (deep link from Settings also possible) |
@@ -26,10 +27,12 @@ Existing User ───── Home
 `SessionFlowCoordinator` (`@Observable`) drives the cover with an enum path:
 
 ```
-modeSelection → audioConfiguration → recording → processing → result(score | noisy | failure)
+countdown → recording → processing → result(score | noisy | failure)
 ```
 
-- State-dependent contents: audio step depends on `BaselineState(for: selectedMode)` [PRD §5]; first-session framing [PRD §5].
+`modeSelection` and `audioConfiguration` were the first two stages; both now live in `SessionSetupView` at the root of the Walk tab, which hands `(TestMode, SessionAudioConfig)` to the cover through `onStart`. The coordinator therefore starts at the countdown rather than at a choice.
+
+- State-dependent contents: the setup screen's cue toggle depends on `BaselineState(for: selectedMode)` [PRD §5], read for **both** modes so a mode switch never waits on a query; first-session framing [PRD §5].
 - After Processing: route to Noisy or Score — never both, never neither (failure → plain-language error + safe dismissal, session invalid) [PRD §5].
 - Dismissal from result returns to Home; History refresh reflects the committed session.
 

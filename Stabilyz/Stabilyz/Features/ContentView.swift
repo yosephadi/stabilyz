@@ -75,23 +75,23 @@ struct ContentView: View {
                     )
                 )
             case .main:
-                // Task 8.3.1: Home / History / Settings.
-                homeRoot
+                mainRoot
             }
         }
     }
 
-    /// Home, carrying the DEBUG-only reset gesture (docs/design/dev-notes.md).
+    /// The Walk / Result / You shell, carrying the DEBUG-only reset gesture
+    /// (docs/design/dev-notes.md).
     ///
-    /// Release builds get the placeholder and nothing else — `debugResetGesture`
-    /// does not exist to be called there.
+    /// Release builds get the shell and nothing else — `debugResetGesture` does
+    /// not exist to be called there.
     @ViewBuilder
-    private var homeRoot: some View {
-        let home = RootPlaceholder(name: "Home")
+    private var mainRoot: some View {
+        let shell = MainShellView(dependencies: dependencies, router: router)
         #if DEBUG
-        home.debugResetGesture(writer: dependencies.debugStoreWriter, router: router)
+        shell.debugResetGesture(writer: dependencies.debugStoreWriter, router: router)
         #else
-        home
+        shell
         #endif
     }
 }
