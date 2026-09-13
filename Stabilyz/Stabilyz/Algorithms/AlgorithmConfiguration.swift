@@ -294,6 +294,52 @@ struct CompositePolicy: Sendable, Equatable {
     }
 }
 
+/// A metric's fixed reference range, for the pre-baseline score only.
+///
+/// **[OPEN] — every one of these numbers is a placeholder.** There is no
+/// normative distribution for this population in the PRD or the TDD, and
+/// docs/08 §8.2 leaves index scaling unspecified on purpose. These anchors are
+/// what makes a 0-100 reading possible before a personal baseline exists; they
+/// are not validated, and Phase 12 replaces them with measured ones.
+///
+/// Stored as a poor/good pair rather than a sorted range so the metric's own
+/// direction is carried by which end is which: `good < poor` is a
+/// lower-is-better metric, and the same arithmetic handles both.
+struct MetricReferenceRange: Sendable, Equatable {
+    /// The raw value that reads as 0.
+    let poor: Double
+    /// The raw value that reads as 1.
+    let good: Double
+
+    /// Where a raw value sits in the range, clamped to 0...1 and oriented so
+    /// higher is always better.
+    ///
+    /// Clamped rather than extrapolated: past either anchor the scale has
+    /// nothing to say, and a walk twice as steady as `good` is not twice as
+    /// stable.
+    func quality(of raw: Double) -> Double? {
+        let span = good - poor
+        guard span != 0, raw.isFinite else { return nil }
+        return min(max((raw - poor) / span, 0), 1)
+    }
+}
+
+/// How one walk becomes a 0-100 score with no baseline to stand it against
+/// (`ProvisionalStabilityScore`).
+///
+/// **[OPEN] — a labelled placeholder in full.** See `MetricReferenceRange`.
+/// The weights are deliberately *not* here: the score reuses
+/// `CompositePolicy.weights` so the two scales weight the same signals
+/// identically, which is one fewer invented number and keeps "gait consistency
+/// is never the sole basis" [PRD §7] true for both by construction.
+struct IntrinsicScorePolicy: Sendable, Equatable {
+    let references: [MetricID: MetricReferenceRange]
+    /// Clamped for the same reason the relative index is.
+    let range: ClosedRange<Int>
+
+    func reference(for metric: MetricID) -> MetricReferenceRange? { references[metric] }
+}
+
 /// The go/no-go gate before a session is scored (docs/08 stage 4, docs/07 §7.5).
 struct DataQualityPolicy: Sendable, Equatable {
     /// Mode minimums, which are [PRD OQ-3] product thresholds rather than
@@ -353,6 +399,8 @@ struct AlgorithmConfiguration: Sendable, Equatable {
     let asymmetry: AsymmetryPolicy
     let normalization: NormalizationPolicy
     let composite: CompositePolicy
+    /// The pre-baseline score's anchors. **[OPEN]** — see `IntrinsicScorePolicy`.
+    let intrinsic: IntrinsicScorePolicy
     let quality: DataQualityPolicy
     let liveStepFeedback: LiveStepDetectionPolicy
     /// The sign convention per metric, which docs/05 §5.1 requires the model to
@@ -479,6 +527,28 @@ struct AlgorithmConfiguration: Sendable, Equatable {
             indexCenter: 100,
             indexScalePerSD: 100,
             indexRange: 0...200
+        ),
+        intrinsic: IntrinsicScorePolicy(
+            // [OPEN] PLACEHOLDER — none of these anchors is validated, and no
+            // document specifies them. They exist so sessions 1-5 can carry a
+            // provisional number at all; Phase 12 replaces them with measured
+            // values. Read them as "roughly the span a walk's readings fall in",
+            // not as clinical thresholds.
+            references: [
+                // Autocorrelation coefficients, which live in 0...1.
+                .stepRegularity: MetricReferenceRange(poor: 0.35, good: 0.90),
+                .strideRegularity: MetricReferenceRange(poor: 0.35, good: 0.90),
+                // A coefficient of variation: lower is steadier, so the pair
+                // runs downward.
+                .stepTimeCV: MetricReferenceRange(poor: 0.12, good: 0.02),
+                // RMS of the trunk proxy, per axis (`MetricAssembly`). The
+                // formulation itself is [OPEN] (docs/08 §8.2), so these anchors
+                // are doubly provisional — if the proxy changes units, they
+                // become meaningless rather than merely unvalidated.
+                .trunkMotionML: MetricReferenceRange(poor: 2.5, good: 0.5),
+                .trunkMotionVT: MetricReferenceRange(poor: 4.0, good: 1.0)
+            ],
+            range: 0...100
         ),
         quality: DataQualityPolicy(
             sessionPolicy: .v1,

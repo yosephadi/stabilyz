@@ -95,12 +95,24 @@ struct GaitAnalysisPipeline: GaitScoringAlgorithm {
             )
             score = scored.score
         }
+        // The other scale, and the one sessions 1-5 see. Computed from raw
+        // metrics against fixed anchors, so unlike the relative index it does
+        // not wait on a baseline — and computed for every valid session rather
+        // than only the first five, because the pipeline does not know how many
+        // have come before and a score that appeared only sometimes would be
+        // two behaviours to reason about.
+        let provisional = IntrinsicScorer.score(
+            metrics,
+            algorithmVersion: configuration.version,
+            configuration: configuration
+        )
         progress(ProcessingProgress(stage: .scoring, fraction: 1))
 
         return .valid(
             metrics: metrics,
             validWalkingDuration: quality.validWalkingDuration,
-            score: score
+            score: score,
+            provisional: provisional
         )
     }
 }

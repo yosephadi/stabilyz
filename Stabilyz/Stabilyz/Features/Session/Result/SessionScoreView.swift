@@ -33,12 +33,7 @@ struct SessionScoreView: View {
                     header
                     ring
                     if let subtitle = presentation.subtitle {
-                        Text(subtitle)
-                            .font(StabilyzFont.bodyRegular)
-                            .foregroundStyle(StabilyzColor.ink900)
-                            .multilineTextAlignment(.center)
-                            .frame(maxWidth: .infinity)
-                            .fixedSize(horizontal: false, vertical: true)
+                        calibrationPill(subtitle)
                     }
                     if let note = presentation.note {
                         Text(note)
@@ -93,7 +88,7 @@ struct SessionScoreView: View {
     /// a ring redrawn per score would make the two screens read as unrelated.
     private var ring: some View {
         ZStack {
-            if case .building(let count, let required) = presentation.progress {
+            if case .building(let count, let required, _) = presentation.progress {
                 milestoneBand(filled: count, of: required)
             } else {
                 Circle().strokeBorder(bandGradient, lineWidth: Controls.scoreRingWidth)
@@ -157,21 +152,37 @@ struct SessionScoreView: View {
                 deltaLine(delta)
             }
 
-        case .building(let count, let required):
-            VStack(spacing: Space.x1) {
-                // The milestone itself, at the weight the score would have had
-                // — this screen is not a lesser version of the scored one.
-                Text("\(count) of \(required)")
-                    .font(StabilyzFont.heading)
-                    .foregroundStyle(StabilyzColor.primary600)
-                    .minimumScaleFactor(0.6)
-                    .lineLimit(1)
-                Text(count == 1 ? "walk recorded" : "walks recorded")
-                    .font(StabilyzFont.bodyBold)
-                    .foregroundStyle(StabilyzColor.primary900)
-                Text("Building your \(presentation.mode.displayName) baseline")
-                    .font(StabilyzFont.smallRegular)
-                    .foregroundStyle(StabilyzColor.ink600)
+        case .building(let count, let required, let provisional):
+            if let provisional {
+                VStack(spacing: Space.x2) {
+                    Text("\(provisional)")
+                        .font(StabilyzFont.heading)
+                        .foregroundStyle(StabilyzColor.scoreNumeral(provisional))
+                        .minimumScaleFactor(0.6)
+                        .lineLimit(1)
+                    Text(SessionScorePresentation.scoreLabel)
+                        .font(StabilyzFont.bodyBold)
+                        .foregroundStyle(StabilyzColor.primary900)
+                    // Sits exactly where "vs. baseline" sits on a scored
+                    // session, so a reader cannot take the two for the same
+                    // kind of statement [PRD §7 AC].
+                    Text(SessionScorePresentation.provisionalLabel)
+                        .font(StabilyzFont.smallBold)
+                        .foregroundStyle(StabilyzColor.ink600)
+                }
+            } else {
+                // The walk's metrics could not be read against the reference
+                // anchors. The milestone is still true, and still progress.
+                VStack(spacing: Space.x1) {
+                    Text("\(count) of \(required)")
+                        .font(StabilyzFont.heading)
+                        .foregroundStyle(StabilyzColor.primary600)
+                        .minimumScaleFactor(0.6)
+                        .lineLimit(1)
+                    Text(count == 1 ? "walk recorded" : "walks recorded")
+                        .font(StabilyzFont.bodyBold)
+                        .foregroundStyle(StabilyzColor.primary900)
+                }
             }
 
         case .notComparable:
@@ -214,16 +225,40 @@ struct SessionScoreView: View {
             }
             let direction = delta > 0 ? "above" : "below"
             return "Stability score \(index), \(abs(delta)) points \(direction) your baseline."
-        case .building(let count, let required):
-            let walks = count == 1 ? "walk" : "walks"
-            return """
-            Building your \(presentation.mode.displayName) baseline. \
-            \(count) of \(required) \(walks) recorded. \
-            \(SessionScorePresentation.calibrationSubtitle(validCount: count, required: required))
-            """
+        case .building(let count, let required, let provisional):
+            let milestone = SessionScorePresentation.calibrationSubtitle(
+                validCount: count,
+                required: required
+            )
+            guard let provisional else {
+                let walks = count == 1 ? "walk" : "walks"
+                return "\(count) of \(required) \(walks) recorded. \(milestone)."
+            }
+            // "Provisional" first: it is the qualifier on everything after it,
+            // and a listener who stops early must not be left with the number.
+            return "Provisional stability score \(provisional) out of 100. \(milestone)."
         case .notComparable:
             return "No score. This walk could not be compared against your baseline."
         }
+    }
+
+    /// The calibration milestone, as a pill rather than a line of body copy.
+    ///
+    /// It sits directly under a number that looks exactly like a final score,
+    /// and its whole job is to say that number is not the personal one yet. A
+    /// bordered capsule reads as a status badge attached to the ring above it;
+    /// the same words set as a paragraph read as a caption to be skimmed past.
+    private func calibrationPill(_ text: String) -> some View {
+        Text(text)
+            .font(StabilyzFont.smallBold)
+            .foregroundStyle(StabilyzColor.primary700)
+            .multilineTextAlignment(.center)
+            .padding(.horizontal, Space.x4)
+            .padding(.vertical, Space.x2)
+            .background(Capsule().fill(StabilyzColor.primary50))
+            .overlay(Capsule().strokeBorder(StabilyzColor.primary100, lineWidth: Metrics.hairline))
+            .frame(maxWidth: .infinity)
+            .fixedSize(horizontal: false, vertical: true)
     }
 
     // MARK: - Highlights

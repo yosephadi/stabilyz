@@ -7,6 +7,11 @@ struct GaitSessionPayload: Codable, Equatable {
     let validWalkingDuration: Duration
     let metrics: GaitMetrics?
     let score: SessionScore?
+    /// Optional for the same reason as the two fields below: absent means the
+    /// row was written before the pre-baseline score existed. It is **not** a
+    /// queried column — nothing filters or charts on it, and nothing may, since
+    /// it is a different scale from `relativeIndex`.
+    let provisionalScore: ProvisionalStabilityScore?
     let audioConfig: SessionAudioConfig
     /// Optional for the same reason as `pedometerAvailable` below: absent means
     /// the session was never silenced, which is what every row written before

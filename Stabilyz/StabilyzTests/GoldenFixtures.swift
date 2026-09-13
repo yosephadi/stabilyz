@@ -270,7 +270,7 @@ extension GoldenSignal {
             let outcome = try await pipeline.analyze(
                 buffer: session, baseline: nil, profile: profile, progress: { _ in }
             )
-            guard case .valid(let metrics, let walking, _) = outcome else {
+            guard case .valid(let metrics, let walking, _, _) = outcome else {
                 throw GoldenError.calibrationSessionInvalid
             }
             // Distinct start times so the set is chronological and distinct.

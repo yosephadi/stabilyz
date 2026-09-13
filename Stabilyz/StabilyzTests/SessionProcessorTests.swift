@@ -21,7 +21,8 @@ private struct StubAlgorithm: GaitScoringAlgorithm {
     var outcome: SessionAnalysisOutcome = .valid(
         metrics: .fixture(),
         validWalkingDuration: .seconds(95),
-        score: nil
+        score: nil,
+        provisional: nil
     )
     var error: (any Error)?
     var reportedStages: [ProcessingStage] = []
@@ -236,7 +237,9 @@ private func makeBuffer(mode: TestMode = .quickTest, sampleCount: Int = 100) -> 
 
 @Test func anOutcomeIsValidOrInvalidNeverBoth() {
     // docs/11 §11.3: routes to Score or Noisy, never both, never neither.
-    let valid = SessionAnalysisOutcome.valid(metrics: .fixture(), validWalkingDuration: .seconds(95), score: nil)
+    let valid = SessionAnalysisOutcome.valid(
+        metrics: .fixture(), validWalkingDuration: .seconds(95), score: nil, provisional: nil
+    )
     let invalid = SessionAnalysisOutcome.invalid(reason: .excessiveNoise, validWalkingDuration: .seconds(30))
 
     #expect(valid.isValid)

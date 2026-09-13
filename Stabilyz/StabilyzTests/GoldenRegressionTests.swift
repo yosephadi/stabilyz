@@ -105,7 +105,7 @@ private func verify(_ name: String) async throws {
     )
     #expect(quality.gapInfo.gapCount == golden.expected.gapCount, "\(name): gap count")
 
-    guard case .valid(let metrics, _, _) = result.outcome else {
+    guard case .valid(let metrics, _, _, _) = result.outcome else {
         #expect(golden.expected.cadenceMean == nil, "\(name): invalid sessions carry no metrics")
         return
     }
@@ -187,7 +187,7 @@ private extension SessionAnalysisOutcome {
         buffer: GoldenSignal.buffer(for: calibration, mode: golden.testMode),
         baseline: baseline, profile: golden.profile.profile, progress: { _ in }
     )
-    guard case .valid(_, _, let calibrationScore) = calibrationOutcome else {
+    guard case .valid(_, _, let calibrationScore, _) = calibrationOutcome else {
         Issue.record("calibration session should be valid")
         return
     }
@@ -199,7 +199,7 @@ private extension SessionAnalysisOutcome {
         buffer: GoldenSignal.buffer(for: golden.signal, mode: golden.testMode),
         baseline: baseline, profile: golden.profile.profile, progress: { _ in }
     )
-    guard case .valid(let metrics, _, let score) = outcome else {
+    guard case .valid(let metrics, _, let score, _) = outcome else {
         Issue.record("scored session should be valid")
         return
     }
@@ -212,17 +212,43 @@ private extension SessionAnalysisOutcome {
     #expect(metrics.validStrideCount > 0)
 }
 
-@Test func aPreBaselineSessionCarriesMetricsButNoScore() async throws {
-    // [PRD §7] no relative score before the sixth valid session.
+@Test func aPreBaselineSessionCarriesMetricsButNoRelativeScore() async throws {
+    // [PRD §7] no *relative* score before the sixth valid session. The
+    // provisional one is a different scale and arrives from the first walk.
     let golden = try GoldenStore.load("clean-walk-quick")
     let (result, _) = try await runPipeline(golden)
 
-    guard case .valid(let metrics, _, let score) = result.outcome else {
+    guard case .valid(let metrics, _, let score, let provisional) = result.outcome else {
         Issue.record("expected a valid session")
         return
     }
     #expect(score == nil)
     #expect(metrics.validStrideCount > 0)
+
+    // Sessions 1-5 carry a number, through the real pipeline rather than a
+    // fixture. No expected *value* is asserted: the anchors behind it are a
+    // labelled [OPEN] placeholder (docs/08 §8.2) and pinning one here would
+    // freeze what Phase 12 is meant to replace.
+    let reading = try #require(provisional)
+    #expect(AlgorithmConfiguration.v1.intrinsic.range.contains(reading.value))
+    #expect(reading.algorithmVersion == AlgorithmConfiguration.v1.version)
+    #expect(reading.contributions.map(\.signal) == [
+        .gaitConsistency, .stepTimeVariability, .trunkMotion
+    ])
+}
+
+@Test func aNoisySessionCarriesNeitherScore() async throws {
+    // Invalid sessions are never scored [PRD §5, §7] — and adding a second
+    // scale is exactly the kind of change that could quietly reopen that.
+    for name in ["vibration-quick", "hundred-second-walk-full"] {
+        let golden = try GoldenStore.load(name)
+        guard golden.expected.valid == false else { continue }
+        let (result, _) = try await runPipeline(golden)
+
+        if case .valid = result.outcome {
+            Issue.record("\(name) should not be valid")
+        }
+    }
 }
 
 // MARK: - Cross-cutting assertions the individual cases cannot make

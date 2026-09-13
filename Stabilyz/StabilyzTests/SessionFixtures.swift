@@ -9,6 +9,7 @@ extension GaitSession {
         validWalking: Duration = .seconds(95),
         metrics: GaitMetrics = .fixture(),
         score: SessionScore? = nil,
+        provisionalScore: ProvisionalStabilityScore? = nil,
         audioConfig: SessionAudioConfig = .none,
         algorithmVersion: String = "1.0.0",
         interruptionCount: Int = 0,
@@ -23,6 +24,7 @@ extension GaitSession {
             validWalkingDuration: validWalking,
             metrics: metrics,
             score: score,
+            provisionalScore: provisionalScore,
             audioConfig: audioConfig,
             algorithmVersion: algorithmVersion,
             appVersion: "1.0",
@@ -92,6 +94,31 @@ extension PartialSessionScore {
                 mode: .quickTest, algorithmVersion: algorithmVersion,
                 standardized: [], rawOnly: [], unmeasured: []
             )
+        )
+    }
+}
+
+extension ProvisionalStabilityScore {
+    /// A pre-baseline score, for tests that do not run the scorer.
+    ///
+    /// The contributions are what the summary line rests on, so they are real
+    /// rather than empty — a fixture with no contributions would exercise only
+    /// the "nothing stood out" branch.
+    static func fixture(
+        value: Int = 76,
+        gaitConsistency: Double = 0.82,
+        stepTimeVariability: Double = 0.79,
+        trunkMotion: Double = 0.63,
+        algorithmVersion: String = "1.0.0"
+    ) -> ProvisionalStabilityScore {
+        ProvisionalStabilityScore(
+            value: value,
+            contributions: [
+                Contribution(signal: .gaitConsistency, quality: gaitConsistency, weight: 0.5),
+                Contribution(signal: .stepTimeVariability, quality: stepTimeVariability, weight: 0.25),
+                Contribution(signal: .trunkMotion, quality: trunkMotion, weight: 0.25)
+            ],
+            algorithmVersion: algorithmVersion
         )
     }
 }

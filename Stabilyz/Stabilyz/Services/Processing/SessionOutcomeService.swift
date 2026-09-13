@@ -83,7 +83,7 @@ struct SessionOutcomeService: Sendable {
         id: UUID
     ) -> GaitSession {
         switch analysis.outcome {
-        case .valid(let metrics, let validWalkingDuration, _):
+        case .valid(let metrics, let validWalkingDuration, _, let provisional):
             // The score is deliberately not attached here: only the commit
             // knows whether this mode's baseline existed *before* this session,
             // which is what decides whether a score may exist at all
@@ -96,6 +96,7 @@ struct SessionOutcomeService: Sendable {
                 advertisedClockElapsed: buffer.advertisedClockElapsed,
                 validWalkingDuration: validWalkingDuration,
                 metrics: metrics,
+                provisionalScore: provisional,
                 audioConfig: buffer.audioConfig,
                 audioSilencedAt: buffer.audioSilencedAt,
                 algorithmVersion: analysis.algorithmVersion,
@@ -128,7 +129,7 @@ struct SessionOutcomeService: Sendable {
     }
 
     private func partialScore(from analysis: SessionAnalysisResult) -> PartialSessionScore? {
-        guard case .valid(_, _, let score) = analysis.outcome else { return nil }
+        guard case .valid(_, _, let score, _) = analysis.outcome else { return nil }
         return score
     }
 }

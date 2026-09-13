@@ -27,10 +27,11 @@ private func building(
     count: Int,
     mode: TestMode = .quickTest,
     outcome: BaselineCommitOutcome? = nil,
-    session: GaitSession? = nil
+    session: GaitSession? = nil,
+    provisional: ProvisionalStabilityScore? = .fixture()
 ) -> SessionCommitResult {
     commit(
-        session: session ?? .fixtureValid(mode: mode),
+        session: session ?? .fixtureValid(mode: mode, provisionalScore: provisional),
         validCount: count,
         outcome: outcome ?? .notReady(validCount: count),
         state: .building(validCount: count)
@@ -136,8 +137,8 @@ private func component(
     // Sessions 1-5 have no index by design: the fifth establishes the baseline
     // and carries no score itself.
     for count in 1...4 {
-        let model = presentation(building(count: count))
-        #expect(model.progress == .building(validCount: count, required: 5))
+        let model = presentation(building(count: count, provisional: nil))
+        #expect(model.progress == .building(validCount: count, required: 5, provisional: nil))
         #expect(model.highlight == nil)
         #expect(model.signals.isEmpty)
     }
@@ -149,7 +150,7 @@ private func component(
         outcome: .established(.fixture())
     ))
 
-    #expect(model.progress == .building(validCount: 5, required: 5))
+    #expect(model.progress == .building(validCount: 5, required: 5, provisional: 76))
     #expect(model.note?.contains("Quick Test baseline is ready") == true)
 }
 
@@ -162,7 +163,7 @@ private func component(
         outcome: .refused(reason: .mixedAlgorithmVersions, validCount: 5)
     ))
 
-    #expect(model.progress == .building(validCount: 5, required: 5))
+    #expect(model.progress == .building(validCount: 5, required: 5, provisional: 76))
     #expect(model.note != nil)
 }
 
@@ -176,30 +177,25 @@ private func component(
 
 @Test func theCalibrationCountNeverExceedsTheRequirement() {
     let model = presentation(building(count: 9))
-    #expect(model.progress == .building(validCount: 5, required: 5))
+    #expect(model.progress == .building(validCount: 5, required: 5, provisional: 76))
 }
 
 // MARK: - The building state shows progress, not an absence
 
-@Test func aCalibrationSessionSaysHowManyWalksAreLeft() {
+@Test func theCalibrationPillNamesTheMilestoneAndWhatItUnlocks() {
     #expect(
         SessionScorePresentation.calibrationSubtitle(validCount: 1, required: 5)
-            == "Baseline in progress. 4 more walks needed to unlock your Stability Score."
+            == "Session 1 of 5 — Personal baseline unlocks after 5 walks"
     )
-}
-
-@Test func theLastWalkBeforeTheBaselineIsSingular() {
-    // "1 more walks" on the screen a user sees four times out of five.
     #expect(
         SessionScorePresentation.calibrationSubtitle(validCount: 4, required: 5)
-            == "Baseline in progress. 1 more walk needed to unlock your Stability Score."
+            == "Session 4 of 5 — Personal baseline unlocks after 5 walks"
     )
 }
 
-@Test func aCompleteCalibrationStopsAskingForWalks() {
+@Test func aCompleteCalibrationStopsPromisingAnUnlock() {
     let line = SessionScorePresentation.calibrationSubtitle(validCount: 5, required: 5)
-    #expect(line.contains("more walk") == false)
-    #expect(line.contains("0 ") == false)
+    #expect(line.contains("unlocks") == false)
 }
 
 @Test func everyCalibrationSessionCarriesItsSubtitle() {
@@ -226,6 +222,43 @@ private func component(
 
 // MARK: - Raw measurements on the pre-baseline screen [docs/04 §4.9]
 
+@Test func sessionsOneThroughFiveCarryAProvisionalScore() {
+    // The point of the whole pre-baseline scale: a number from the very first
+    // walk, on its own placeholder scale, never a relative index.
+    for count in 1...5 {
+        let model = presentation(building(count: count, provisional: .fixture(value: 71)))
+        #expect(model.progress == .building(validCount: count, required: 5, provisional: 71))
+    }
+}
+
+@Test func aProvisionalScoreIsNeverPresentedAsAComparison() {
+    // "vs. baseline" belongs to the relative index and begins at the sixth
+    // valid session [PRD §7]. A delta here would put two scales on one axis.
+    let model = presentation(building(count: 2))
+    guard case .scored = model.progress else { return }
+    Issue.record("a calibration session must never reach the scored case")
+}
+
+@Test func aCalibrationSessionExplainsItsScoreFromTheSignalsBehindIt() {
+    // [PRD] requires a summary generated from real measurement, not a static
+    // string. Pre-baseline that means the walk's own signals, since there is
+    // nothing to compare against yet.
+    let model = presentation(building(
+        count: 1,
+        provisional: .fixture(gaitConsistency: 0.9, stepTimeVariability: 0.5, trunkMotion: 0.7)
+    ))
+
+    let highlight = try? #require(model.highlight)
+    #expect(highlight?.contains("gait consistency") == true)
+    #expect(highlight?.contains("step rhythm") == true)
+}
+
+@Test func aCalibrationSessionWithNoProvisionalScoreHasNoHighlight() {
+    // A sentence naming signals the score was not built from would be exactly
+    // the static string [PRD] rules out.
+    #expect(presentation(building(count: 1, provisional: nil)).highlight == nil)
+}
+
 @Test func aCalibrationSessionShowsWhatItMeasured() {
     // Without these the screen reads as one where nothing happened. They are
     // the evidence the walk was recorded and analysed.
@@ -236,7 +269,7 @@ private func component(
     )
     let model = presentation(building(
         count: 2,
-        session: .fixtureValid(metrics: metrics)
+        session: .fixtureValid(metrics: metrics, provisionalScore: .fixture())
     ))
 
     #expect(model.measurements.map(\.signal) == [.cadence, .stepTimeVariability, .stepTimeAsymmetry])
@@ -255,7 +288,10 @@ private func component(
     // Nil is the correct value for a bilateral user [PRD §7, OQ-1]; a
     // permanently empty row on a secondary metric is noise, not transparency.
     let metrics = GaitMetrics.fixture(stepTimeAsymmetry: nil)
-    let model = presentation(building(count: 1, session: .fixtureValid(metrics: metrics)))
+    let model = presentation(building(
+        count: 1,
+        session: .fixtureValid(metrics: metrics, provisionalScore: .fixture())
+    ))
 
     #expect(model.measurements.map(\.signal) == [.cadence, .stepTimeVariability])
 }

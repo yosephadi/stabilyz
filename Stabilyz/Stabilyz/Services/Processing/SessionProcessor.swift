@@ -78,11 +78,11 @@ actor SessionProcessor {
         try checkCancellation()
 
         switch outcome {
-        case .valid(_, let duration, let score):
+        case .valid(_, let duration, let score, let provisional):
             logService.log(
                 .info,
                 .processing,
-                "session valid: mode=\(buffer.mode.rawValue) validWalking=\(Int(duration.components.seconds))s scored=\(score != nil)"
+                "session valid: mode=\(buffer.mode.rawValue) validWalking=\(Int(duration.components.seconds))s scored=\(score != nil) provisional=\(provisional != nil)"
             )
         case .invalid(let reason, let duration):
             logService.log(

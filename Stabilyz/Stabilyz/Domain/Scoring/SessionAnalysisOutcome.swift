@@ -38,7 +38,17 @@ enum SessionAnalysisOutcome: Sendable, Equatable {
     /// Scoreable. `score` is present only when a same-mode baseline existed
     /// [PRD §7]; stages 7-8 skip when it did not. It is **partial** — the
     /// commit step completes it with a summary line (entry 20).
-    case valid(metrics: GaitMetrics, validWalkingDuration: Duration, score: PartialSessionScore?)
+    ///
+    /// `provisional` is the other scale, and the two are independent: it is
+    /// computed from raw metrics alone, so it is present whenever the metrics
+    /// are readable, baseline or no baseline. It is what sessions 1-5 show, and
+    /// it never becomes a comparison — see `ProvisionalStabilityScore`.
+    case valid(
+        metrics: GaitMetrics,
+        validWalkingDuration: Duration,
+        score: PartialSessionScore?,
+        provisional: ProvisionalStabilityScore?
+    )
     /// Not scoreable, and never scored [PRD AC].
     case invalid(reason: InvalidReason, validWalkingDuration: Duration)
 
@@ -51,7 +61,7 @@ enum SessionAnalysisOutcome: Sendable, Equatable {
 
     var validWalkingDuration: Duration {
         switch self {
-        case .valid(_, let duration, _): duration
+        case .valid(_, let duration, _, _): duration
         case .invalid(_, let duration): duration
         }
     }

@@ -27,9 +27,15 @@ struct SessionScorePresentation: Equatable {
         /// A relative index against the user's own baseline for this mode.
         /// `delta` is signed against the baseline's 100 [PRD §7].
         case scored(index: Int, delta: Int)
-        /// Calibration. No index, by design — five valid sessions build the
-        /// baseline and the fifth carries no score itself.
-        case building(validCount: Int, required: Int)
+        /// Calibration, sessions 1-5. No *relative* index — that needs a
+        /// baseline, which is what these walks are building [PRD §7 AC].
+        ///
+        /// `provisional` is the within-walk score on its own 0-100 placeholder
+        /// scale (`ProvisionalStabilityScore`), shown from the first session and
+        /// framed as provisional wherever it appears. Nil when the walk's
+        /// metrics could not be read against the reference anchors, in which
+        /// case the ring shows the milestone alone.
+        case building(validCount: Int, required: Int, provisional: Int?)
         /// The baseline exists and the walk was measured, but no score was
         /// stored: the commit could not complete one (docs/09 §9.5). Rare, and
         /// said plainly rather than shown as a sixth calibration session.
@@ -130,13 +136,17 @@ struct SessionScorePresentation: Equatable {
             let count = min(result.validSessionCount, Baseline.requiredValidSessionCount)
             self.progress = .building(
                 validCount: count,
-                required: Baseline.requiredValidSessionCount
+                required: Baseline.requiredValidSessionCount,
+                provisional: session.provisionalScore?.value
             )
-            // Before a baseline exists there is nothing to compare against, and
-            // a sentence written without a comparison would be the static
-            // string [PRD] rules out. What the walk *measured* still stands on
-            // its own, and is shown below.
-            self.highlight = nil
+            // The comparison-based summary needs a baseline and correctly
+            // returns nothing here. This one describes the walk itself, from
+            // the signals the provisional score was actually built from.
+            self.highlight = session.provisionalScore.map {
+                ProvisionalSummaryGenerator.summary(mode: session.mode, score: $0).text
+            }
+            // Still no signal rows: those are baseline comparisons. What the
+            // walk *measured* stands on its own and is shown below.
             self.signals = []
             self.measurements = Self.measurements(from: session.metrics)
             // Suppressed when `note` is already saying it: the session that
@@ -152,23 +162,31 @@ struct SessionScorePresentation: Equatable {
 
     // MARK: - Calibration copy
 
-    /// The line under the ring while a baseline is being built [PRD §5].
+    /// The pill under the ring while a baseline is being built [PRD §5].
     ///
-    /// Says the number of walks left rather than a proportion: "4 more walks"
-    /// is something a user can act on this week, and "80%" is not. The word
-    /// "unlock" is doing the other half — it names what the walks are *for*, so
-    /// five sessions without a score read as progress rather than as five
-    /// screens that failed to produce one.
+    /// It carries the milestone *and* what the milestone is for, because a
+    /// screen now showing a real number needs to say plainly what that number
+    /// is not yet: personal. "Unlocks" names the thing the five walks buy —
+    /// comparison against the user's own normal — so the sessions read as
+    /// progress toward something rather than as a score withheld.
     static func calibrationSubtitle(validCount: Int, required: Int) -> String {
-        let remaining = max(0, required - validCount)
-        guard remaining > 0 else {
+        guard validCount < required else {
             // Reachable only if a fifth walk lands without establishing the
             // baseline; `note` covers the ordinary case.
-            return "Baseline complete. Your next walk gets a Stability Score."
+            return "Baseline complete. Your next walk gets a personal score."
         }
-        let walks = remaining == 1 ? "1 more walk" : "\(remaining) more walks"
-        return "Baseline in progress. \(walks) needed to unlock your Stability Score."
+        return "Session \(validCount) of \(required) — Personal baseline unlocks after \(required) walks"
     }
+
+    /// What the pre-baseline number is, said in one word beneath it.
+    ///
+    /// [PRD §7 AC]: "scores shown before that point are explicitly framed as
+    /// provisional/building, not final." The pill below the ring says how far
+    /// calibration has got; this says what the number itself is worth, and it
+    /// sits where "vs. baseline" sits on a scored session so the two cannot be
+    /// read as the same kind of statement.
+    static let provisionalLabel = "Provisional"
+    static let scoreLabel = "Stability Score"
 
     // MARK: - Raw measurements
 

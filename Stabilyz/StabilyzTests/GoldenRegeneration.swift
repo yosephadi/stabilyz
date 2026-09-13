@@ -152,7 +152,7 @@ struct GoldenRegeneration {
             switch outcome {
             case .invalid(let reason, _):
                 expected.invalidReason = reason.rawValue
-            case .valid(let metrics, _, let score):
+            case .valid(let metrics, _, let score, _):
                 expected.cadenceMean = metrics.cadenceMean
                 expected.stepTimeAsymmetry = metrics.stepTimeAsymmetry
                 expected.asymmetryReported = metrics.stepTimeAsymmetry != nil
@@ -175,7 +175,7 @@ struct GoldenRegeneration {
                     buffer: calibrationBuffer, baseline: builtBaseline,
                     profile: definition.profile.profile, progress: { _ in }
                 )
-                if case .valid(_, _, let calibrationScore) = calibrationOutcome {
+                if case .valid(_, _, let calibrationScore, _) = calibrationOutcome {
                     expected.calibrationRelativeIndex = calibrationScore?.relativeIndex
                 }
             }

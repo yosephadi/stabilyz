@@ -27,6 +27,15 @@ struct GaitSession: Sendable, Equatable, Identifiable {
     /// Only when the mode's baseline existed at commit — from the 6th valid
     /// session onward [PRD §7].
     let score: SessionScore?
+    /// The within-walk score, on its own 0-100 placeholder scale.
+    ///
+    /// Valid sessions only, and present from the **first** one — it needs no
+    /// baseline. Kept beside `score` rather than merged into it because the two
+    /// are different scales with different referents; see
+    /// `ProvisionalStabilityScore` for why nothing that reads `relativeIndex`
+    /// may ever read this. **[OPEN]** — the anchors behind it are a labelled
+    /// placeholder pending Phase 12.
+    let provisionalScore: ProvisionalStabilityScore?
     let audioConfig: SessionAudioConfig
     /// When the audio cue was silenced mid-walk, measured from T-0. Nil when it
     /// never was.
@@ -58,6 +67,7 @@ struct GaitSession: Sendable, Equatable, Identifiable {
         outcome: SessionOutcome,
         metrics: GaitMetrics?,
         score: SessionScore?,
+        provisionalScore: ProvisionalStabilityScore?,
         audioConfig: SessionAudioConfig,
         audioSilencedAt: Duration? = nil,
         algorithmVersion: String,
@@ -76,6 +86,7 @@ struct GaitSession: Sendable, Equatable, Identifiable {
         self.outcome = outcome
         self.metrics = metrics
         self.score = score
+        self.provisionalScore = provisionalScore
         self.audioConfig = audioConfig
         self.audioSilencedAt = audioSilencedAt
         self.algorithmVersion = algorithmVersion
@@ -97,6 +108,7 @@ struct GaitSession: Sendable, Equatable, Identifiable {
         validWalkingDuration: Duration,
         metrics: GaitMetrics,
         score: SessionScore? = nil,
+        provisionalScore: ProvisionalStabilityScore? = nil,
         audioConfig: SessionAudioConfig,
         audioSilencedAt: Duration? = nil,
         algorithmVersion: String,
@@ -116,6 +128,7 @@ struct GaitSession: Sendable, Equatable, Identifiable {
             outcome: .valid,
             metrics: metrics,
             score: score,
+            provisionalScore: provisionalScore,
             audioConfig: audioConfig,
             audioSilencedAt: audioSilencedAt,
             algorithmVersion: algorithmVersion,
@@ -156,6 +169,8 @@ struct GaitSession: Sendable, Equatable, Identifiable {
             outcome: .invalid(reason: reason),
             metrics: nil,
             score: nil,
+            // An invalid session is never scored, on either scale [PRD §5, §7].
+            provisionalScore: nil,
             audioConfig: audioConfig,
             audioSilencedAt: audioSilencedAt,
             algorithmVersion: algorithmVersion,
@@ -175,13 +190,18 @@ struct GaitSession: Sendable, Equatable, Identifiable {
     /// Returns nil for an invalid session. Invalid sessions are never scored
     /// [PRD AC], and this is the only path that could attach one after the fact,
     /// so the rule is enforced here rather than assumed.
+    /// Every field is carried across explicitly. This rebuilds the session
+    /// rather than mutating it, so anything left off here is silently lost at
+    /// the moment a score is attached — which is what had been happening to
+    /// `audioSilencedAt`, on exactly the sessions that get a score.
     func scored(_ score: SessionScore) -> GaitSession? {
         guard outcome.isValid, let metrics else { return nil }
         return GaitSession.valid(
             id: id, mode: mode, startedAt: startedAt, endedAt: endedAt,
             advertisedClockElapsed: advertisedClockElapsed,
             validWalkingDuration: validWalkingDuration,
-            metrics: metrics, score: score, audioConfig: audioConfig,
+            metrics: metrics, score: score, provisionalScore: provisionalScore,
+            audioConfig: audioConfig, audioSilencedAt: audioSilencedAt,
             algorithmVersion: algorithmVersion, appVersion: appVersion,
             deviceModel: deviceModel, interruptionCount: interruptionCount,
             gapInfo: gapInfo, pedometerAvailable: pedometerAvailable

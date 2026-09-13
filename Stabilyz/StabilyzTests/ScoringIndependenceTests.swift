@@ -38,7 +38,7 @@ private struct OutcomeSnapshot: Codable, Equatable {
         validWalkingSeconds = Self.seconds(result.outcome.validWalkingDuration)
 
         switch result.outcome {
-        case .valid(let metrics, _, let score):
+        case .valid(let metrics, _, let score, _):
             self.metrics = metrics
             relativeIndex = score?.relativeIndex
             compositeZ = score?.compositeZ
