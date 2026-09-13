@@ -290,3 +290,89 @@ private func preprocess(_ samples: [SensorSample]) -> PreprocessedSeries {
     #expect(abs(segment.startTimestamp - 1_234) < 1e-9)
     #expect(abs(segment.timestamp(at: Int(rate)) - 1_235) < 1e-6)
 }
+
+// MARK: - Lead-in trimming
+
+@Test func theFirstThreeSecondsAreDropped() {
+    // The walk begins at T-0; the user does not. The first seconds carry the
+    // phone going into a pocket and a first step from standing, none of it gait.
+    let samples = capture(seconds: 20) { t in
+        Vector3(x: 0, y: 0, z: -1 + 0.4 * sin(2 * .pi * 1.8 * t))
+    }
+    let trimmed = SessionLeadIn.trimmed(aligned(samples), configuration: config)
+
+    #expect(config.preprocessing.leadInTrim == .seconds(3))
+    // 100 Hz for 3s.
+    #expect(trimmed.samples.count == samples.count - 300)
+    #expect(trimmed.samples.first?.deviceTimestamp == 3)
+}
+
+@Test func nothingIsTrimmedFromTheEnd() {
+    // Stop is a deliberate act and the user is walking right up to it. Trimming
+    // there would discard real gait to guard against an artefact that is not
+    // symmetric with the start.
+    let samples = capture(seconds: 20) { _ in Vector3(x: 0, y: 0, z: -1) }
+    let trimmed = SessionLeadIn.trimmed(aligned(samples), configuration: config)
+
+    #expect(trimmed.samples.last?.deviceTimestamp == samples.last?.deviceTimestamp)
+}
+
+@Test func theTrimIsMeasuredFromTheFirstSampleNotFromZero() {
+    // A recorder whose first sample lands late must still lose three seconds of
+    // signal, not three seconds of clock.
+    let samples = capture(seconds: 20, startTime: 812.5) { _ in Vector3(x: 0, y: 0, z: -1) }
+    let trimmed = SessionLeadIn.trimmed(aligned(samples), configuration: config)
+
+    #expect(trimmed.samples.first?.deviceTimestamp == 815.5)
+    #expect(trimmed.samples.count == samples.count - 300)
+}
+
+@Test func aRecordingShorterThanTheTrimSurvivesAsEmpty() {
+    // It becomes the too-short session it already was; the quality stage gives
+    // the reason rather than this stage inventing one.
+    let samples = capture(seconds: 2) { _ in Vector3(x: 0, y: 0, z: -1) }
+    let trimmed = SessionLeadIn.trimmed(aligned(samples), configuration: config)
+
+    #expect(trimmed.samples.isEmpty)
+}
+
+@Test func theTrimReachesTheRealPipeline() async throws {
+    // Asserted through the pipeline, not just the helper: a trim that was
+    // written and never wired in would pass every test above.
+    let samples = capture(seconds: 20) { t in
+        Vector3(x: 0, y: 0, z: -1 + 0.4 * sin(2 * .pi * 1.8 * t))
+    }
+    let untrimmed = preprocess(samples)
+    let trimmed = Preprocessing.process(
+        SessionLeadIn.trimmed(aligned(samples), configuration: config),
+        configuration: config
+    )
+
+    #expect(untrimmed.segments.first?.startTimestamp == 0)
+    #expect(trimmed.segments.first?.startTimestamp == 3)
+    // The tail is intact: exactly the lead-in was lost, and nothing else.
+    #expect(untrimmed.totalDuration - trimmed.totalDuration == .seconds(3))
+}
+
+@Test func theLeadInArtefactDoesNotReachTheAnalysedSignal() {
+    // A violent first two seconds — the phone being pocketed — followed by
+    // steady walking. What survives must look like the walking.
+    let samples = capture(seconds: 20) { t in
+        let gait = 0.3 * sin(2 * .pi * 1.8 * t)
+        let insertion = t < 2 ? 6.0 * sin(2 * .pi * 11 * t) : 0
+        return Vector3(x: 0, y: 0, z: -1 + gait + insertion)
+    }
+    let series = Preprocessing.process(
+        SessionLeadIn.trimmed(aligned(samples), configuration: config),
+        configuration: config
+    )
+    let vertical = series.segments.flatMap(\.vertical)
+
+    let clean = preprocess(capture(seconds: 20) { t in
+        Vector3(x: 0, y: 0, z: -1 + 0.3 * sin(2 * .pi * 1.8 * t))
+    }).segments.flatMap(\.vertical)
+
+    // Within a factor of two of the same walk recorded without the artefact.
+    // Untrimmed, the 6g burst dominates the amplitude outright.
+    #expect(rms(vertical) < rms(clean) * 2)
+}

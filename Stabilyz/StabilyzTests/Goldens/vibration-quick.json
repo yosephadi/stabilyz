@@ -6,7 +6,7 @@
     "highFrequencyPowerRatio" : 0.9758218205309994,
     "invalidReason" : "excessiveNoise",
     "valid" : false,
-    "validWalkingSeconds" : 118
+    "validWalkingSeconds" : 115
   },
   "mode" : "quickTest",
   "name" : "vibration-quick",

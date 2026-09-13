@@ -52,6 +52,25 @@ struct PreprocessingPolicy: Sendable, Equatable {
     let minimumSegmentDuration: Duration
 
     /// PROVISIONAL — pending device validation (Phase 12).
+    /// How much of the **start** of a recording to drop before anything else
+    /// looks at it.
+    ///
+    /// The walk begins at T-0, but the user does not: the first seconds carry
+    /// the phone being lowered into a pocket, a hand leaving it, a first step
+    /// taken from standing. None of that is gait, and all of it is
+    /// high-amplitude enough to move the trunk proxy and the regularity
+    /// estimates.
+    ///
+    /// **Head only.** The tail is kept intact to the moment Stop was
+    /// triggered — the user is walking right up to it, and trimming there
+    /// would discard real gait to guard against an artefact that is not
+    /// symmetric with the start.
+    ///
+    /// Distinct from `filterEdgePaddingCycles` below, which is about an IIR
+    /// filter starting from rest. That is arithmetic; this is human.
+    let leadInTrim: Duration
+
+    /// PROVISIONAL — pending device validation (Phase 12).
     /// Cycles of the high-pass cutoff to reflect-pad each end with before
     /// filtering. An IIR filter starts from rest, so without padding the first
     /// samples carry a start-up transient rather than signal — and with
@@ -411,7 +430,14 @@ struct AlgorithmConfiguration: Sendable, Equatable {
     ///
     /// **Every value is PROVISIONAL — pending device validation (Phase 12).**
     static let v1 = AlgorithmConfiguration(
-        version: "1.0.0-provisional",
+        // 1.1.0: the lead-in trim changes what part of a session is analysed,
+        // and the asymmetry prominence floor changes what the pipeline will
+        // report. Every metric moves, so a baseline built under 1.0.0 is not
+        // comparable to a session scored under this one — which is exactly what
+        // the version exists to make visible (docs/09 §9.6). Minor rather than
+        // major: the contract, the metric set and the record shape are
+        // unchanged; only the numbers are. See docs/decisions.md entry 41.
+        version: "1.1.0-provisional",
         motionAcquisition: MotionAcquisitionPolicy(
             // PROVISIONAL — pending device validation (Phase 12).
             // Enough for autocorrelation at walking cadences and pedometer-grade
@@ -437,6 +463,11 @@ struct AlgorithmConfiguration: Sendable, Equatable {
             gravityEstimationCutoffHz: 0.5,
             // PROVISIONAL — pending device validation (Phase 12).
             minimumSegmentDuration: .seconds(2),
+            // PROVISIONAL — pending device validation (Phase 12).
+            // Long enough to cover pocketing the phone and the first step from
+            // standing; short enough that a Quick Test still clears its 90s
+            // valid-walking minimum with room to spare [PRD OQ-3].
+            leadInTrim: .seconds(3),
             // PROVISIONAL — pending device validation (Phase 12).
             filterEdgePaddingCycles: 3,
             zeroPhaseFiltering: true
@@ -498,7 +529,19 @@ struct AlgorithmConfiguration: Sendable, Equatable {
             requiresUnilateralProfile: true,
             requiresBothPeaksProminent: true,
             // PROVISIONAL — pending device validation (Phase 12).
-            minimumPeakProminence: 0.2,
+            //
+            // Raised from 0.2, which was low enough to let a walk with no
+            // usable peak structure report a number. On the jittered golden
+            // (Ad1 0.27, Ad2 0.23) the half-stride region is a smeared hump
+            // rather than one peak or two, so "the two strongest maxima in the
+            // band" were whichever bumps happened to win — and the answer moved
+            // between 0.00, 0.14 and 0.29 with nothing but the recording's
+            // start offset. At 0.3 that walk reports no value, which is the
+            // honest outcome and a stable one. It is the highest value that
+            // still keeps a real detection: at 0.4 the timing-asymmetry golden
+            // collapses from 0.081 to 0.000, a false negative on the case this
+            // feature exists for. See docs/decisions.md entry 41.
+            minimumPeakProminence: 0.3,
             sideFromProfile: true
         ),
         normalization: NormalizationPolicy(

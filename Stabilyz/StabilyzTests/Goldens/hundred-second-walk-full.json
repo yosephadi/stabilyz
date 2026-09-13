@@ -6,7 +6,7 @@
     "highFrequencyPowerRatio" : 0.04182639313359523,
     "invalidReason" : "insufficientValidWalking",
     "valid" : false,
-    "validWalkingSeconds" : 103
+    "validWalkingSeconds" : 100
   },
   "mode" : "fullTest",
   "name" : "hundred-second-walk-full",

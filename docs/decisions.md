@@ -2257,3 +2257,113 @@ before it is correct.**
 The idle timer is already disabled across the countdown (ledger 30), so an
 *automatic* lock cannot occur — only a deliberate one, which is the narrower
 case.
+
+## 41. A three-second lead-in, and the asymmetry floor it exposed
+
+**Date:** 2026-09-13 · **Task:** 8.2.5 follow-up · **Status:** Decided
+
+Two changes to what the pipeline analyses, taken together because the second was
+found by the first and neither is reviewable without the other. `AlgorithmConfiguration.version`
+moves **1.0.0-provisional → 1.1.0-provisional**: every metric shifts, so a
+baseline built under the old version is not comparable to a session scored under
+the new one (docs/09 §9.6). Nothing is stranded — no baselines exist outside
+development — but the version is the mechanism that makes that judgement
+possible later, so it moves now rather than at the first release that needs it.
+
+### The lead-in trim
+
+`SessionLeadIn` drops the first **3.0 s** of signal before any stage sees it.
+The walk begins at T-0; the user does not. Those seconds carry the phone going
+into a pocket, a hand leaving it, and a first step from standing — none of it
+gait, all of it large enough to move the trunk proxy and drag the regularity
+estimates down.
+
+**Head only. The tail is kept intact to the moment Stop was triggered.** Stop is
+a deliberate act with the user walking right up to it, so there is no artefact
+there mirroring the one at the start; trimming symmetrically would discard real
+gait to guard against nothing.
+
+Its own stage rather than part of `Preprocessing`, and ahead of it. This is a
+decision about which part of the session counts as the walk — the same family as
+walking-bout detection — where preprocessing is signal conditioning. Putting it
+inside `Preprocessing.process` made eight filter and resampling tests depend on
+pocketing, which is the wrong shape of coupling. Running it *before*
+preprocessing also keeps a phone still being pocketed out of the orientation
+estimate, which every later stage projects onto.
+
+A recording shorter than the trim comes back empty and is reported by the quality
+stage as the too-short session it already was.
+
+### What it exposed: the asymmetry prominence floor
+
+The trim broke the `jittered-steps-quick` golden, which reported step-time
+asymmetry **0.286** on a signal that is symmetric by construction. A sweep of
+trim offsets from 0 to 5 s showed the reading was never stable:
+
+| trim | 0 | 0.5 | 1.0 | 1.5 | 2.0 | 2.5 | 3.0 | 3.5 | 4.0 | 5.0 |
+|---|---|---|---|---|---|---|---|---|---|---|
+| asymmetry | 0.000 | 0.000 | 0.143 | 0.286 | 0.143 | 0.000 | 0.286 | 0.000 | 0.000 | 0.286 |
+
+The same sweep on `clean-walk-quick` gives 0.000 at every offset. **The trim did
+not cause this.** It re-rolled a die that was already loaded: at trim 0 the
+median across windows happened to land on 0.000, and the golden pinned that
+coincidence as if it were a measurement.
+
+The cause is not a partial leading cycle and not phase-latching on the start
+offset — both were hypothesised, and the clean walk's offset-invariance rules
+out the second while autocorrelation, which has no leading cycle to discard,
+rules out the first. It is that the jittered fixture has **no usable peak
+structure at all**: Ad1 0.27, Ad2 0.23, step-time CV 0.27. The half-stride region
+of its autocorrelation is a smeared hump rather than one peak or two, so
+`halfStridePeakLags` — which takes the two strongest maxima in the search band —
+was pairing whichever bumps happened to win, one of them a band-edge artefact at
+0.350 s against a nominal half-stride of 0.52 s.
+
+No pairing rule rescues this. The estimator is being asked a question the data
+cannot answer, and the fix is for it to decline — which the policy already
+described and only failed to enforce:
+
+> `minimumPeakProminence`: "Below this the walk is not periodic enough for the
+> contrast between the peaks to mean anything, and the honest answer is no value
+> at all rather than a number."
+
+**`minimumPeakProminence` moves 0.2 → 0.3.** Swept across every golden:
+
+| fixture | Ad1 / Ad2 | 0.2 | 0.3 | 0.4 | 0.5 |
+|---|---|---|---|---|---|
+| clean-walk | 0.94 / 0.89 | 0.000 | 0.000 | 0.000 | 0.000 |
+| jittered-steps | 0.27 / 0.23 | **0.286** | **nil** | nil | nil |
+| timing-asymmetry-unilateral | 0.41 / 0.89 | 0.081 | **0.081** | **0.000** | nil |
+| amplitude-asymmetry | 0.68 / 0.89 | 0.000 | 0.000 | 0.000 | 0.000 |
+| paused-walk | 0.94 / 0.89 | 0.000 | 0.000 | 0.000 | 0.000 |
+| gapped-walk | 0.94 / 0.89 | 0.000 | 0.000 | 0.000 | 0.000 |
+
+0.3 is the only value that is right everywhere: it is the lowest that rejects the
+aperiodic walk and the highest that keeps the genuine detection. At 0.4 the
+timing-asymmetry case collapses to 0.000 — a false negative on the one case this
+feature exists for.
+
+After the change the jittered fixture reports **nil** at nine of ten trim offsets
+and **0.000** at the tenth. Every value it still reports is exactly 0.000, and
+the 0.286 readings are gone at every offset.
+
+**It reports nil, not 0.0.** Zero is a claim — `MetricAssembly` documents that "a
+measured zero means the step durations really were equal" — and this walk
+supports no claim either way. Absence is the result [PRD §7, OQ-1].
+
+The threshold itself remains PROVISIONAL and the asymmetry computation remains
+`[OPEN]` (docs/08 §8.2). What is settled here is the *direction*: the guard
+belongs at periodicity, not at pairing, and a walk without peak structure gets no
+number.
+
+### Goldens
+
+Regenerated under the protocol in `Goldens/README.md`, with approval. What moved:
+
+- **Stride and window counts**, everywhere — three seconds less signal. 106 → 103
+  on the 1.1 s-stride cases, 141 → 138 paused, 158 → 151 and 18 → 17 windows
+  gapped.
+- **`jittered-steps-quick` asymmetry**, 0 → absent, per above.
+
+Recorded metrics otherwise held inside tolerance, which is the reassuring part:
+the trim removes duration, not character.

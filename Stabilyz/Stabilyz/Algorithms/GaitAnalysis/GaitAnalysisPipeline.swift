@@ -23,10 +23,12 @@ struct GaitAnalysisPipeline: GaitScoringAlgorithm {
         profile: UserProfile?,
         progress: @Sendable (ProcessingProgress) -> Void
     ) async throws -> SessionAnalysisOutcome {
-        // Stage 1 already ran: the recorder froze an aligned series.
+        // Stage 1 already ran: the recorder froze an aligned series. The head
+        // of it is dropped here, before anything measures or projects it.
+        let captured = SessionLeadIn.trimmed(buffer.series, configuration: configuration)
         progress(ProcessingProgress(stage: .ingestion, fraction: 1 / 6))
 
-        let series = Preprocessing.process(buffer.series, configuration: configuration)
+        let series = Preprocessing.process(captured, configuration: configuration)
         progress(ProcessingProgress(stage: .preprocessing, fraction: 2 / 6))
 
         let segmentation = WalkingSegmentDetector.detect(

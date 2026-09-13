@@ -23,7 +23,7 @@ struct GoldenRegeneration {
         ),
         GoldenCase(
             name: "jittered-steps-quick",
-            notes: "Same walk with step times wobbling by 100 ms. Pins that variability rises and step regularity falls.",
+            notes: "Same walk with step times wobbling by 100 ms. Pins that variability rises and step regularity falls — and that asymmetry is reported as ABSENT, not as zero: at Ad1 0.27 the half-stride autocorrelation has no peak structure to split, so the estimator declines rather than pairing noise. Before the prominence floor moved to 0.3 this case reported values between 0.00 and 0.29 depending only on where the recording started (entry 41).",
             mode: "quickTest", profile: .unilateral,
             signal: GoldenSignalSpec(seconds: 120, stepJitter: 0.1),
             calibration: nil,
