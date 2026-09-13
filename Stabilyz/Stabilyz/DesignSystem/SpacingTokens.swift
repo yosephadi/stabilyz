@@ -92,6 +92,10 @@ enum Controls {
     /// one that measured it.
     static let scoreRingDiameter: CGFloat = 204
     static let scoreRingWidth: CGFloat = 14
+    /// Half the band, which is how far a centred stroke has to be inset to sit
+    /// inside the same circle `strokeBorder` fills. Derived rather than typed,
+    /// so the two cannot drift if the band changes.
+    static let scoreRingInset: CGFloat = scoreRingWidth / 2
 
     /// A grouped-list section header block (Figma node 123:914 draws each
     /// "Section Title" 39pt tall).

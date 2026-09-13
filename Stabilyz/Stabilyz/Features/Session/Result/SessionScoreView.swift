@@ -32,6 +32,14 @@ struct SessionScoreView: View {
                 VStack(alignment: .leading, spacing: Space.x6) {
                     header
                     ring
+                    if let subtitle = presentation.subtitle {
+                        Text(subtitle)
+                            .font(StabilyzFont.bodyRegular)
+                            .foregroundStyle(StabilyzColor.ink900)
+                            .multilineTextAlignment(.center)
+                            .frame(maxWidth: .infinity)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
                     if let note = presentation.note {
                         Text(note)
                             .font(StabilyzFont.smallRegular)
@@ -40,6 +48,7 @@ struct SessionScoreView: View {
                     }
                     highlights
                     calculationDetails
+                    measurements
                     thisSession
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -84,15 +93,11 @@ struct SessionScoreView: View {
     /// a ring redrawn per score would make the two screens read as unrelated.
     private var ring: some View {
         ZStack {
-            Circle()
-                .strokeBorder(
-                    LinearGradient(
-                        colors: [StabilyzColor.timerRingTop, StabilyzColor.timerRingBottom],
-                        startPoint: .top,
-                        endPoint: .bottom
-                    ),
-                    lineWidth: Controls.scoreRingWidth
-                )
+            if case .building(let count, let required) = presentation.progress {
+                milestoneBand(filled: count, of: required)
+            } else {
+                Circle().strokeBorder(bandGradient, lineWidth: Controls.scoreRingWidth)
+            }
             ringContents
                 .multilineTextAlignment(.center)
                 .padding(.horizontal, Controls.scoreRingWidth + Space.x4)
@@ -101,6 +106,39 @@ struct SessionScoreView: View {
         .frame(maxWidth: .infinity)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(ringAnnouncement)
+    }
+
+    private var bandGradient: LinearGradient {
+        LinearGradient(
+            colors: [StabilyzColor.timerRingTop, StabilyzColor.timerRingBottom],
+            startPoint: .top,
+            endPoint: .bottom
+        )
+    }
+
+    /// The same band, filled to the walks done so far.
+    ///
+    /// The pre-baseline screen has no number to put in the middle, and a ring
+    /// left empty around that absence reads as a score that failed to arrive.
+    /// Filled by fifths it reads as the opposite — four walks of five is
+    /// visibly most of the way to something. The track is drawn underneath
+    /// rather than left blank, so the remaining distance is visible too.
+    private func milestoneBand(filled: Int, of total: Int) -> some View {
+        let fraction = total > 0 ? Double(filled) / Double(total) : 0
+        return ZStack {
+            Circle()
+                .strokeBorder(StabilyzColor.ink200, lineWidth: Controls.scoreRingWidth)
+            Circle()
+                .trim(from: 0, to: fraction)
+                .stroke(
+                    bandGradient,
+                    style: StrokeStyle(lineWidth: Controls.scoreRingWidth, lineCap: .round)
+                )
+                // Twelve o'clock, clockwise — the direction the session ring
+                // already sweeps, so the two read as the same instrument.
+                .rotationEffect(.degrees(-90))
+                .padding(Controls.scoreRingInset)
+        }
     }
 
     @ViewBuilder
@@ -120,11 +158,17 @@ struct SessionScoreView: View {
             }
 
         case .building(let count, let required):
-            VStack(spacing: Space.x2) {
-                Text("Session \(count) of \(required)")
-                    .font(StabilyzFont.subheading2Bold)
-                    .foregroundStyle(StabilyzColor.ink900)
+            VStack(spacing: Space.x1) {
+                // The milestone itself, at the weight the score would have had
+                // — this screen is not a lesser version of the scored one.
+                Text("\(count) of \(required)")
+                    .font(StabilyzFont.heading)
+                    .foregroundStyle(StabilyzColor.primary600)
                     .minimumScaleFactor(0.6)
+                    .lineLimit(1)
+                Text(count == 1 ? "walk recorded" : "walks recorded")
+                    .font(StabilyzFont.bodyBold)
+                    .foregroundStyle(StabilyzColor.primary900)
                 Text("Building your \(presentation.mode.displayName) baseline")
                     .font(StabilyzFont.smallRegular)
                     .foregroundStyle(StabilyzColor.ink600)
@@ -171,9 +215,11 @@ struct SessionScoreView: View {
             let direction = delta > 0 ? "above" : "below"
             return "Stability score \(index), \(abs(delta)) points \(direction) your baseline."
         case .building(let count, let required):
+            let walks = count == 1 ? "walk" : "walks"
             return """
             Building your \(presentation.mode.displayName) baseline. \
-            Session \(count) of \(required). No score yet.
+            \(count) of \(required) \(walks) recorded. \
+            \(SessionScorePresentation.calibrationSubtitle(validCount: count, required: required))
             """
         case .notComparable:
             return "No score. This walk could not be compared against your baseline."
@@ -251,6 +297,31 @@ struct SessionScoreView: View {
         }
         .fixedSize(horizontal: false, vertical: true)
         .accessibilityElement(children: .combine)
+    }
+
+    // MARK: - Raw measurements
+
+    /// What the walk measured, for a screen with no score to show instead.
+    ///
+    /// §4.9's pre-baseline "raw metrics, reference only". The caption is
+    /// load-bearing: without it three bare numbers invite exactly the
+    /// comparison the screen cannot yet make.
+    @ViewBuilder
+    private var measurements: some View {
+        if !presentation.measurements.isEmpty {
+            VStack(alignment: .leading, spacing: Space.x4) {
+                sectionTitle(SessionScorePresentation.measurementsTitle)
+                VStack(alignment: .leading, spacing: Space.x2) {
+                    ForEach(presentation.measurements) { row in
+                        signalRow(row)
+                    }
+                }
+                Text(SessionScorePresentation.measurementsCaption)
+                    .font(StabilyzFont.smallRegular)
+                    .foregroundStyle(StabilyzColor.ink600)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
     }
 
     // MARK: - This session

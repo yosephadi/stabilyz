@@ -26,10 +26,11 @@ private func commit(
 private func building(
     count: Int,
     mode: TestMode = .quickTest,
-    outcome: BaselineCommitOutcome? = nil
+    outcome: BaselineCommitOutcome? = nil,
+    session: GaitSession? = nil
 ) -> SessionCommitResult {
     commit(
-        session: .fixtureValid(mode: mode),
+        session: session ?? .fixtureValid(mode: mode),
         validCount: count,
         outcome: outcome ?? .notReady(validCount: count),
         state: .building(validCount: count)
@@ -178,6 +179,106 @@ private func component(
     #expect(model.progress == .building(validCount: 5, required: 5))
 }
 
+// MARK: - The building state shows progress, not an absence
+
+@Test func aCalibrationSessionSaysHowManyWalksAreLeft() {
+    #expect(
+        SessionScorePresentation.calibrationSubtitle(validCount: 1, required: 5)
+            == "Baseline in progress. 4 more walks needed to unlock your Stability Score."
+    )
+}
+
+@Test func theLastWalkBeforeTheBaselineIsSingular() {
+    // "1 more walks" on the screen a user sees four times out of five.
+    #expect(
+        SessionScorePresentation.calibrationSubtitle(validCount: 4, required: 5)
+            == "Baseline in progress. 1 more walk needed to unlock your Stability Score."
+    )
+}
+
+@Test func aCompleteCalibrationStopsAskingForWalks() {
+    let line = SessionScorePresentation.calibrationSubtitle(validCount: 5, required: 5)
+    #expect(line.contains("more walk") == false)
+    #expect(line.contains("0 ") == false)
+}
+
+@Test func everyCalibrationSessionCarriesItsSubtitle() {
+    for count in 1...4 {
+        let model = presentation(building(count: count))
+        #expect(model.subtitle == SessionScorePresentation.calibrationSubtitle(
+            validCount: count, required: 5
+        ))
+    }
+}
+
+@Test func theSubtitleStandsDownWhenTheNoteIsSayingTheSameThing() {
+    // The session that establishes the baseline would otherwise announce it
+    // twice, once under the ring and once beneath.
+    let model = presentation(building(count: 5, outcome: .established(.fixture())))
+    #expect(model.note != nil)
+    #expect(model.subtitle == nil)
+}
+
+@Test func aScoredSessionHasNoCalibrationSubtitle() {
+    let model = presentation(commit(session: .fixtureValid(score: .fixture())))
+    #expect(model.subtitle == nil)
+}
+
+// MARK: - Raw measurements on the pre-baseline screen [docs/04 §4.9]
+
+@Test func aCalibrationSessionShowsWhatItMeasured() {
+    // Without these the screen reads as one where nothing happened. They are
+    // the evidence the walk was recorded and analysed.
+    let metrics = GaitMetrics.fixture(
+        cadenceMean: 108.6,
+        stepTimeCV: 0.043,
+        stepTimeAsymmetry: 0.061
+    )
+    let model = presentation(building(
+        count: 2,
+        session: .fixtureValid(metrics: metrics)
+    ))
+
+    #expect(model.measurements.map(\.signal) == [.cadence, .stepTimeVariability, .stepTimeAsymmetry])
+    #expect(model.measurements.map(\.detail) == ["109 steps/min", "4%", "6%"])
+}
+
+@Test func noRawMeasurementClaimsADirection() {
+    // There is no baseline to be above or below, and two of the three carry no
+    // sign convention even when there is.
+    let model = presentation(building(count: 3))
+    #expect(model.measurements.isEmpty == false)
+    #expect(model.measurements.allSatisfy { $0.direction == nil })
+}
+
+@Test func anAbsentAsymmetryDrawsNoRowRatherThanAnEmptyOne() {
+    // Nil is the correct value for a bilateral user [PRD §7, OQ-1]; a
+    // permanently empty row on a secondary metric is noise, not transparency.
+    let metrics = GaitMetrics.fixture(stepTimeAsymmetry: nil)
+    let model = presentation(building(count: 1, session: .fixtureValid(metrics: metrics)))
+
+    #expect(model.measurements.map(\.signal) == [.cadence, .stepTimeVariability])
+}
+
+@Test func aScoredSessionShowsItsBreakdownRatherThanRawNumbers() {
+    // The breakdown already carries every measurement, in context.
+    let model = presentation(commit(session: .fixtureValid(score: .fixture())))
+    #expect(model.measurements.isEmpty)
+}
+
+@Test func aMeasuredWalkWithNoScoreStillShowsItsNumbers() {
+    let model = presentation(commit(session: .fixtureValid(score: nil), validCount: 6))
+    #expect(model.progress == .notComparable)
+    #expect(model.measurements.isEmpty == false)
+}
+
+@Test func theRawMeasurementsAreFramedAsReferenceOnly() {
+    // Three bare numbers would invite exactly the comparison the screen cannot
+    // yet make.
+    #expect(SessionScorePresentation.measurementsCaption
+        .localizedCaseInsensitiveContains("reference only"))
+}
+
 // MARK: - Signals: never better or worse without a direction
 
 @Test func agreeingMetricsGiveTheSignalADirection() {
@@ -247,6 +348,19 @@ private func component(
     ])
 
     #expect(rows[0].direction == nil)
+    #expect(rows[0].detail == "4%")
+}
+
+@Test func stepTimeVariabilityReadsAsAPercentageNotARatio() {
+    // "4%" is read by more people than "0.04".
+    let rows = SessionScorePresentation.rows(from: [
+        MetricBreakdown(
+            signal: .stepTimeVariability,
+            components: [component(.stepTimeCV, z: nil, raw: 0.038, availability: .rawOnly)],
+            asymmetrySide: nil
+        )
+    ])
+
     #expect(rows[0].detail == "4%")
 }
 

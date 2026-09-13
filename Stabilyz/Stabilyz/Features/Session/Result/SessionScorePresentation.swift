@@ -78,6 +78,16 @@ struct SessionScorePresentation: Equatable {
     /// What just happened to the baseline, when that is worth saying.
     let note: String?
     let signals: [SignalRow]
+    /// What this walk measured, shown when there is no score to show instead.
+    ///
+    /// §4.9's "raw metrics, reference only" for the pre-baseline screen. It is
+    /// the evidence the walk was recorded and analysed — without it, a
+    /// calibration session reads as a screen where nothing happened.
+    let measurements: [SignalRow]
+    /// The calibration line under the ring, when the screen is counting toward
+    /// a baseline. Nil once there is a score, and nil when `note` is carrying
+    /// the same news in more words.
+    let subtitle: String?
     /// Nil when the walk ran with no cue; a row saying "no cue" would be noise.
     let cue: CueNote?
 
@@ -92,6 +102,9 @@ struct SessionScorePresentation: Equatable {
         self.completedAt = session.endedAt
         self.cue = Self.cueNote(for: session)
 
+        let note = Self.note(for: result.baselineOutcome, mode: session.mode)
+        self.note = note
+
         switch (session.score, result.state.isEstablished) {
         case (.some(let score), _):
             self.progress = .scored(
@@ -100,6 +113,9 @@ struct SessionScorePresentation: Equatable {
             )
             self.highlight = score.summaryLine
             self.signals = Self.rows(from: score.breakdown)
+            // The breakdown already carries every measurement, in context.
+            self.measurements = []
+            self.subtitle = nil
 
         case (nil, true):
             // Measured, comparable in principle, and yet no score was stored.
@@ -107,21 +123,103 @@ struct SessionScorePresentation: Equatable {
             self.progress = .notComparable
             self.highlight = nil
             self.signals = []
+            self.measurements = Self.measurements(from: session.metrics)
+            self.subtitle = nil
 
         case (nil, false):
+            let count = min(result.validSessionCount, Baseline.requiredValidSessionCount)
             self.progress = .building(
-                validCount: min(result.validSessionCount, Baseline.requiredValidSessionCount),
+                validCount: count,
                 required: Baseline.requiredValidSessionCount
             )
             // Before a baseline exists there is nothing to compare against, and
             // a sentence written without a comparison would be the static
-            // string [PRD] rules out.
+            // string [PRD] rules out. What the walk *measured* still stands on
+            // its own, and is shown below.
             self.highlight = nil
             self.signals = []
+            self.measurements = Self.measurements(from: session.metrics)
+            // Suppressed when `note` is already saying it: the session that
+            // establishes the baseline would otherwise announce it twice.
+            self.subtitle = note == nil
+                ? Self.calibrationSubtitle(
+                    validCount: count,
+                    required: Baseline.requiredValidSessionCount
+                )
+                : nil
         }
-
-        self.note = Self.note(for: result.baselineOutcome, mode: session.mode)
     }
+
+    // MARK: - Calibration copy
+
+    /// The line under the ring while a baseline is being built [PRD §5].
+    ///
+    /// Says the number of walks left rather than a proportion: "4 more walks"
+    /// is something a user can act on this week, and "80%" is not. The word
+    /// "unlock" is doing the other half — it names what the walks are *for*, so
+    /// five sessions without a score read as progress rather than as five
+    /// screens that failed to produce one.
+    static func calibrationSubtitle(validCount: Int, required: Int) -> String {
+        let remaining = max(0, required - validCount)
+        guard remaining > 0 else {
+            // Reachable only if a fifth walk lands without establishing the
+            // baseline; `note` covers the ordinary case.
+            return "Baseline complete. Your next walk gets a Stability Score."
+        }
+        let walks = remaining == 1 ? "1 more walk" : "\(remaining) more walks"
+        return "Baseline in progress. \(walks) needed to unlock your Stability Score."
+    }
+
+    // MARK: - Raw measurements
+
+    /// The objective numbers this walk produced, for a screen with no score.
+    ///
+    /// Cadence, step-time variability and step-time asymmetry: the three that
+    /// mean something read on their own, without a baseline to stand them
+    /// against. The regularity outputs and the trunk proxy are deliberately
+    /// absent — both are dimensionless indices whose only interpretation *is*
+    /// the comparison, so printing them here would be a number with nothing
+    /// attached to it.
+    ///
+    /// Asymmetry is omitted entirely when it is nil rather than shown as
+    /// unavailable. Nil is the correct value for a bilateral user, for a walk
+    /// with no profile, and for one whose peaks were not prominent [PRD §7,
+    /// OQ-1] — and a permanently empty row on a secondary metric is noise, not
+    /// transparency.
+    static func measurements(from metrics: GaitMetrics?) -> [SignalRow] {
+        guard let metrics else { return [] }
+
+        var rows: [SignalRow] = [
+            measurement(.cadence, .cadenceMean, metrics.cadenceMean),
+            measurement(.stepTimeVariability, .stepTimeCV, metrics.stepTimeCV)
+        ]
+        if let asymmetry = metrics.stepTimeAsymmetry {
+            rows.append(measurement(.stepTimeAsymmetry, .stepTimeAsymmetry, asymmetry))
+        }
+        return rows
+    }
+
+    private static func measurement(
+        _ signal: SignalID,
+        _ metric: MetricID,
+        _ value: Double
+    ) -> SignalRow {
+        SignalRow(
+            signal: signal,
+            label: label(for: signal),
+            detail: format(value, for: metric),
+            // Never a direction: there is no baseline to be above or below, and
+            // these carry no sign convention of their own even when there is
+            // (docs/decisions.md entry 3).
+            direction: nil
+        )
+    }
+
+    static let measurementsTitle = "Measured This Walk"
+    static let measurementsCaption = """
+        Reference only. These aren't compared against anything until your \
+        baseline exists.
+        """
 
     // MARK: - Calibration
 
@@ -224,7 +322,11 @@ struct SessionScorePresentation: Equatable {
             // A ratio of the two half-cycles (docs/decisions.md entry 13),
             // non-negative by construction, so a percentage reads directly.
             return "\(Int((value * 100).rounded()))%"
-        case .stepRegularity, .strideRegularity, .stepTimeCV, .trunkMotionML, .trunkMotionVT:
+        case .stepTimeCV:
+            // A coefficient of variation is a ratio too, and "4%" is read by
+            // more people than "0.04".
+            return "\(Int((value * 100).rounded()))%"
+        case .stepRegularity, .strideRegularity, .trunkMotionML, .trunkMotionVT:
             return value.formatted(.number.precision(.fractionLength(2)))
         }
     }

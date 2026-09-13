@@ -6,12 +6,16 @@ private let anchor = Date(timeIntervalSince1970: 1_700_000_000)
 
 extension GaitMetrics {
     /// Arbitrary but well-formed metrics for tests that do not care about values.
-    static func fixture(stepTimeAsymmetry: Double? = nil) -> GaitMetrics {
+    static func fixture(
+        cadenceMean: Double = 104,
+        stepTimeCV: Double = 0.041,
+        stepTimeAsymmetry: Double? = nil
+    ) -> GaitMetrics {
         GaitMetrics(
             stepRegularity: 0.82,
             strideRegularity: 0.78,
-            cadenceMean: 104,
-            stepTimeCV: 0.041,
+            cadenceMean: cadenceMean,
+            stepTimeCV: stepTimeCV,
             trunkMotionML: 1.12,
             trunkMotionVT: 2.30,
             stepTimeAsymmetry: stepTimeAsymmetry,

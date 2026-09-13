@@ -21,6 +21,58 @@ private final class HapticLog: LogService, @unchecked Sendable {
     func endInterval(_ interval: SignpostInterval) {}
 }
 
+// MARK: - The patterns [PRD OQ-6]
+
+@Test func theCountdownTickStaysASingleLightTap() {
+    // It fires once a second for five seconds; the rhythm carries it. Making
+    // it heavier or longer would destroy the contrast against Go, which is the
+    // only thing telling "1" apart from "walk now" through a pocket.
+    #expect(HapticPattern.cadenceTick.pulseCount == 1)
+    #expect(HapticPattern.cadenceTick.weight == .light)
+    #expect(HapticPattern.cadenceTick.duration == .zero)
+}
+
+@Test func startAndStopAreBurstsRatherThanSingleTaps() {
+    // A lone transient impact is the cue most often missed through clothing.
+    // Both of the cues that mark a session boundary repeat.
+    #expect(HapticPattern.sessionStart.pulseCount > 1)
+    #expect(HapticPattern.sessionStop.pulseCount > 1)
+    #expect(HapticPattern.sessionStart.weight == .heavy)
+    #expect(HapticPattern.sessionStop.weight == .heavy)
+}
+
+@Test func stopIsAMarkedlyLongerBurstThanStart() {
+    // What tells them apart in a pocket is length, not counting pulses: Go is
+    // a bump marking an instant, Stop is a shudder that cannot be mistaken for
+    // something beginning.
+    #expect(HapticPattern.sessionStop.pulseCount > HapticPattern.sessionStart.pulseCount)
+    #expect(HapticPattern.sessionStop.duration > HapticPattern.sessionStart.duration * 2)
+}
+
+@Test func everyPatternOutweighsOrOutlastsTheTick() {
+    // The tick is the floor. Neither boundary cue may collapse into it.
+    for pattern in [HapticPattern.sessionStart, .sessionStop] {
+        #expect(pattern != HapticPattern.cadenceTick)
+        #expect(pattern.weight == .heavy || pattern.duration > HapticPattern.cadenceTick.duration)
+    }
+}
+
+@Test func burstGapsAreLongEnoughToBeFeltSeparately() {
+    // Pulses closer together than ~50ms fuse into one sensation, which would
+    // spend the hardware and deliver a single tap.
+    for pattern in [HapticPattern.sessionStart, .sessionStop] where pattern.pulseCount > 1 {
+        #expect(pattern.gap >= .milliseconds(50))
+    }
+}
+
+@Test func noBurstRunsLongEnoughToBlurTheMomentItMarks() {
+    // Go names an instant and Stop ends one. A pattern running past a beat or
+    // so would stop being an event and start being an alarm.
+    for pattern in [HapticPattern.sessionStart, .sessionStop] {
+        #expect(pattern.duration <= .milliseconds(500))
+    }
+}
+
 // MARK: - The double records what it was asked to play
 
 @Test func theMockRecordsEveryCallInOrder() async {
@@ -182,6 +234,39 @@ private final class HapticLog: LogService, @unchecked Sendable {
         #expect(unavailable.count == 1)
         #expect(unavailable.first?.contains("countdown stays visual") == true)
     }
+}
+
+@Test func theLiveServiceReturnsWellInsideTheBurstItStarted() async {
+    // The countdown plays Go immediately before opening the session against a
+    // `TimeAnchor` already stamped at T-0. A call that waited for the last
+    // pulse of a burst would push the recorder open behind its own origin.
+    let haptics = LiveHapticFeedbackService(logService: HapticLog())
+    await haptics.prepare()
+
+    let started = ContinuousClock.now
+    await haptics.playSessionStart()
+    await haptics.playSessionStop()
+    let elapsed = ContinuousClock.now - started
+
+    let bursts = HapticPattern.sessionStart.duration + HapticPattern.sessionStop.duration
+    #expect(elapsed < bursts, "the service waited for its own pattern to finish")
+}
+
+@Test func aBurstSurvivesTheTeardownThatFollowsIt() async {
+    // Stop is played and the countdown tears down immediately afterwards. The
+    // trailing pulses hold their generator directly, so releasing the pool
+    // mid-burst is not allowed to take the rest of the pattern with it — and
+    // on hardware that cannot play at all, nothing was scheduled to survive.
+    let haptics = LiveHapticFeedbackService(logService: HapticLog())
+    await haptics.prepare()
+    await haptics.playSessionStop()
+    await haptics.teardown()
+
+    try? await Task.sleep(for: HapticPattern.sessionStop.duration + .milliseconds(50))
+    // Usable again straight after, with no half-released state left behind.
+    await haptics.prepare()
+    await haptics.playSessionStart()
+    await haptics.teardown()
 }
 
 @Test func theLiveServiceNeverBlocksOnAbsentHardware() async {
