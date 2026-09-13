@@ -97,6 +97,13 @@ enum Controls {
     /// so the two cannot drift if the band changes.
     static let scoreRingInset: CGFloat = scoreRingWidth / 2
 
+    /// One dot of the baseline-calibration indicator under the score ring.
+    ///
+    /// Not a control and not a tap target — it is a read-only count of five,
+    /// restated in words directly above it, so it is sized to be counted at a
+    /// glance rather than to the 44pt floor.
+    static let progressDotDiameter: CGFloat = 10
+
     /// A grouped-list section header block (Figma node 123:914 draws each
     /// "Section Title" 39pt tall).
     ///

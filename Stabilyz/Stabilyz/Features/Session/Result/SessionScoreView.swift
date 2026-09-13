@@ -27,42 +27,52 @@ struct SessionScoreView: View {
     @State private var showsDetails = true
 
     var body: some View {
-        VStack(spacing: 0) {
-            ScrollView {
-                VStack(alignment: .leading, spacing: Space.x6) {
-                    header
-                    ring
-                    if let subtitle = presentation.subtitle {
-                        calibrationPill(subtitle)
-                    }
-                    if let note = presentation.note {
-                        Text(note)
-                            .font(StabilyzFont.smallRegular)
-                            .foregroundStyle(StabilyzColor.ink600)
-                            .fixedSize(horizontal: false, vertical: true)
-                    }
-                    highlights
-                    calculationDetails
-                    measurements
-                    thisSession
+        ScrollView {
+            VStack(alignment: .leading, spacing: Space.x6) {
+                header
+                ring
+                if let progress = presentation.baselineProgress {
+                    baselineProgress(progress)
                 }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.horizontal, Space.screenMargin)
-                // The node puts its content 40pt below the status bar.
-                .padding(.top, Space.x10)
-                .padding(.bottom, Space.x6)
+                if let note = presentation.note {
+                    Text(note)
+                        .font(StabilyzFont.smallRegular)
+                        .foregroundStyle(StabilyzColor.ink600)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                highlights
+                calculationDetails
+                measurements
+                thisSession
             }
-
-            Button(SessionScorePresentation.doneLabel, action: done)
-                .buttonStyle(.primaryCapsuleHero)
-                .padding(.horizontal, Space.screenMargin)
-                .padding(.top, Space.x4)
-                // The no-tab-bar clearance. Not `coverFooterBottomGap`, which
-                // exists to keep Stop where Start was; nothing on this screen
-                // is continuous with the screen behind it.
-                .padding(.bottom, Controls.footerBottomGap)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, Space.screenMargin)
+            // The node puts its content 40pt below the status bar.
+            .padding(.top, Space.x10)
+            .padding(.bottom, Space.x6)
         }
         .background(StabilyzColor.bgBase)
+        // Docked rather than placed after the scroll view. `safeAreaInset`
+        // insets the scroll content by exactly the bar's height, so the last
+        // row can always be scrolled clear of the button instead of ending
+        // underneath it — which a sibling in a `VStack` gets right only while
+        // the content happens to be short.
+        .safeAreaInset(edge: .bottom) { doneBar }
+    }
+
+    /// The docked action bar.
+    ///
+    /// It carries the page's own background: content scrolls *under* an inset,
+    /// and a transparent bar would show a metric row sliding behind the capsule.
+    private var doneBar: some View {
+        Button(SessionScorePresentation.doneLabel, action: done)
+            .buttonStyle(.primaryCapsuleHero)
+            // The screen margin, so the capsule's edges line up with the column
+            // of content above it rather than sitting 4pt proud of it.
+            .padding(.horizontal, Space.screenMargin)
+            .padding(.top, Space.x4)
+            .padding(.bottom, Space.x6)
+            .background(StabilyzColor.bgBase)
     }
 
     // MARK: - Header
@@ -88,8 +98,12 @@ struct SessionScoreView: View {
     /// a ring redrawn per score would make the two screens read as unrelated.
     private var ring: some View {
         ZStack {
-            if case .building(let count, let required, _) = presentation.progress {
-                milestoneBand(filled: count, of: required)
+            if case .building(_, _, let provisional) = presentation.progress {
+                // The band is the score, and only the score. It used to fill by
+                // session count, which put two different quantities — how good
+                // the walk was, and how many walks there had been — on one
+                // shape. Calibration progress is the dots below instead.
+                scoreBand(filling: provisional)
             } else {
                 Circle().strokeBorder(bandGradient, lineWidth: Controls.scoreRingWidth)
             }
@@ -111,15 +125,29 @@ struct SessionScoreView: View {
         )
     }
 
-    /// The same band, filled to the walks done so far.
+    /// How much of the circumference a provisional score fills: 41 fills 41%.
     ///
-    /// The pre-baseline screen has no number to put in the middle, and a ring
-    /// left empty around that absence reads as a score that failed to arrive.
-    /// Filled by fifths it reads as the opposite — four walks of five is
-    /// visibly most of the way to something. The track is drawn underneath
-    /// rather than left blank, so the remaining distance is visible too.
-    private func milestoneBand(filled: Int, of total: Int) -> some View {
-        let fraction = total > 0 ? Double(filled) / Double(total) : 0
+    /// Its own function so the mapping can be asserted without rendering. The
+    /// bug it replaced — the band filling by calibration count — was invisible
+    /// in the arithmetic and obvious only on screen, which is exactly the kind
+    /// that comes back.
+    ///
+    /// Nil fills nothing: no score, no arc.
+    static func ringFill(forProvisional score: Int?) -> Double {
+        min(max(Double(score ?? 0) / 100, 0), 1)
+    }
+
+    /// The band, filled to the score inside it.
+    ///
+    /// Only the pre-baseline scale gets a fill, because only it runs 0–100. The
+    /// relative index does not — it is centred on 100 and open above it, so a
+    /// "fraction of the ring" would be undefined at 112 and would read as a
+    /// full ring at exactly average. That case keeps the plain band.
+    ///
+    /// The track draws underneath either way, so the ring stays a ring rather
+    /// than a gap in the page.
+    private func scoreBand(filling score: Int?) -> some View {
+        let fraction = Self.ringFill(forProvisional: score)
         return ZStack {
             Circle()
                 .strokeBorder(StabilyzColor.ink200, lineWidth: Controls.scoreRingWidth)
@@ -146,9 +174,13 @@ struct SessionScoreView: View {
                     .foregroundStyle(StabilyzColor.scoreNumeral(index))
                     .minimumScaleFactor(0.6)
                     .lineLimit(1)
-                Text("Stability Score")
+                Text(SessionScorePresentation.scoreLabel)
                     .font(StabilyzFont.bodyBold)
-                    .foregroundStyle(StabilyzColor.primary900)
+                    // Secondary text, not `primary900`: that navy is a
+                    // light-mode ink and sits at barely 1.3:1 on the dark
+                    // background, well under §9's 3:1 floor. `ink600` carries a
+                    // dark-mode pair and clears it in both.
+                    .foregroundStyle(StabilyzColor.ink600)
                 deltaLine(delta)
             }
 
@@ -162,13 +194,13 @@ struct SessionScoreView: View {
                         .lineLimit(1)
                     Text(SessionScorePresentation.scoreLabel)
                         .font(StabilyzFont.bodyBold)
-                        .foregroundStyle(StabilyzColor.primary900)
+                        .foregroundStyle(StabilyzColor.ink600)
                     // Sits exactly where "vs. baseline" sits on a scored
                     // session, so a reader cannot take the two for the same
                     // kind of statement [PRD §7 AC].
                     Text(SessionScorePresentation.provisionalLabel)
                         .font(StabilyzFont.smallBold)
-                        .foregroundStyle(StabilyzColor.ink600)
+                        .foregroundStyle(StabilyzColor.ink900)
                 }
             } else {
                 // The walk's metrics could not be read against the reference
@@ -181,7 +213,7 @@ struct SessionScoreView: View {
                         .lineLimit(1)
                     Text(count == 1 ? "walk recorded" : "walks recorded")
                         .font(StabilyzFont.bodyBold)
-                        .foregroundStyle(StabilyzColor.primary900)
+                        .foregroundStyle(StabilyzColor.ink600)
                 }
             }
 
@@ -226,39 +258,62 @@ struct SessionScoreView: View {
             let direction = delta > 0 ? "above" : "below"
             return "Stability score \(index), \(abs(delta)) points \(direction) your baseline."
         case .building(let count, let required, let provisional):
-            let milestone = SessionScorePresentation.calibrationSubtitle(
-                validCount: count,
-                required: required
-            )
             guard let provisional else {
                 let walks = count == 1 ? "walk" : "walks"
-                return "\(count) of \(required) \(walks) recorded. \(milestone)."
+                return "No score for this walk. \(count) of \(required) \(walks) recorded."
             }
             // "Provisional" first: it is the qualifier on everything after it,
             // and a listener who stops early must not be left with the number.
-            return "Provisional stability score \(provisional) out of 100. \(milestone)."
+            // The calibration count is not repeated here — the progress block
+            // below is its own stop and states it in words.
+            return "Provisional stability score \(provisional) out of 100."
         case .notComparable:
             return "No score. This walk could not be compared against your baseline."
         }
     }
 
-    /// The calibration milestone, as a pill rather than a line of body copy.
+    /// How far calibration has got, under the ring.
     ///
-    /// It sits directly under a number that looks exactly like a final score,
-    /// and its whole job is to say that number is not the personal one yet. A
-    /// bordered capsule reads as a status badge attached to the ring above it;
-    /// the same words set as a paragraph read as a caption to be skimmed past.
-    private func calibrationPill(_ text: String) -> some View {
-        Text(text)
-            .font(StabilyzFont.smallBold)
-            .foregroundStyle(StabilyzColor.primary700)
-            .multilineTextAlignment(.center)
-            .padding(.horizontal, Space.x4)
-            .padding(.vertical, Space.x2)
-            .background(Capsule().fill(StabilyzColor.primary50))
-            .overlay(Capsule().strokeBorder(StabilyzColor.primary100, lineWidth: Metrics.hairline))
-            .frame(maxWidth: .infinity)
-            .fixedSize(horizontal: false, vertical: true)
+    /// Three registers, centred: the count, five dots, and what the remaining
+    /// walks buy. The dots are the reason this replaced a pill — a sentence
+    /// about progress has to be read, whereas five dots are counted at a glance
+    /// and are the only part of this block that survives being skimmed.
+    ///
+    /// They are not the only channel, though: the header states the same count
+    /// in words directly above them, so nothing here depends on telling two
+    /// fills apart (§9 — never encode by colour alone).
+    private func baselineProgress(_ progress: SessionScorePresentation.BaselineProgress) -> some View {
+        VStack(spacing: 0) {
+            Text(progress.header)
+                .font(StabilyzFont.smallBold)
+                .foregroundStyle(StabilyzColor.ink900)
+
+            Spacer().frame(height: Space.x2)
+
+            HStack(spacing: Space.x2) {
+                ForEach(0..<progress.required, id: \.self) { index in
+                    Circle()
+                        .fill(
+                            index < progress.completed
+                                ? StabilyzColor.primary600
+                                : StabilyzColor.ink200
+                        )
+                        .frame(width: Controls.progressDotDiameter, height: Controls.progressDotDiameter)
+                }
+            }
+            // The header says the count; the dots restate it. Two stops here
+            // would read the same number twice.
+            .accessibilityHidden(true)
+
+            Spacer().frame(height: Space.x3)
+
+            Text(progress.helper)
+                .font(StabilyzFont.smallRegular)
+                .foregroundStyle(StabilyzColor.ink600)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .multilineTextAlignment(.center)
+        .frame(maxWidth: .infinity)
     }
 
     // MARK: - Highlights

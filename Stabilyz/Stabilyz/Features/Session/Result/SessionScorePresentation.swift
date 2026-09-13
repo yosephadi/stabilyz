@@ -69,6 +69,20 @@ struct SessionScorePresentation: Equatable {
         var id: SignalID { signal }
     }
 
+    /// How far calibration has got, and what is left.
+    ///
+    /// Carries the counts as well as the copy because the dots are drawn from
+    /// them — a view deriving "how many are filled" by parsing the header would
+    /// be able to disagree with it.
+    struct BaselineProgress: Equatable {
+        let completed: Int
+        let required: Int
+        let header: String
+        let helper: String
+
+        var remaining: Int { max(0, required - completed) }
+    }
+
     /// The cue the walk actually ran with, and where it stopped.
     struct CueNote: Equatable {
         let glyph: String
@@ -90,10 +104,10 @@ struct SessionScorePresentation: Equatable {
     /// the evidence the walk was recorded and analysed — without it, a
     /// calibration session reads as a screen where nothing happened.
     let measurements: [SignalRow]
-    /// The calibration line under the ring, when the screen is counting toward
-    /// a baseline. Nil once there is a score, and nil when `note` is carrying
-    /// the same news in more words.
-    let subtitle: String?
+    /// Calibration progress, when the screen is counting toward a baseline.
+    /// Nil once a baseline exists, and nil when `note` is already carrying the
+    /// same news in more words.
+    let baselineProgress: BaselineProgress?
     /// Nil when the walk ran with no cue; a row saying "no cue" would be noise.
     let cue: CueNote?
 
@@ -121,7 +135,7 @@ struct SessionScorePresentation: Equatable {
             self.signals = Self.rows(from: score.breakdown)
             // The breakdown already carries every measurement, in context.
             self.measurements = []
-            self.subtitle = nil
+            self.baselineProgress = nil
 
         case (nil, true):
             // Measured, comparable in principle, and yet no score was stored.
@@ -130,7 +144,7 @@ struct SessionScorePresentation: Equatable {
             self.highlight = nil
             self.signals = []
             self.measurements = Self.measurements(from: session.metrics)
-            self.subtitle = nil
+            self.baselineProgress = nil
 
         case (nil, false):
             let count = min(result.validSessionCount, Baseline.requiredValidSessionCount)
@@ -150,11 +164,13 @@ struct SessionScorePresentation: Equatable {
             self.signals = []
             self.measurements = Self.measurements(from: session.metrics)
             // Suppressed when `note` is already saying it: the session that
-            // establishes the baseline would otherwise announce it twice.
-            self.subtitle = note == nil
-                ? Self.calibrationSubtitle(
-                    validCount: count,
-                    required: Baseline.requiredValidSessionCount
+            // establishes the baseline would otherwise announce it twice, and
+            // "complete zero more walks" is not a sentence.
+            self.baselineProgress = note == nil
+                ? Self.baselineProgress(
+                    completed: count,
+                    required: Baseline.requiredValidSessionCount,
+                    mode: session.mode
                 )
                 : nil
         }
@@ -162,20 +178,47 @@ struct SessionScorePresentation: Equatable {
 
     // MARK: - Calibration copy
 
-    /// The pill under the ring while a baseline is being built [PRD §5].
+    /// The progress block under the ring while a baseline is being built
+    /// [PRD §5].
     ///
-    /// It carries the milestone *and* what the milestone is for, because a
-    /// screen now showing a real number needs to say plainly what that number
-    /// is not yet: personal. "Unlocks" names the thing the five walks buy —
-    /// comparison against the user's own normal — so the sessions read as
-    /// progress toward something rather than as a score withheld.
-    static func calibrationSubtitle(validCount: Int, required: Int) -> String {
-        guard validCount < required else {
-            // Reachable only if a fifth walk lands without establishing the
-            // baseline; `note` covers the ordinary case.
-            return "Baseline complete. Your next walk gets a personal score."
+    /// Two registers on purpose. The header is the count, for the reader who
+    /// wants only that; the helper says what the remaining walks *buy* —
+    /// comparison against the user's own normal — so five sessions without a
+    /// personal score read as progress toward something rather than as a score
+    /// withheld.
+    ///
+    /// - Returns: nil once nothing is remaining. A block saying "complete zero
+    ///   more" would be worse than no block.
+    static func baselineProgress(
+        completed: Int,
+        required: Int,
+        mode: TestMode
+    ) -> BaselineProgress? {
+        let remaining = required - completed
+        guard remaining > 0 else { return nil }
+
+        let tests = remaining == 1 ? mode.displayName : "\(mode.displayName)s"
+        return BaselineProgress(
+            completed: completed,
+            required: required,
+            header: "\(completed) of \(required) sessions complete",
+            helper: "Complete \(spelledOut(remaining)) more valid \(tests) to set your personal baseline."
+        )
+    }
+
+    /// One through four, spelled.
+    ///
+    /// A lookup rather than a `NumberFormatter`: the only values that can reach
+    /// it are 1...4, and a formatter would make the copy depend on the device
+    /// locale while the sentence around it stays English.
+    static func spelledOut(_ count: Int) -> String {
+        switch count {
+        case 1: "one"
+        case 2: "two"
+        case 3: "three"
+        case 4: "four"
+        default: "\(count)"
         }
-        return "Session \(validCount) of \(required) — Personal baseline unlocks after \(required) walks"
     }
 
     /// What the pre-baseline number is, said in one word beneath it.
@@ -199,33 +242,36 @@ struct SessionScorePresentation: Equatable {
     /// the comparison, so printing them here would be a number with nothing
     /// attached to it.
     ///
-    /// Asymmetry is omitted entirely when it is nil rather than shown as
-    /// unavailable. Nil is the correct value for a bilateral user, for a walk
-    /// with no profile, and for one whose peaks were not prominent [PRD §7,
-    /// OQ-1] — and a permanently empty row on a secondary metric is noise, not
-    /// transparency.
+    /// **All three rows, always.** Asymmetry included when it is nil, where it
+    /// reads "Not detected" rather than vanishing.
+    ///
+    /// Nil is a real result, not a gap: it is the correct value for a bilateral
+    /// user, for a walk with no profile, and for one whose peaks were not
+    /// prominent [PRD §7, OQ-1]. A row that disappeared left the section a
+    /// different shape from one walk to the next, which reads as data lost
+    /// rather than data absent. Zero is still never shown — that would claim a
+    /// measured equality.
     static func measurements(from metrics: GaitMetrics?) -> [SignalRow] {
         guard let metrics else { return [] }
 
-        var rows: [SignalRow] = [
+        return [
             measurement(.cadence, .cadenceMean, metrics.cadenceMean),
-            measurement(.stepTimeVariability, .stepTimeCV, metrics.stepTimeCV)
+            measurement(.stepTimeVariability, .stepTimeCV, metrics.stepTimeCV),
+            measurement(.stepTimeAsymmetry, .stepTimeAsymmetry, metrics.stepTimeAsymmetry)
         ]
-        if let asymmetry = metrics.stepTimeAsymmetry {
-            rows.append(measurement(.stepTimeAsymmetry, .stepTimeAsymmetry, asymmetry))
-        }
-        return rows
     }
+
+    static let undetectedMeasurement = "Not detected"
 
     private static func measurement(
         _ signal: SignalID,
         _ metric: MetricID,
-        _ value: Double
+        _ value: Double?
     ) -> SignalRow {
         SignalRow(
             signal: signal,
             label: label(for: signal),
-            detail: format(value, for: metric),
+            detail: value.map { format($0, for: metric) } ?? undetectedMeasurement,
             // Never a direction: there is no baseline to be above or below, and
             // these carry no sign convention of their own even when there is
             // (docs/decisions.md entry 3).

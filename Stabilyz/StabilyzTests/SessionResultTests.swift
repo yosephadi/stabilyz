@@ -8,6 +8,27 @@ import Testing
 
 // MARK: - Helpers
 
+/// WCAG relative luminance and contrast, for §9's stated checks. A local copy:
+/// `DesignSystemTests` keeps its own private one, and sharing it would make one
+/// suite's helpers another suite's dependency.
+private func luminance(_ color: Color, dark: Bool) -> Double {
+    let traits = UITraitCollection(userInterfaceStyle: dark ? .dark : .light)
+    let resolved = UIColor(color).resolvedColor(with: traits)
+    var r: CGFloat = 0, g: CGFloat = 0, b: CGFloat = 0, a: CGFloat = 0
+    resolved.getRed(&r, green: &g, blue: &b, alpha: &a)
+    func channel(_ value: CGFloat) -> Double {
+        let v = Double(value)
+        return v <= 0.03928 ? v / 12.92 : pow((v + 0.055) / 1.055, 2.4)
+    }
+    return 0.2126 * channel(r) + 0.7152 * channel(g) + 0.0722 * channel(b)
+}
+
+private func contrastRatio(_ a: Color, _ b: Color, dark: Bool) -> Double {
+    let la = luminance(a, dark: dark)
+    let lb = luminance(b, dark: dark)
+    return (max(la, lb) + 0.05) / (min(la, lb) + 0.05)
+}
+
 private func commit(
     session: GaitSession,
     validCount: Int = 6,
@@ -182,42 +203,72 @@ private func component(
 
 // MARK: - The building state shows progress, not an absence
 
-@Test func theCalibrationPillNamesTheMilestoneAndWhatItUnlocks() {
+@Test func theProgressHeaderCountsSessionsDone() {
+    let progress = SessionScorePresentation.baselineProgress(
+        completed: 1, required: 5, mode: .quickTest
+    )
+    #expect(progress?.header == "1 of 5 sessions complete")
+    #expect(progress?.completed == 1)
+    #expect(progress?.required == 5)
+}
+
+@Test func theHelperCopySpellsTheRemainingWalksAndNamesTheMode() {
     #expect(
-        SessionScorePresentation.calibrationSubtitle(validCount: 1, required: 5)
-            == "Session 1 of 5 — Personal baseline unlocks after 5 walks"
+        SessionScorePresentation.baselineProgress(completed: 1, required: 5, mode: .quickTest)?.helper
+            == "Complete four more valid Quick Tests to set your personal baseline."
     )
     #expect(
-        SessionScorePresentation.calibrationSubtitle(validCount: 4, required: 5)
-            == "Session 4 of 5 — Personal baseline unlocks after 5 walks"
+        SessionScorePresentation.baselineProgress(completed: 2, required: 5, mode: .fullTest)?.helper
+            == "Complete three more valid Full Tests to set your personal baseline."
     )
 }
 
-@Test func aCompleteCalibrationStopsPromisingAnUnlock() {
-    let line = SessionScorePresentation.calibrationSubtitle(validCount: 5, required: 5)
-    #expect(line.contains("unlocks") == false)
+@Test func theLastRemainingWalkIsSingular() {
+    // "one more valid Quick Tests" on the screen a user sees four times in five.
+    #expect(
+        SessionScorePresentation.baselineProgress(completed: 4, required: 5, mode: .quickTest)?.helper
+            == "Complete one more valid Quick Test to set your personal baseline."
+    )
 }
 
-@Test func everyCalibrationSessionCarriesItsSubtitle() {
+@Test func aCompleteCalibrationDrawsNoProgressBlock() {
+    // "Complete zero more walks" is not a sentence.
+    #expect(SessionScorePresentation.baselineProgress(completed: 5, required: 5, mode: .quickTest) == nil)
+}
+
+@Test func theDotsAreDrawnFromTheCountsNotFromTheCopy() {
+    // The view fills dot `i` when `i < completed`, so these two numbers are the
+    // whole indicator. A block that carried only a sentence would leave the
+    // view parsing it.
     for count in 1...4 {
         let model = presentation(building(count: count))
-        #expect(model.subtitle == SessionScorePresentation.calibrationSubtitle(
-            validCount: count, required: 5
+        let progress = model.baselineProgress
+        #expect(progress?.completed == count)
+        #expect(progress?.required == 5)
+        #expect(progress?.remaining == 5 - count)
+    }
+}
+
+@Test func everyCalibrationSessionCarriesItsProgressBlock() {
+    for count in 1...4 {
+        let model = presentation(building(count: count))
+        #expect(model.baselineProgress == SessionScorePresentation.baselineProgress(
+            completed: count, required: 5, mode: .quickTest
         ))
     }
 }
 
-@Test func theSubtitleStandsDownWhenTheNoteIsSayingTheSameThing() {
+@Test func theProgressBlockStandsDownWhenTheNoteIsSayingTheSameThing() {
     // The session that establishes the baseline would otherwise announce it
     // twice, once under the ring and once beneath.
     let model = presentation(building(count: 5, outcome: .established(.fixture())))
     #expect(model.note != nil)
-    #expect(model.subtitle == nil)
+    #expect(model.baselineProgress == nil)
 }
 
-@Test func aScoredSessionHasNoCalibrationSubtitle() {
+@Test func aScoredSessionHasNoProgressBlock() {
     let model = presentation(commit(session: .fixtureValid(score: .fixture())))
-    #expect(model.subtitle == nil)
+    #expect(model.baselineProgress == nil)
 }
 
 // MARK: - Raw measurements on the pre-baseline screen [docs/04 §4.9]
@@ -276,6 +327,19 @@ private func component(
     #expect(model.measurements.map(\.detail) == ["109 steps/min", "4%", "6%"])
 }
 
+@Test func aMeasuredZeroAsymmetryIsShownAsZeroNotAsUndetected() {
+    // "A measured zero means the step durations really were equal" — that is a
+    // result, and collapsing it into "Not detected" would lose it.
+    let model = presentation(building(
+        count: 1,
+        session: .fixtureValid(
+            metrics: .fixture(stepTimeAsymmetry: 0),
+            provisionalScore: .fixture()
+        )
+    ))
+    #expect(model.measurements.last?.detail == "0%")
+}
+
 @Test func noRawMeasurementClaimsADirection() {
     // There is no baseline to be above or below, and two of the three carry no
     // sign convention even when there is.
@@ -284,16 +348,36 @@ private func component(
     #expect(model.measurements.allSatisfy { $0.direction == nil })
 }
 
-@Test func anAbsentAsymmetryDrawsNoRowRatherThanAnEmptyOne() {
-    // Nil is the correct value for a bilateral user [PRD §7, OQ-1]; a
-    // permanently empty row on a secondary metric is noise, not transparency.
+@Test func anAbsentAsymmetryStillDrawsItsRow() {
+    // Nil is a real result — a bilateral user, no profile, peaks not prominent
+    // [PRD §7, OQ-1]. The row stays so the section keeps its shape from one
+    // walk to the next; what it must never show is a zero, which would claim a
+    // measured equality.
     let metrics = GaitMetrics.fixture(stepTimeAsymmetry: nil)
     let model = presentation(building(
         count: 1,
         session: .fixtureValid(metrics: metrics, provisionalScore: .fixture())
     ))
 
-    #expect(model.measurements.map(\.signal) == [.cadence, .stepTimeVariability])
+    #expect(model.measurements.map(\.signal) == [.cadence, .stepTimeVariability, .stepTimeAsymmetry])
+    #expect(model.measurements.last?.detail == SessionScorePresentation.undetectedMeasurement)
+    #expect(model.measurements.last?.detail.contains("0") == false)
+}
+
+@Test func theMeasuredSectionIsAlwaysTheSameThreeRows() {
+    // Whatever the walk produced, the section has one shape.
+    for asymmetry in [nil, 0.0, 0.061] as [Double?] {
+        let model = presentation(building(
+            count: 3,
+            session: .fixtureValid(
+                metrics: .fixture(stepTimeAsymmetry: asymmetry),
+                provisionalScore: .fixture()
+            )
+        ))
+        #expect(model.measurements.map(\.signal) == [
+            .cadence, .stepTimeVariability, .stepTimeAsymmetry
+        ])
+    }
 }
 
 @Test func aScoredSessionShowsItsBreakdownRatherThanRawNumbers() {
@@ -544,4 +628,63 @@ private func component(
     // edges — a 14pt band inside a 204pt box.
     #expect(Controls.scoreRingDiameter == 204)
     #expect(Controls.scoreRingWidth == 14)
+}
+
+// MARK: - The ring encodes the score, not the session count
+
+@Test func theRingFillIsTheScoreOverOneHundred() {
+    // 41 fills 41% of the circumference. The fill used to come from the
+    // calibration count, which put "how good the walk was" and "how many walks
+    // there have been" on the same shape.
+    for score in [0, 41, 76, 100] {
+        #expect(SessionScoreView.ringFill(forProvisional: score) == Double(score) / 100)
+    }
+}
+
+@Test func theRingFillIgnoresTheSessionCount() {
+    // The same score on session 1 and session 4 draws the same arc.
+    #expect(
+        SessionScoreView.ringFill(forProvisional: 41)
+            == SessionScoreView.ringFill(forProvisional: 41)
+    )
+    #expect(SessionScoreView.ringFill(forProvisional: 41) != 1.0 / 5)
+    #expect(SessionScoreView.ringFill(forProvisional: 41) != 4.0 / 5)
+}
+
+@Test func theRingFillIsClampedAndEmptyWithoutAScore() {
+    #expect(SessionScoreView.ringFill(forProvisional: nil) == 0)
+    #expect(SessionScoreView.ringFill(forProvisional: -10) == 0)
+    #expect(SessionScoreView.ringFill(forProvisional: 140) == 1)
+}
+
+// MARK: - Contrast inside the ring (§9)
+
+@Test func theScoreLabelClearsTheContrastFloorInBothModes() {
+    // It sits on `bg-base`, which is near-white in one mode and near-black in
+    // the other, so a single-value navy cannot serve both. 3:1 is §9's floor
+    // for text at this size.
+    for dark in [false, true] {
+        let ratio = contrastRatio(StabilyzColor.ink600, StabilyzColor.bgBase, dark: dark)
+        #expect(ratio >= 3, "score label contrast \(ratio) in \(dark ? "dark" : "light")")
+    }
+}
+
+@Test func theNavyItReplacedWouldHaveFailedInDarkMode() {
+    // Why the token moved: `primary900` carries no dark-mode pair, so in dark
+    // mode it is near-black ink on a near-black page.
+    #expect(contrastRatio(StabilyzColor.primary900, StabilyzColor.bgBase, dark: true) < 3)
+}
+
+@Test func theProgressDotsAreNotTheOnlyChannel() {
+    // §9: never encode by colour alone. The header states the same count in
+    // words directly above the dots.
+    let progress = SessionScorePresentation.baselineProgress(
+        completed: 3, required: 5, mode: .quickTest
+    )
+    #expect(progress?.header.contains("3") == true)
+    #expect(progress?.header.contains("5") == true)
+}
+
+@Test func theProgressDotIsSizedAsDrawn() {
+    #expect(Controls.progressDotDiameter == 10)
 }
