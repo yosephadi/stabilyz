@@ -29,6 +29,11 @@ struct SessionCoverView: View {
     @State private var session: ActiveSessionViewModel
     /// True for the moment after T-0, while "Go!" clears.
     @State private var isHoldingGo = false
+    /// Set by the completion gate's "View Result". The gate and the Score
+    /// screen are two faces of the same `.finished` phase rather than two
+    /// phases, because nothing about the session changes between them — only
+    /// which of the two the user is looking at.
+    @State private var isShowingScore = false
     @State private var phase: SessionFlowPhase = .countdown
     @Environment(\.scenePhase) private var scenePhase
 
@@ -77,14 +82,19 @@ struct SessionCoverView: View {
             case .processing:
                 ProcessingView(mode: mode)
                     .transition(.opacity)
-            case .finished, .failed:
-                // Task 8.2.5 puts the Score and Noisy screens here. Until then
-                // the outcome is held on `phase` and the cover closes.
+            case .finished(let result):
+                completion(for: result)
+                    .transition(.opacity)
+            case .failed:
+                // The error belongs beside the Start button that will try
+                // again, so the cover closes and the setup screen reports it
+                // (docs/15 §15.1).
                 ProcessingView(mode: mode)
                     .transition(.opacity)
             }
         }
         .animation(.easeOut(duration: Motion.countdownDismiss), value: phase)
+        .animation(.easeOut(duration: Motion.countdownDismiss), value: isShowingScore)
         // No swipe-to-dismiss while the walk or its analysis is in flight
         // [PRD §5]: a recorded session the user can never see is worse than a
         // few seconds of waiting.
@@ -108,9 +118,43 @@ struct SessionCoverView: View {
             }
         }
         .onChange(of: phase) { _, phase in
-            if case .finished = phase { dismiss() }
+            // `.finished` stays: the gate and the Score screen are the two
+            // destinations processing routes to, and the cover closes only when
+            // the user leaves one of them [PRD §5].
             if case .failed = phase { dismiss() }
         }
+    }
+
+    /// The gate, or the Score screen the gate leads to.
+    ///
+    /// An unclear walk never reaches the score: `SessionCompletionContent`
+    /// withholds the action, and this withholds the screen — so an invalid
+    /// session cannot be shown a result even if the flag were set.
+    @ViewBuilder
+    private func completion(for result: SessionCommitResult) -> some View {
+        let content = SessionCompletionContent.content(for: result)
+
+        if isShowingScore, content.offersResult {
+            SessionScoreView(
+                presentation: SessionScorePresentation(
+                    result: result,
+                    baselineIndex: baselineIndex
+                ),
+                done: dismiss
+            )
+        } else {
+            SessionCompletionView(
+                content: content,
+                viewResult: content.offersResult ? { isShowingScore = true } : nil,
+                backToWalk: dismiss
+            )
+        }
+    }
+
+    /// What a baseline scores by construction [PRD §7], read from the
+    /// configuration the pipeline used rather than typed as 100.
+    private var baselineIndex: Int {
+        Int(AlgorithmConfiguration.v1.composite.indexCenter)
     }
 
     /// The walk, with the countdown over it until T-0.

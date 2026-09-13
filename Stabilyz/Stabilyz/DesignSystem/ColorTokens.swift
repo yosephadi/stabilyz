@@ -85,6 +85,48 @@ enum StabilyzColor {
     /// The countdown numeral. White on the scrim in both modes.
     static let countdownNumeral = Color(hex: 0xFFFFFF)
 
+    // MARK: - Score scale (§2.4)
+
+    /// The relative index encoded by **saturation and value only** — never by
+    /// hue. A score is a comparison against the user's own baseline, never a
+    /// pass or a fail, so the amber/red vocabulary above appears nowhere near
+    /// it (§2.3). Direction is carried by an ↑/↓ glyph and copy, and these only
+    /// reinforce it (§9).
+    ///
+    /// **Dark mode inverts the scale's value direction** (§8): lighter blues
+    /// read as stronger against a dark background, so the ends swap rather than
+    /// the light-mode scale being reused as-is. `scoreNeutral` is its own
+    /// midpoint and sits still.
+    static let scoreStrong = Color(light: 0x0A1F3D, dark: 0xD3DEEA)
+    static let scoreGood = Color(light: 0x1B4F8C, dark: 0xA9BDD2)
+    static let scoreNeutral = Color(light: 0x6B84A0, dark: 0x6B84A0)
+    static let scoreSoft = Color(light: 0xA9BDD2, dark: 0x1B4F8C)
+    static let scoreLow = Color(light: 0xD3DEEA, dark: 0x0A1F3D)
+
+    /// The scale's band for an index.
+    static func score(_ index: Int) -> Color {
+        switch index {
+        case 115...: scoreStrong
+        case 105..<115: scoreGood
+        case 95..<105: scoreNeutral
+        case 85..<95: scoreSoft
+        default: scoreLow
+        }
+    }
+
+    /// The colour the **numeral** is drawn in.
+    ///
+    /// Not always the band. §2.4 already makes this exception for `score-low`
+    /// — "`#D3DEEA` with `ink-900` numeral, not a hue change" — because the
+    /// palest end of a scale built for fills cannot carry text over `bg-base`.
+    /// `score-soft` fails the same way and for the same reason (≈1.9:1, well
+    /// under §9's 3:1 floor for large text), so it takes the same substitution.
+    /// The band itself still encodes the index on the ring, so nothing is lost
+    /// but the illegibility.
+    static func scoreNumeral(_ index: Int) -> Color {
+        index < 95 ? ink900 : score(index)
+    }
+
     // MARK: - Onboarding wizard (§2.5)
 
     /// Read verbatim from Figma node 40:835, which is the authority for what

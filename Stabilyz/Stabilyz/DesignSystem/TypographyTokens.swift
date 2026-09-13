@@ -52,6 +52,16 @@ enum StabilyzFont {
     /// each tick regardless of what is drawn.
     static let countdownNumeral = Font.system(size: 128, weight: .bold)
 
+    /// 96 Regular — the state mark on the session completion gate.
+    ///
+    /// The scale's second fixed size, and for the same reason as
+    /// `countdownNumeral`: it is a glyph rather than copy. Regular weight, to
+    /// sit with the body text under it (§7 matches icon weight to nearby text);
+    /// the size is what carries it, not the stroke. Nothing depends on reading
+    /// it — the title beneath says the same thing, and the mark is hidden from
+    /// VoiceOver.
+    static let completionGlyph = Font.system(size: 96)
+
     /// 17 Semibold — the label on a filled primary button.
     ///
     /// `.headline` rather than `bodyBold`, because a `.borderedProminent`

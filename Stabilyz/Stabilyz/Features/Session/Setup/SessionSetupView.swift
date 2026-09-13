@@ -42,7 +42,13 @@ struct SessionSetupView: View {
                 .padding(.bottom, Controls.tabFooterBottomGap)
         }
         .background(StabilyzColor.bgBase)
-        .task { await model.refreshPermission() }
+        .task {
+            // Both, on appear: the cards and the cue rules are a function of
+            // each mode's baseline state, and the permission line of a system
+            // setting the user may have changed while the app was away.
+            await model.refreshBaselineStates()
+            await model.refreshPermission()
+        }
     }
 
     // MARK: - Choose a test

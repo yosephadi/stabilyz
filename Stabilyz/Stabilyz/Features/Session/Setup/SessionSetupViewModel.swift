@@ -66,7 +66,12 @@ final class SessionSetupViewModel {
     /// What the countdown screen is handed when Start is tapped. Deliberately
     /// **not** the recorder: this screen chooses a session, it does not begin
     /// one (Task 8.2.6 owns that).
-    private let onStart: @MainActor (TestMode, SessionAudioConfig) -> Void
+    ///
+    /// A `var` for the same reason `ActiveSessionViewModel.onStop` is one: the
+    /// shell holds this model in `@State` and so builds it in its own
+    /// initializer, where the closure would have to reach state that does not
+    /// exist yet. It is assigned once, before the screen is interactive.
+    var onStart: @MainActor (TestMode, SessionAudioConfig) -> Void
 
     init(
         mode: TestMode = .quickTest,

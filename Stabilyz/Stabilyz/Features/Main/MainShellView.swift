@@ -31,6 +31,28 @@ struct MainShellView: View {
     }
 
     @State private var pendingSession: PendingSession?
+    /// Held rather than rebuilt per body pass.
+    ///
+    /// It has to survive the cover: dismissing one re-runs this body, and a
+    /// model constructed here each time would throw away the baseline states
+    /// the just-committed session changed and start again from nothing —
+    /// which is exactly what the screen must show after a commit [PRD §5].
+    @State private var setupModel: SessionSetupViewModel
+
+    init(dependencies: AppDependencies, router: AppRouter) {
+        self.dependencies = dependencies
+        self.router = router
+        // `onStart` is assigned in `walkTab`'s task, once `self` exists: the
+        // closure has to reach `pendingSession`, which this is still building.
+        _setupModel = State(initialValue: SessionSetupViewModel(
+            sessions: dependencies.gaitSessionRepository,
+            baselines: dependencies.baselineRepository,
+            motionSensor: dependencies.motionSensor,
+            logService: dependencies.logService,
+            openSettings: SystemSettingsLink.open,
+            onStart: { _, _ in }
+        ))
+    }
 
     var body: some View {
         TabView {
@@ -67,24 +89,24 @@ struct MainShellView: View {
                 dismiss: { pendingSession = nil }
             )
         }
+        .task { setupModel.onStart = handOff }
+        .onChange(of: pendingSession) { previous, current in
+            // A committed session moves the mode's valid count and may have
+            // established its baseline, both of which the setup screen's cards
+            // and cue rules read [PRD §5]. Refreshed on the way out of the
+            // cover rather than on a broadcast, because this is the only place
+            // a session can commit from.
+            guard previous != nil, current == nil else { return }
+            Task { await setupModel.refreshBaselineStates() }
+        }
     }
 
-    /// Built per appearance rather than held, because the model reads the store
-    /// on appear and the tab is the only thing that owns it.
-    private var setupModel: SessionSetupViewModel {
-        SessionSetupViewModel(
-            sessions: dependencies.gaitSessionRepository,
-            baselines: dependencies.baselineRepository,
-            motionSensor: dependencies.motionSensor,
-            logService: dependencies.logService,
-            openSettings: SystemSettingsLink.open,
-            onStart: { mode, audioConfig in
-                pendingSession = PendingSession(mode: mode, audioConfig: audioConfig)
-                dependencies.logService.log(
-                    .info, .session,
-                    "session setup handed off: mode=\(mode.rawValue) audio=\(audioConfig)"
-                )
-            }
+    /// Start, tapped: the chosen session is what the cover is presented with.
+    private func handOff(mode: TestMode, audioConfig: SessionAudioConfig) {
+        pendingSession = PendingSession(mode: mode, audioConfig: audioConfig)
+        dependencies.logService.log(
+            .info, .session,
+            "session setup handed off: mode=\(mode.rawValue) audio=\(audioConfig)"
         )
     }
 }

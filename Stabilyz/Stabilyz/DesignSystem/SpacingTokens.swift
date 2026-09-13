@@ -82,6 +82,17 @@ enum Controls {
     /// separate from the sentence under it rather than as its heading.
     static let processingLogoGap: CGFloat = 60
 
+    /// The score ring on the Score screen (Figma node 150:3209, ellipse
+    /// 150:3235).
+    ///
+    /// The node's SVG is a filled annulus from radius 90 to 100 carrying a 4pt
+    /// stroke on both edges, which is one 14pt band inside a 204pt box — what
+    /// `strokeBorder` draws directly. It wears the same vertical gradient as
+    /// the session timer ring, so the screen that reports the walk echoes the
+    /// one that measured it.
+    static let scoreRingDiameter: CGFloat = 204
+    static let scoreRingWidth: CGFloat = 14
+
     /// A grouped-list section header block (Figma node 123:914 draws each
     /// "Section Title" 39pt tall).
     ///
