@@ -190,3 +190,17 @@ private func utf8(_ string: String) -> [UInt8] { Array(string.utf8) }
         _ = try SystemRandomSource().bytes(count: -1)
     }
 }
+
+// MARK: - Edge whitespace (decided 2026-09-15)
+
+@Test func edgeWhitespaceIsNotPartOfTheKeyButInnerSpacesAre() throws {
+    // Export and restore both trim, so a keyboard's trailing space can never
+    // lock someone out of their own backup.
+    #expect(PassphraseEncoding.bytes(from: "\n correct horse \t") == Array("correct horse".utf8))
+    #expect(PassphraseEncoding.bytes(from: "correct  horse") == Array("correct  horse".utf8))
+
+    let salt = [UInt8](repeating: 5, count: 16)
+    let typed = try kdf.deriveKey(passphrase: PassphraseEncoding.bytes(from: "correct horse "), salt: salt, iterations: 1_000, keyByteCount: 32)
+    let clean = try kdf.deriveKey(passphrase: PassphraseEncoding.bytes(from: "correct horse"), salt: salt, iterations: 1_000, keyByteCount: 32)
+    #expect(typed == clean)
+}

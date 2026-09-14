@@ -135,14 +135,16 @@ struct CommonCryptoKeyDerivation: KeyDerivation {
 /// How a passphrase becomes bytes, for export and restore alike
 /// (docs/13 §13.2 step 2).
 enum PassphraseEncoding {
-    /// NFC-normalized UTF-8 [REC].
+    /// UTF-8 of `PassphrasePolicy.canonical`: edge whitespace trimmed, then NFC.
     ///
     /// An accented letter can be typed as one code point or as a letter plus a
     /// combining mark, depending on the keyboard. Swift compares the two as
     /// equal strings, but their UTF-8 differs — and so would the key. A restore
-    /// on a new phone must not fail because of how an accent was entered.
+    /// on a new phone must not fail because of how an accent was entered, or
+    /// because the keyboard added a space (trimmed both ways, decided
+    /// 2026-09-15).
     static func bytes(from passphrase: String) -> [UInt8] {
-        Array(passphrase.precomposedStringWithCanonicalMapping.utf8)
+        Array(PassphrasePolicy.canonical(passphrase).utf8)
     }
 }
 

@@ -27,6 +27,15 @@ enum ArchiveFormat {
     /// refuse the file.
     static let maximumIterations = 5_000_000
 
+    /// The iteration count an export is written with: this device's
+    /// calibration, never below the KDF floor and never above the ceiling.
+    ///
+    /// The ceiling matters most on the fastest phones. A calibration above it
+    /// would write a file that this very app's restore refuses to open.
+    static func exportIterations(calibrated: Int) -> Int {
+        min(max(calibrated, KeyDerivationPolicy.minimumIterations), maximumIterations)
+    }
+
     static let maximumSaltByteCount = 64
     static let maximumAlgorithmVersionByteCount = 64
 
