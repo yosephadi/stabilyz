@@ -8,9 +8,11 @@ import Foundation
 /// your normal". This means something else entirely: a 0–100 reading of one
 /// walk against fixed reference anchors, available from the very first session.
 /// They are different scales with different referents, so they are different
-/// types — History, the trend chart, the clinician summary and the export all
-/// read `relativeIndex`, and a number from this scale reaching any of them
-/// would put two incompatible units on one axis.
+/// types — the trend chart, the clinician summary and the export all read
+/// `relativeIndex`, and a number from this scale reaching any of them would put
+/// two incompatible units on one axis. History's *list* shows this number on
+/// calibration walks only, beside "Walk X of 5" and never with a delta: a row
+/// the user reads, not an axis anything is plotted on (Task 9.1.1).
 ///
 /// ## [OPEN] — this scale is a labelled placeholder
 ///

@@ -2,9 +2,10 @@ import SwiftUI
 
 /// The Score screen (Figma node 150:3209, docs/04 §4.9, [PRD §5, §7]).
 ///
-/// The last screen of the session cover, reached from the completion gate. Every
-/// decision about what may be said lives in `SessionScorePresentation`; this
-/// draws it and owns nothing but layout and the disclosure state.
+/// The last screen of the session cover, reached from the completion gate, and
+/// the detail page a History row pushes (Task 9.1.1). Every decision about what
+/// may be said lives in `SessionScorePresentation`; this draws it and owns
+/// nothing but layout and the disclosure state.
 ///
 /// **Three things the node draws are deliberately absent.** Each would need
 /// data or a decision the app does not have:
@@ -21,7 +22,10 @@ import SwiftUI
 ///   specifies. §1: no icon that does not map to a real action.
 struct SessionScoreView: View {
     let presentation: SessionScorePresentation
-    let done: () -> Void
+    /// Nil when the screen is pushed from History: the navigation bar's back
+    /// control is the way out there, and a second one docked at the bottom
+    /// would be two exits that do the same thing.
+    let done: (() -> Void)?
 
     /// Expanded to start, as the node draws it (its chevron points up).
     @State private var showsDetails = true
@@ -57,14 +61,18 @@ struct SessionScoreView: View {
         // row can always be scrolled clear of the button instead of ending
         // underneath it — which a sibling in a `VStack` gets right only while
         // the content happens to be short.
-        .safeAreaInset(edge: .bottom) { doneBar }
+        .safeAreaInset(edge: .bottom) {
+            if let done {
+                doneBar(done)
+            }
+        }
     }
 
     /// The docked action bar.
     ///
     /// It carries the page's own background: content scrolls *under* an inset,
     /// and a transparent bar would show a metric row sliding behind the capsule.
-    private var doneBar: some View {
+    private func doneBar(_ done: @escaping () -> Void) -> some View {
         Button(SessionScorePresentation.doneLabel, action: done)
             .buttonStyle(.primaryCapsuleHero)
             // The screen margin, so the capsule's edges line up with the column

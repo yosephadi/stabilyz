@@ -118,41 +118,123 @@ struct SessionScorePresentation: Equatable {
     ///   configuration the score was computed under.
     init(result: SessionCommitResult, baselineIndex: Int) {
         let session = result.session
-        self.mode = session.mode
-        self.completedAt = session.endedAt
-        self.cue = Self.cueNote(for: session)
-
         let note = Self.note(for: result.baselineOutcome, mode: session.mode)
-        self.note = note
 
         switch (session.score, result.state.isEstablished) {
         case (.some(let score), _):
-            self.progress = .scored(
-                index: score.relativeIndex,
-                delta: score.relativeIndex - baselineIndex
+            self.init(
+                session: session,
+                progress: .scored(
+                    index: score.relativeIndex,
+                    delta: score.relativeIndex - baselineIndex
+                ),
+                note: note,
+                baselineProgress: nil
             )
-            self.highlight = score.summaryLine
-            self.signals = Self.rows(from: score.breakdown)
-            // The breakdown already carries every measurement, in context.
-            self.measurements = []
-            self.baselineProgress = nil
 
         case (nil, true):
             // Measured, comparable in principle, and yet no score was stored.
             // Shown as itself rather than as a sixth calibration session.
-            self.progress = .notComparable
+            self.init(session: session, progress: .notComparable, note: note, baselineProgress: nil)
+
+        case (nil, false):
+            let required = Baseline.requiredValidSessionCount
+            let count = min(result.validSessionCount, required)
+            self.init(
+                session: session,
+                progress: .building(
+                    validCount: count,
+                    required: required,
+                    provisional: session.provisionalScore?.value
+                ),
+                note: note,
+                // Suppressed when `note` is already saying it: the session that
+                // establishes the baseline would otherwise announce it twice,
+                // and "complete zero more walks" is not a sentence.
+                baselineProgress: note == nil
+                    ? Self.baselineProgress(completed: count, required: required, mode: session.mode)
+                    : nil
+            )
+        }
+    }
+
+    /// A session read back from History rather than one just committed — the
+    /// page a History row's chevron opens (Task 9.1.1).
+    ///
+    /// The same screen, less two things only a commit knows:
+    ///
+    /// - **No note.** "Your baseline is ready" was news on the day it happened;
+    ///   read back weeks later it would announce it again.
+    /// - **Its own place in calibration.** `walk` is this session's position
+    ///   among its mode's valid sessions, oldest first — what the row says —
+    ///   and `validSessionCount` is where the mode stands *now*, so the helper
+    ///   never asks for walks that have since been done.
+    ///
+    /// Which case applies follows the commit's rule: a stored score wins, a walk
+    /// inside the first five is calibration, and anything later without a
+    /// score is not comparable. No relative index is computed retroactively
+    /// (docs/21 #8 is `[OPEN]`).
+    init(stored session: GaitSession, walk: Int, validSessionCount: Int, baselineIndex: Int) {
+        let required = Baseline.requiredValidSessionCount
+
+        if let score = session.score {
+            self.init(
+                session: session,
+                progress: .scored(
+                    index: score.relativeIndex,
+                    delta: score.relativeIndex - baselineIndex
+                ),
+                note: nil,
+                baselineProgress: nil
+            )
+        } else if walk <= required {
+            self.init(
+                session: session,
+                progress: .building(
+                    validCount: walk,
+                    required: required,
+                    provisional: session.provisionalScore?.value
+                ),
+                note: nil,
+                baselineProgress: Self.calibrationWalkProgress(
+                    walk: walk,
+                    validSessionCount: validSessionCount,
+                    required: required,
+                    mode: session.mode
+                )
+            )
+        } else {
+            self.init(session: session, progress: .notComparable, note: nil, baselineProgress: nil)
+        }
+    }
+
+    /// Everything below the headline follows from the headline.
+    private init(
+        session: GaitSession,
+        progress: Progress,
+        note: String?,
+        baselineProgress: BaselineProgress?
+    ) {
+        self.mode = session.mode
+        self.completedAt = session.endedAt
+        self.cue = Self.cueNote(for: session)
+        self.progress = progress
+        self.note = note
+        self.baselineProgress = baselineProgress
+
+        switch progress {
+        case .scored:
+            self.highlight = session.score?.summaryLine
+            self.signals = session.score.map { Self.rows(from: $0.breakdown) } ?? []
+            // The breakdown already carries every measurement, in context.
+            self.measurements = []
+
+        case .notComparable:
             self.highlight = nil
             self.signals = []
             self.measurements = Self.measurements(from: session.metrics)
-            self.baselineProgress = nil
 
-        case (nil, false):
-            let count = min(result.validSessionCount, Baseline.requiredValidSessionCount)
-            self.progress = .building(
-                validCount: count,
-                required: Baseline.requiredValidSessionCount,
-                provisional: session.provisionalScore?.value
-            )
+        case .building:
             // The comparison-based summary needs a baseline and correctly
             // returns nothing here. This one describes the walk itself, from
             // the signals the provisional score was actually built from.
@@ -163,16 +245,6 @@ struct SessionScorePresentation: Equatable {
             // walk *measured* stands on its own and is shown below.
             self.signals = []
             self.measurements = Self.measurements(from: session.metrics)
-            // Suppressed when `note` is already saying it: the session that
-            // establishes the baseline would otherwise announce it twice, and
-            // "complete zero more walks" is not a sentence.
-            self.baselineProgress = note == nil
-                ? Self.baselineProgress(
-                    completed: count,
-                    required: Baseline.requiredValidSessionCount,
-                    mode: session.mode
-                )
-                : nil
         }
     }
 
@@ -206,17 +278,42 @@ struct SessionScorePresentation: Equatable {
         )
     }
 
-    /// One through four, spelled.
+    /// The progress block for a calibration walk read back from History.
+    ///
+    /// The header is the walk's own place — "Walk 3 of 5", as its row says —
+    /// and the dots fill to it. The helper speaks from where the mode is now:
+    /// what is still left, or, once calibration is over, what those walks were
+    /// for. It never claims the baseline was *built*, because a refused one
+    /// (docs/decisions.md entry 17) was not.
+    static func calibrationWalkProgress(
+        walk: Int,
+        validSessionCount: Int,
+        required: Int,
+        mode: TestMode
+    ) -> BaselineProgress {
+        let helper = baselineProgress(completed: validSessionCount, required: required, mode: mode)?.helper
+            ?? "Your personal baseline is set from your first \(spelledOut(required)) valid \(mode.displayName)s."
+        return BaselineProgress(
+            completed: walk,
+            required: required,
+            header: "Walk \(walk) of \(required)",
+            helper: helper
+        )
+    }
+
+    /// One through five, spelled.
     ///
     /// A lookup rather than a `NumberFormatter`: the only values that can reach
-    /// it are 1...4, and a formatter would make the copy depend on the device
-    /// locale while the sentence around it stays English.
+    /// it are 1...5 — what remains of calibration, and its length — and a
+    /// formatter would make the copy depend on the device locale while the
+    /// sentence around it stays English.
     static func spelledOut(_ count: Int) -> String {
         switch count {
         case 1: "one"
         case 2: "two"
         case 3: "three"
         case 4: "four"
+        case 5: "five"
         default: "\(count)"
         }
     }

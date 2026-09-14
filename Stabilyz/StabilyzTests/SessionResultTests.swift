@@ -688,3 +688,54 @@ private func component(
 @Test func theProgressDotIsSizedAsDrawn() {
     #expect(Controls.progressDotDiameter == 10)
 }
+
+// MARK: - A stored session, read back from History (Task 9.1.1)
+
+private func stored(_ session: GaitSession, walk: Int, validCount: Int) -> SessionScorePresentation {
+    SessionScorePresentation(stored: session, walk: walk, validSessionCount: validCount, baselineIndex: 100)
+}
+
+@Test func aStoredScoredSessionReadsTheSameAsWhenItWasCommitted() {
+    let session = GaitSession.fixtureValid(score: .fixture(relativeIndex: 108))
+    #expect(stored(session, walk: 7, validCount: 9) == presentation(commit(session: session)))
+}
+
+@Test func aStoredCalibrationWalkIsNumberedByItsOwnPosition() {
+    let model = stored(.fixtureValid(provisionalScore: .fixture(value: 71)), walk: 3, validCount: 4)
+    #expect(model.progress == .building(validCount: 3, required: 5, provisional: 71))
+    #expect(model.baselineProgress?.header == "Walk 3 of 5")
+    #expect(model.baselineProgress?.completed == 3)
+}
+
+@Test func aStoredCalibrationWalkCountsDownFromWhereTheModeIsNow() {
+    // Walk 2, but four walks exist by the time it is looked at: what is left
+    // is one, not three.
+    let model = stored(.fixtureValid(), walk: 2, validCount: 4)
+    #expect(model.baselineProgress?.helper == "Complete one more valid Quick Test to set your personal baseline.")
+}
+
+@Test func aCalibrationWalkLookedBackOnAfterCalibrationAsksForNothing() {
+    let model = stored(.fixtureValid(mode: .fullTest), walk: 2, validCount: 8)
+    #expect(model.baselineProgress?.helper == "Your personal baseline is set from your first five valid Full Tests.")
+}
+
+@Test func aStoredSessionNeverRepeatsTheCommitTimeNote() {
+    // "Your baseline is ready" was news on the day. Read back from History it
+    // would announce, again, something that happened weeks ago.
+    let model = stored(.fixtureValid(), walk: 5, validCount: 5)
+    #expect(model.note == nil)
+    #expect(model.baselineProgress?.header == "Walk 5 of 5")
+}
+
+@Test func aStoredWalkPastCalibrationWithNoScoreIsNotComparable() {
+    let model = stored(.fixtureValid(provisionalScore: .fixture()), walk: 6, validCount: 6)
+    #expect(model.progress == .notComparable)
+    #expect(model.baselineProgress == nil)
+}
+
+@Test func aStoredCalibrationWalkStillExplainsItsProvisionalScore() {
+    let model = stored(.fixtureValid(provisionalScore: .fixture()), walk: 1, validCount: 1)
+    #expect(model.highlight != nil)
+    #expect(model.signals.isEmpty)
+    #expect(model.measurements.count == 3)
+}
