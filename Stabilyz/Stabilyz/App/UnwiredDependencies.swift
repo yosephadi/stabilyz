@@ -104,15 +104,14 @@ struct UnwiredKeyDerivation: KeyDerivation {
     }
 }
 
-/// The archive envelope — header, KDF parameters, key-check value, payload —
-/// arrives with Task 10.1.3, composed from `CommonCryptoKeyDerivation` and
-/// `AESGCMEncryptionService` (Task 10.1.2).
+/// **No longer in either production graph** — both hold `SecureArchiveCoder`
+/// (Task 10.1.3). Kept as a double that fails loudly.
 struct UnwiredSecureArchiveCoding: SecureArchiveCoding {
-    func seal(payload: Data, passphrase: [UInt8]) async throws -> Data {
+    func encode(_ payload: ArchivePayload, passphrase: [UInt8], iterations: Int) async throws -> Data {
         throw DependencyNotWired(dependency: "SecureArchiveCoding", owningTask: "10.1.3")
     }
 
-    func open(archive: Data, passphrase: [UInt8]) async throws -> Data {
+    func decode(archiveData: Data, passphrase: [UInt8]) async throws -> DecodedArchivePayload {
         throw DependencyNotWired(dependency: "SecureArchiveCoding", owningTask: "10.1.3")
     }
 }

@@ -165,7 +165,7 @@ extension AppDependencies {
             audioFeedback: audioFeedback,
             hapticFeedback: hapticFeedback,
             keyDerivation: CommonCryptoKeyDerivation(),
-            secureArchive: UnwiredSecureArchiveCoding(),       // Task 10.1.3
+            secureArchive: SecureArchiveCoder(),
             sessionRecorder: SessionRecorder(
                 motionSensor: motionSensor,
                 pedometer: pedometer,
@@ -227,7 +227,7 @@ extension AppDependencies {
             audioFeedback: audioFeedback,
             hapticFeedback: hapticFeedback,
             keyDerivation: CommonCryptoKeyDerivation(),
-            secureArchive: UnwiredSecureArchiveCoding(),
+            secureArchive: SecureArchiveCoder(),
             sessionRecorder: SessionRecorder(
                 motionSensor: motionSensor,
                 pedometer: pedometer,

@@ -17,20 +17,21 @@ protocol KeyDerivation: Sendable {
     func calibratedIterationCount(targetDuration: TimeInterval) -> Int
 }
 
-/// Seals and opens the export archive envelope (docs/13 §13.1, §13.2, §13.4).
+/// Writes and reads the export file (docs/13 §13.1–13.4).
 ///
-/// The production implementation is AES-256-GCM via CryptoKit with a random
-/// 12-byte nonce and a unique 16-byte salt per export. Conformers serialize
-/// crypto work off the main actor (docs/14 §14.2).
+/// The production implementation is `SecureArchiveCoder` (Task 10.1.3):
+/// PBKDF2 key derivation with a fresh 16-byte salt, a key-check value, and an
+/// AES-256-GCM-sealed JSON payload behind a self-describing header.
+/// Conformers do their crypto work off the main actor (docs/14 §14.2).
 ///
-/// `open` performs decryption ONLY. Schema/version/integrity validation and any
-/// local data mutation happen after it returns, in the fixed order required by
-/// docs/13 §13.4 — nothing local is touched before validation completes.
+/// `decode` decrypts and validates ONLY. It returns domain values and touches
+/// no local data; replacing the store is the restore flow's, after it returns,
+/// in the fixed order docs/13 §13.4 requires.
 protocol SecureArchiveCoding: Sendable {
-    /// Returns the complete archive: plaintext header + ciphertext. No plaintext
-    /// temp file is ever written (docs/13 §13.2 step 5).
-    func seal(payload: Data, passphrase: [UInt8]) async throws -> Data
+    /// Returns the complete export file: plaintext header + ciphertext. No
+    /// plaintext is ever written anywhere (docs/13 §13.2 step 5).
+    func encode(_ payload: ArchivePayload, passphrase: [UInt8], iterations: Int) async throws -> Data
 
-    /// Returns the decrypted payload bytes for the caller to validate.
-    func open(archive: Data, passphrase: [UInt8]) async throws -> Data
+    /// Decrypts, validates and migrates an export file.
+    func decode(archiveData: Data, passphrase: [UInt8]) async throws -> DecodedArchivePayload
 }

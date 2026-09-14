@@ -122,15 +122,13 @@ private extension AppDependencies {
 }
 
 @Test func unwiredCryptoNeverSubstitutesAStandInPrimitive() async throws {
-    // The archive coder is still unwired (Task 10.1.3); the RNG and KDF
-    // doubles are exercised directly now that both graphs hold real ones.
-    let dependencies = AppDependencies.storeUnavailable()
-
+    // Every crypto slot is wired in both graphs now; the doubles are
+    // exercised directly to prove they still fail loudly.
     #expect(throws: DependencyNotWired.self) {
         _ = try UnwiredRandomSource().bytes(count: 16)
     }
     await #expect(throws: DependencyNotWired.self) {
-        _ = try await dependencies.secureArchive.seal(payload: Data(), passphrase: [])
+        _ = try await UnwiredSecureArchiveCoding().decode(archiveData: Data(), passphrase: [1])
     }
 }
 
@@ -189,8 +187,10 @@ private extension AppDependencies {
     #expect(degraded.randomSource is SystemRandomSource)
     #expect(degraded.keyDerivation is CommonCryptoKeyDerivation)
 
-    // Still unwired until Task 10.1.3, and still loud about it.
-    #expect(live.secureArchive is UnwiredSecureArchiveCoding)
+    // Task 10.1.3: the export file coder, in both graphs — restoring an
+    // export is a way back from a store that will not open.
+    #expect(live.secureArchive is SecureArchiveCoder)
+    #expect(degraded.secureArchive is SecureArchiveCoder)
 }
 
 @Test func unwiredKeyDerivationRefusesToDerive() {
