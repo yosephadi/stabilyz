@@ -208,3 +208,11 @@ private extension AppDependencies {
     let flow = live.makeExportFlow(onClose: {})
     #expect(flow.phase == .entering)
 }
+
+// MARK: - Restore inspection (Task 10.3.1)
+
+@Test func theRestoreInspectorIsBuiltFromTheGraphsCoder() throws {
+    let live = AppDependencies.live(container: try StoreContainer.make(inMemory: true))
+    #expect(live.archiveInspector is ArchiveInspectionService)
+    #expect(AppDependencies.storeUnavailable().archiveInspector is ArchiveInspectionService)
+}

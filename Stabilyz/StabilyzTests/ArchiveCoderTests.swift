@@ -277,11 +277,15 @@ private func rewritingHeader(
     let counting = CountingKeyDerivation()
     let guarded = SecureArchiveCoder(keyDerivation: counting, minimumEncodeIterations: 1)
 
-    for iterations in [ArchiveFormat.maximumIterations + 1, Int(UInt32.max), 0] {
+    for iterations in [ArchiveFormat.maximumIterations + 1, Int(UInt32.max)] {
         let forged = try rewritingHeader(of: archive, iterations: iterations)
-        await #expect(throws: StabilyzError.archiveImport(.corruptedArchive)) {
+        await #expect(throws: StabilyzError.schemaCompatibility(.unsupportedIterationCount(count: iterations))) {
             _ = try await guarded.decode(archiveData: forged, passphrase: passphrase)
         }
+    }
+    // Zero is not a setting anything could have written.
+    await #expect(throws: StabilyzError.archiveImport(.corruptedArchive)) {
+        _ = try await guarded.decode(archiveData: try rewritingHeader(of: archive, iterations: 0), passphrase: passphrase)
     }
     #expect(counting.calls.withLock { $0 } == 0, "a refused header still cost a key derivation")
 }

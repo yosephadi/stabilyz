@@ -91,7 +91,9 @@ struct ArchiveEnvelope: Equatable, Sendable {
     ///
     /// - Throws: `StabilyzError.archiveImport(.notAStabilyzArchive)` without
     ///   the magic; `.schemaCompatibility(.unsupportedEnvelope)` for an envelope
-    ///   or crypto suite this build does not read; `.archiveImport(
+    ///   or crypto suite this build does not read;
+    ///   `.schemaCompatibility(.unsupportedIterationCount)` above the ceiling;
+    ///   `.archiveImport(
     ///   .corruptedArchive)` for anything truncated, malformed or outside the
     ///   format's limits.
     static func parse(_ data: Data) throws -> ArchiveEnvelope {
@@ -118,8 +120,12 @@ struct ArchiveEnvelope: Equatable, Sendable {
         else { throw ByteReader.corrupted }
 
         let iterations = Int(try reader.uint32())
-        guard (1...ArchiveFormat.maximumIterations).contains(iterations) else {
-            throw ByteReader.corrupted
+        guard iterations >= 1 else { throw ByteReader.corrupted }
+        // Above the ceiling is refused as unsupported rather than corrupt: the
+        // likeliest source is a newer build that raised it, and "update the
+        // app" is the answer that helps (Task 10.3.1).
+        guard iterations <= ArchiveFormat.maximumIterations else {
+            throw StabilyzError.schemaCompatibility(.unsupportedIterationCount(count: iterations))
         }
 
         let saltLength = Int(try reader.uint8())

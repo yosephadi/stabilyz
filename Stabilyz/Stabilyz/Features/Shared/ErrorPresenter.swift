@@ -135,6 +135,12 @@ enum ErrorPresenter {
                 isRecoverable: true,
                 reassuresDataUnchanged: true
             )
+        case .archiveImport(.unreadableFile):
+            ErrorPresentation(
+                message: "That file couldn't be opened. Choose it again, or pick a different backup. Your existing data hasn't changed.",
+                isRecoverable: true,
+                reassuresDataUnchanged: true
+            )
 
         case .schemaCompatibility(.futureSchema):
             ErrorPresentation(
@@ -146,6 +152,14 @@ enum ErrorPresenter {
             ErrorPresentation(
                 message: "This backup format isn't supported by this version of Stabilyz. Your existing data hasn't changed.",
                 isRecoverable: false,
+                reassuresDataUnchanged: true
+            )
+        case .schemaCompatibility(.unsupportedIterationCount):
+            // Most likely a backup from a newer Stabilyz that raised the
+            // ceiling, so the actionable answer is the same as a newer schema.
+            ErrorPresentation(
+                message: "This backup uses security settings this version of Stabilyz can't open. Update the app, then try restoring again. Your existing data hasn't changed.",
+                isRecoverable: true,
                 reassuresDataUnchanged: true
             )
 

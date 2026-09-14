@@ -75,11 +75,17 @@ enum StabilyzError: Error, Equatable {
         case wrongPassphrase
         case corruptedArchive
         case notAStabilyzArchive
+        /// The picked file could not be read at all (Task 10.3.1).
+        case unreadableFile
     }
 
     enum SchemaCompatibility: Equatable {
         case futureSchema(version: Int)
         case unsupportedEnvelope(version: Int)
+        /// The header asks for more PBKDF2 iterations than this build will run
+        /// (`ArchiveFormat.maximumIterations`). Refused before any derivation
+        /// (Task 10.3.1).
+        case unsupportedIterationCount(count: Int)
     }
 
     enum Audio: Equatable {

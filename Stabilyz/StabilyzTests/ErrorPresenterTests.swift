@@ -13,9 +13,10 @@ private let allErrors: [StabilyzError] = [
     .export(.keyDerivationFailed), .export(.fileWriteFailed), .export(.shareFailed),
     .export(.archiveGenerationFailed),
     .archiveImport(.wrongPassphrase), .archiveImport(.corruptedArchive),
-    .archiveImport(.notAStabilyzArchive),
+    .archiveImport(.notAStabilyzArchive), .archiveImport(.unreadableFile),
     .schemaCompatibility(.futureSchema(version: 9)),
     .schemaCompatibility(.unsupportedEnvelope(version: 9)),
+    .schemaCompatibility(.unsupportedIterationCount(count: 9_000_000)),
     .audio(.routeLost), .audio(.interrupted), .audio(.engineFailure),
     .crypto(.tagVerificationFailed), .crypto(.randomGenerationFailed)
 ]
@@ -64,9 +65,10 @@ private let allErrors: [StabilyzError] = [
     // store is untouched, and [PRD] requires the user be told so.
     let guaranteed: [StabilyzError] = [
         .archiveImport(.wrongPassphrase), .archiveImport(.corruptedArchive),
-        .archiveImport(.notAStabilyzArchive),
+        .archiveImport(.notAStabilyzArchive), .archiveImport(.unreadableFile),
         .schemaCompatibility(.futureSchema(version: 9)),
         .schemaCompatibility(.unsupportedEnvelope(version: 9)),
+        .schemaCompatibility(.unsupportedIterationCount(count: 9_000_000)),
         .export(.fileWriteFailed),
         .export(.archiveGenerationFailed)
     ]
