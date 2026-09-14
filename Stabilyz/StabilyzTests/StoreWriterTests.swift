@@ -152,3 +152,52 @@ private func makeStore() throws -> (ModelContainer, StoreWriter) {
 // Kill-point failure injection during a restore (fail at decrypt, at validate,
 // mid-transaction) is mandated by docs/19 §19.2 and belongs to Task 10.3.5,
 // which owns the snapshot/rollback machinery those tests exercise.
+
+// MARK: - Restore rollback (Task 10.3.4)
+
+@Test func aFailedReplaceAllRollsBackEveryDeleteAndInsert() async throws {
+    struct SimulatedFailure: Error {}
+    let (container, writer) = try makeStore()
+    let session = GaitSession.fixtureValid(mode: .quickTest)
+    let invalid = GaitSession.fixtureInvalid(mode: .fullTest)
+    try await writer.save(session)
+    try await writer.save(invalid)
+    try await writer.save(UserProfile.fixture(prosthesisType: "Local"))
+    try await writer.establish(.fixture(mode: .quickTest))
+
+    await #expect(throws: SimulatedFailure.self) {
+        try await writer.replaceAll(
+            profile: UserProfile.fixture(prosthesisType: "Backup"),
+            sessions: [.fixtureValid(mode: .fullTest)],
+            baselines: [.fixture(mode: .fullTest)],
+            beforeSave: { throw SimulatedFailure() }
+        )
+    }
+
+    // The bulk deletes and every insert were staged; none of them survived.
+    let context = readContext(container)
+    #expect(Set(try context.fetch(FetchDescriptor<GaitSessionEntity>()).map(\.id)) == [session.id, invalid.id])
+    #expect(try context.fetch(FetchDescriptor<BaselineEntity>()).map(\.mode) == ["quickTest"])
+    #expect(try context.fetch(FetchDescriptor<UserProfileEntity>()).map(\.prosthesisType) == ["Local"])
+
+    // And the writer is still usable afterwards.
+    try await writer.save(GaitSession.fixtureValid(mode: .fullTest))
+    #expect(try readContext(container).fetch(FetchDescriptor<GaitSessionEntity>()).count == 3)
+}
+
+@Test func replaceAllKeepsRowsWhoseIdsItReinserts() async throws {
+    // Restoring an export of the store's own data: the same unique ids are
+    // deleted and inserted in one save.
+    let (container, writer) = try makeStore()
+    let session = GaitSession.fixtureValid(mode: .quickTest)
+    let profile = UserProfile.fixture()
+    let baseline = Baseline.fixture(mode: .quickTest)
+    try await writer.replaceAll(profile: profile, sessions: [session], baselines: [baseline])
+
+    try await writer.replaceAll(profile: profile, sessions: [session], baselines: [baseline])
+
+    let context = readContext(container)
+    #expect(try context.fetch(FetchDescriptor<GaitSessionEntity>()).map(\.id) == [session.id])
+    #expect(try context.fetch(FetchDescriptor<BaselineEntity>()).map(\.id) == [baseline.id])
+    #expect(try context.fetch(FetchDescriptor<UserProfileEntity>()).map(\.id) == [profile.id])
+}

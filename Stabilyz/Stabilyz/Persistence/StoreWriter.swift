@@ -112,19 +112,38 @@ actor StoreWriter {
     /// Import is a restore, not a merge [PRD OQ-2]: no duplicate resolution and
     /// no baseline merging, ever. A failure rolls the whole thing back, leaving
     /// the store unchanged (docs/13 §13.5 step 3).
-    func replaceAll(profile: UserProfile?, sessions: [GaitSession], baselines: [Baseline]) throws {
+    ///
+    /// - Parameter beforeSave: runs inside the transaction after every delete
+    ///   and insert, immediately before the save. **A test seam only**: it lets
+    ///   a test fail the real save and prove the rollback undoes everything
+    ///   staged (Task 10.3.4). Production passes nothing.
+    func replaceAll(
+        profile: UserProfile?,
+        sessions: [GaitSession],
+        baselines: [Baseline],
+        beforeSave: (@Sendable () throws -> Void)? = nil
+    ) throws {
         let profileEntity = profile.map(EntityMapping.entity(from:))
         let sessionEntities = try sessions.map(EntityMapping.entity(from:))
         let baselineEntities = try baselines.map(EntityMapping.entity(from:))
 
         try transaction {
-            try modelContext.delete(model: GaitSessionEntity.self)
-            try modelContext.delete(model: BaselineEntity.self)
-            try modelContext.delete(model: UserProfileEntity.self)
+            // Row by row, not `modelContext.delete(model:)`. That call is a
+            // batch delete that reaches the store at once, outside this
+            // transaction, so a failed save used to leave the store emptied
+            // rather than untouched (found by Task 10.3.4's
+            // `aFailedReplaceAllRollsBackEveryDeleteAndInsert`). Deleting
+            // fetched objects stages the deletes in the context, where
+            // `rollback()` undoes them. The store is small; the cost is nil.
+            for row in try modelContext.fetch(FetchDescriptor<GaitSessionEntity>()) { modelContext.delete(row) }
+            for row in try modelContext.fetch(FetchDescriptor<BaselineEntity>()) { modelContext.delete(row) }
+            for row in try modelContext.fetch(FetchDescriptor<UserProfileEntity>()) { modelContext.delete(row) }
 
             if let profileEntity { modelContext.insert(profileEntity) }
             for entity in sessionEntities { modelContext.insert(entity) }
             for entity in baselineEntities { modelContext.insert(entity) }
+
+            try beforeSave?()
         }
     }
 
