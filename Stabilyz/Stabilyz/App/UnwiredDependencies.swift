@@ -77,7 +77,7 @@ struct SilentAudioFeedbackService: AudioFeedbackService {
     func resume() async {}
 }
 
-// MARK: - Crypto (Tasks 10.1.1 / 10.1.2)
+// MARK: - Crypto (Tasks 10.1.1 / 10.1.3)
 
 /// Deliberately not backed by a stand-in RNG or KDF. Substituting a non-vetted
 /// primitive here — even temporarily — is the exact failure the PRD's
@@ -104,13 +104,16 @@ struct UnwiredKeyDerivation: KeyDerivation {
     }
 }
 
+/// The archive envelope — header, KDF parameters, key-check value, payload —
+/// arrives with Task 10.1.3, composed from `CommonCryptoKeyDerivation` and
+/// `AESGCMEncryptionService` (Task 10.1.2).
 struct UnwiredSecureArchiveCoding: SecureArchiveCoding {
     func seal(payload: Data, passphrase: [UInt8]) async throws -> Data {
-        throw DependencyNotWired(dependency: "SecureArchiveCoding", owningTask: "10.1.2")
+        throw DependencyNotWired(dependency: "SecureArchiveCoding", owningTask: "10.1.3")
     }
 
     func open(archive: Data, passphrase: [UInt8]) async throws -> Data {
-        throw DependencyNotWired(dependency: "SecureArchiveCoding", owningTask: "10.1.2")
+        throw DependencyNotWired(dependency: "SecureArchiveCoding", owningTask: "10.1.3")
     }
 }
 

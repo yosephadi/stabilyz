@@ -161,4 +161,14 @@ enum SecureBytes {
             _ = memset_s(base, raw.count, 0, raw.count)
         }
     }
+
+    /// The same, for `Data` — the serialized payload before sealing and the
+    /// plaintext `open` returns (Task 10.1.2). Same limits: this buffer only.
+    static func zeroize(_ data: inout Data) {
+        guard !data.isEmpty else { return }
+        data.withUnsafeMutableBytes { raw in
+            guard let base = raw.baseAddress, raw.count > 0 else { return }
+            _ = memset_s(base, raw.count, 0, raw.count)
+        }
+    }
 }

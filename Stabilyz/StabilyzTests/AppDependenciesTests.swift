@@ -122,7 +122,7 @@ private extension AppDependencies {
 }
 
 @Test func unwiredCryptoNeverSubstitutesAStandInPrimitive() async throws {
-    // The archive coder is still unwired (Task 10.1.2); the RNG and KDF
+    // The archive coder is still unwired (Task 10.1.3); the RNG and KDF
     // doubles are exercised directly now that both graphs hold real ones.
     let dependencies = AppDependencies.storeUnavailable()
 
@@ -189,7 +189,7 @@ private extension AppDependencies {
     #expect(degraded.randomSource is SystemRandomSource)
     #expect(degraded.keyDerivation is CommonCryptoKeyDerivation)
 
-    // Still unwired until Task 10.1.2, and still loud about it.
+    // Still unwired until Task 10.1.3, and still loud about it.
     #expect(live.secureArchive is UnwiredSecureArchiveCoding)
 }
 
