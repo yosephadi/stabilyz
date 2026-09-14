@@ -122,10 +122,12 @@ private extension AppDependencies {
 }
 
 @Test func unwiredCryptoNeverSubstitutesAStandInPrimitive() async throws {
+    // The archive coder is still unwired (Task 10.1.2); the RNG and KDF
+    // doubles are exercised directly now that both graphs hold real ones.
     let dependencies = AppDependencies.storeUnavailable()
 
     #expect(throws: DependencyNotWired.self) {
-        _ = try dependencies.randomSource.bytes(count: 16)
+        _ = try UnwiredRandomSource().bytes(count: 16)
     }
     await #expect(throws: DependencyNotWired.self) {
         _ = try await dependencies.secureArchive.seal(payload: Data(), passphrase: [])
@@ -174,4 +176,25 @@ private extension AppDependencies {
 
     try fileIO.remove(at: url)
     #expect(fileIO.fileExists(at: url) == false)
+}
+
+// MARK: - Crypto primitives (Task 10.1.1)
+
+@Test func bothLiveGraphsUseTheSystemRNGAndCommonCryptoPBKDF2() throws {
+    let live = AppDependencies.live(container: try StoreContainer.make(inMemory: true))
+    #expect(live.randomSource is SystemRandomSource)
+    #expect(live.keyDerivation is CommonCryptoKeyDerivation)
+
+    let degraded = AppDependencies.storeUnavailable()
+    #expect(degraded.randomSource is SystemRandomSource)
+    #expect(degraded.keyDerivation is CommonCryptoKeyDerivation)
+
+    // Still unwired until Task 10.1.2, and still loud about it.
+    #expect(live.secureArchive is UnwiredSecureArchiveCoding)
+}
+
+@Test func unwiredKeyDerivationRefusesToDerive() {
+    #expect(throws: DependencyNotWired.self) {
+        _ = try UnwiredKeyDerivation().deriveKey(passphrase: [1], salt: [2], iterations: 1, keyByteCount: 32)
+    }
 }

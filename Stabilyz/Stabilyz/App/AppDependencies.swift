@@ -159,12 +159,12 @@ extension AppDependencies {
             logService: logService,
             clock: clock,
             fileIO: fileIO,
-            randomSource: UnwiredRandomSource(),               // Task 10.1.1
+            randomSource: SystemRandomSource(),
             motionSensor: motionSensor,
             pedometer: pedometer,
             audioFeedback: audioFeedback,
             hapticFeedback: hapticFeedback,
-            keyDerivation: UnwiredKeyDerivation(),             // Task 10.1.1
+            keyDerivation: CommonCryptoKeyDerivation(),
             secureArchive: UnwiredSecureArchiveCoding(),       // Task 10.1.2
             sessionRecorder: SessionRecorder(
                 motionSensor: motionSensor,
@@ -218,12 +218,15 @@ extension AppDependencies {
             logService: logService,
             clock: clock,
             fileIO: fileIO,
-            randomSource: UnwiredRandomSource(),
+            // Real crypto even here: the store failing to open says nothing
+            // about the system RNG or CommonCrypto, and restoring an export
+            // is a way back from a store that will not open.
+            randomSource: SystemRandomSource(),
             motionSensor: motionSensor,
             pedometer: pedometer,
             audioFeedback: audioFeedback,
             hapticFeedback: hapticFeedback,
-            keyDerivation: UnwiredKeyDerivation(),
+            keyDerivation: CommonCryptoKeyDerivation(),
             secureArchive: UnwiredSecureArchiveCoding(),
             sessionRecorder: SessionRecorder(
                 motionSensor: motionSensor,

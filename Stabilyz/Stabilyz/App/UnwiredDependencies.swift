@@ -82,6 +82,11 @@ struct SilentAudioFeedbackService: AudioFeedbackService {
 /// Deliberately not backed by a stand-in RNG or KDF. Substituting a non-vetted
 /// primitive here — even temporarily — is the exact failure the PRD's
 /// "no custom cryptography" rule exists to prevent.
+///
+/// **The RNG and KDF are no longer in either production graph** — both hold
+/// `SystemRandomSource` and `CommonCryptoKeyDerivation` (Task 10.1.1). These
+/// two stay as doubles that fail loudly, for tests that must prove nothing
+/// quietly substitutes for them.
 struct UnwiredRandomSource: RandomSource {
     func bytes(count: Int) throws -> [UInt8] {
         throw DependencyNotWired(dependency: "RandomSource", owningTask: "10.1.1")
