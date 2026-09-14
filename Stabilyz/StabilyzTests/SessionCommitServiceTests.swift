@@ -181,7 +181,7 @@ private func invalidSession(_ index: Int, mode: TestMode = .quickTest) -> GaitSe
     // No baseline was invented.
     #expect(try await store.baselines.baseline(mode: .quickTest) == nil)
     // The count stands at five, pending — calibration is not restarted.
-    #expect(result.state == .building(validCount: 5))
+    #expect(result.state == .baselineRefused(validCount: 5))
     #expect(result.state.isEstablished == false)
 }
 

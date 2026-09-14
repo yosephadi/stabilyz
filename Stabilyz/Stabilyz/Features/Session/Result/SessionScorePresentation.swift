@@ -401,9 +401,14 @@ struct SessionScorePresentation: Equatable {
             // restarted and no substitute baseline is invented
             // (docs/decisions.md entry 17). Saying so is better than a screen
             // that silently stays on "Session 5 of 5" forever.
+            //
+            // Cause-neutral (decided 2026-09-14). This used to say the walks
+            // were "too alike", which no refusal path can produce — the SD
+            // floor absorbs walks that are alike — and promised another walk
+            // would help, when a retry refuses the same first five again.
             return """
-            Your \(mode.displayName) walks so far are too alike to compare \
-            against. Another walk will give them something to vary from.
+            Your \(mode.displayName) baseline couldn't be set from your first \
+            \(Baseline.requiredValidSessionCount) valid \(mode.displayName)s. This walk is still saved.
             """
         case .notReady, .alreadyEstablished:
             return nil

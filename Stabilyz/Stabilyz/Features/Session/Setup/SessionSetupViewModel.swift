@@ -189,10 +189,15 @@ final class SessionSetupViewModel {
             return "Start building your baseline"
         case .building(let completed):
             return "\(completed) of \(Baseline.requiredValidSessionCount) sessions complete"
+        case .baselineRefused:
+            // Never "7 of 5" (Task 9.2.1).
+            return Self.baselineRefusedHeadline
         case .established:
             return "\(Baseline.referenceIndex)"
         }
     }
+
+    static let baselineRefusedHeadline = "Baseline not set"
 
     static let baselineUnavailableHeadline = "Baseline unavailable"
 
@@ -213,6 +218,10 @@ final class SessionSetupViewModel {
         case .building(let completed):
             let remaining = max(required - completed, 0)
             return "Complete \(remaining) more valid \(pluralTests(remaining)) to set your personal baseline."
+        case .baselineRefused:
+            // Cause-neutral, and no promise that another walk fixes it: a retry
+            // refuses the same first five (docs/decisions.md entry 17).
+            return "Your baseline couldn't be set from your first \(required) valid \(pluralTests(required)). Your walks are still saved."
         case .established:
             return "Your personal reference point, based on \(required) valid \(pluralTests(required))."
         }

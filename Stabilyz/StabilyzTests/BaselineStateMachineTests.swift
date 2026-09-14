@@ -55,7 +55,7 @@ import Testing
 
     let state = try BaselineStateMachine.state(for: .quickTest, validSessionCount: 5, baseline: nil)
     #expect(state.isEstablished == false)
-    #expect(state == .building(validCount: 5))
+    #expect(state == .baselineRefused(validCount: 5))
 }
 
 // MARK: - Mode segregation [PRD OQ-5]
@@ -95,4 +95,35 @@ import Testing
     #expect(throws: BaselineStateMachine.StateError.negativeValidSessionCount(-1)) {
         try BaselineStateMachine.state(for: .quickTest, validSessionCount: -1, baseline: nil)
     }
+}
+
+// MARK: - A refused baseline is its own state (Task 9.2.1)
+
+@Test func fiveOrMoreValidWalksWithNoBaselineReadAsRefusedNeverAsBuilding() throws {
+    for count in [5, 6, 7, 20] {
+        let state = try BaselineStateMachine.state(for: .quickTest, validSessionCount: count, baseline: nil)
+        #expect(state == .baselineRefused(validCount: count))
+        #expect(state.isEstablished == false)
+        // Capped: nothing reading the count can print "7 of 5".
+        #expect(state.validCount == 5)
+        // No baseline, so no metronome, and the pre-baseline cue stays offered.
+        #expect(state.allowsMetronome == false)
+        #expect(state.allowsStepFeedback)
+    }
+}
+
+@Test func buildingOnlyEverMeansOneToFour() throws {
+    for count in 0...20 {
+        let state = try BaselineStateMachine.state(for: .fullTest, validSessionCount: count, baseline: nil)
+        if case .building(let building) = state {
+            #expect((1...4).contains(building), "building(\(building)) escaped the state machine")
+        }
+    }
+}
+
+@Test func aRefusedModeDoesNotAffectTheOtherMode() throws {
+    let quick = try BaselineStateMachine.state(for: .quickTest, validSessionCount: 6, baseline: nil)
+    let full = try BaselineStateMachine.state(for: .fullTest, validSessionCount: 2, baseline: nil)
+    #expect(quick == .baselineRefused(validCount: 6))
+    #expect(full == .building(validCount: 2))
 }

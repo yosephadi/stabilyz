@@ -39,6 +39,12 @@ enum BaselineStateMachine {
         if validSessionCount == 0 {
             return .notStarted
         }
+        if validSessionCount >= Baseline.requiredValidSessionCount {
+            // Enough walks, and still no baseline: the calculation refused them
+            // (docs/decisions.md entry 17). Its own state rather than
+            // `building(7)`, which every "X of 5" would print as "7 of 5".
+            return .baselineRefused(validCount: validSessionCount)
+        }
         return .building(validCount: validSessionCount)
     }
 

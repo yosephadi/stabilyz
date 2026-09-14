@@ -75,7 +75,7 @@ private func stores(
     switch state {
     case .notStarted:
         return (StubSessionRepository(), StubBaselineRepository())
-    case .building(let count):
+    case .building(let count), .baselineRefused(let count):
         return (StubSessionRepository(counts: [mode: count]), StubBaselineRepository())
     case .established(let baseline):
         return (
@@ -561,4 +561,26 @@ private func makeModel(
     // rather than having been replaced with zeros.
     #expect(failing.baselineLoadFailed)
     #expect(failing.baselineState.isEstablished)
+}
+
+// MARK: - A refused baseline (Task 9.2.1)
+
+@MainActor
+@Test func aRefusedBaselineNeverReadsAsMoreThanFiveOfFive() {
+    let model = makeModel(baseline: .baselineRefused(validCount: 7))
+
+    #expect(model.baselineHeadline == "Baseline not set")
+    #expect(model.baselineHeadlineIsMetric == false)
+    #expect(model.baselineSupportingCopy
+        == "Your baseline couldn't be set from your first 5 valid Quick Tests. Your walks are still saved.")
+    #expect(model.baselineHeadline.contains("of 5") == false)
+    #expect(model.baselineSupportingCopy.contains("0 more") == false)
+}
+
+@MainActor
+@Test func aRefusedBaselineOffersNoMetronome() {
+    let model = makeModel(mode: .fullTest, baseline: .baselineRefused(validCount: 5))
+    #expect(model.audioCueTitle == "Audio Step Feedback")
+    #expect(model.baselineSupportingCopy
+        == "Your baseline couldn't be set from your first 5 valid Full Tests. Your walks are still saved.")
 }

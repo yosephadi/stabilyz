@@ -665,8 +665,29 @@ different algorithm versions (docs/09 §9.6).
 
 The session is **committed alone**. It is a valid walk and the user's data; a
 calculation problem is no reason to discard it. The count stands at five,
-`BaselineState` reads `building(5)`, and `BaselineCommitOutcome.refused` carries
-the reason.
+`BaselineState` reads `.baselineRefused(validCount:)`, and
+`BaselineCommitOutcome.refused` carries the reason.
+
+### A refused mode has its own state — amended 2026-09-14 (Task 9.2.1)
+
+This entry originally had a refused mode read `building(5)`. That was a bug in
+waiting: `building` carried the raw count, so a refused mode with seven walks
+read `building(7)`, and every "X of 5" rendered it as "7 of 5" — the Walk tab's
+baseline card already said "7 of 5 sessions complete" and "Complete 0 more".
+
+`BaselineStateMachine` now returns `.baselineRefused(validCount:)` whenever five
+or more valid sessions exist with no baseline. `building` means 1–4 only, and
+`validCount` is capped at five for a refused mode, as for an established one.
+
+- **Derived, not persisted — unchanged.** The state comes from the stored shape
+  alone. An interrupted establishment shares that shape until the next commit
+  retries it; either way the true statement is that no baseline was established.
+- **Cause-neutral copy.** Nothing stored can confirm a reason, and no refusal
+  path is about variance — the SD floor absorbs walks that are alike, and high
+  variance is accepted. The Clinician Summary says "Baseline could not be
+  established from the first 5 calibration walks."; the Walk tab and the Score
+  screen say the same in the user's words, and neither promises another walk
+  will fix it, because a retry refuses the same first five.
 
 **No silent fallback and no auto-restart.** No substitute baseline is invented
 from four sessions or from a different five, and calibration is not reset to
