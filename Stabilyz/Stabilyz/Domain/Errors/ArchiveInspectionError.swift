@@ -37,6 +37,10 @@ enum ArchiveInspectionError: Error, Equatable {
         case .schemaCompatibility(.futureSchema(let version)): self = .unsupportedSchemaVersion(version)
         case .schemaCompatibility(.unsupportedEnvelope(let version)): self = .unsupportedEnvelopeVersion(version)
         case .schemaCompatibility(.unsupportedIterationCount(let count)): self = .unsupportedIterationCount(count)
+        case .archiveImport(.restoreFailed), .archiveImport(.restoreIncomplete):
+            // Restore-execution outcomes (Task 10.3.4); inspection never
+            // produces them, and cannot have got as far as touching the store.
+            self = .invalidArchiveFormat
         case .permission, .sensor, .recording, .processing, .persistence, .export, .audio, .crypto:
             self = .invalidArchiveFormat
         }

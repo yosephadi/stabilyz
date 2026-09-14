@@ -61,6 +61,16 @@ struct AppDependencies: Sendable {
     let gaitSessionRepository: GaitSessionRepository
     let baselineRepository: BaselineRepository
 
+    /// Replaces the store from a staged export (Task 10.3.4).
+    ///
+    /// **Nil when the store could not be opened**, for the reason
+    /// `sessionOutcomes` is: there is no container to replace into.
+    let archiveRestorer: ArchiveRestoring?
+
+    /// Published after a successful restore, so long-lived view models reload
+    /// rather than show data that no longer exists (docs/11 §11.4–11.5).
+    let storeEvents: StoreReplacementEvents
+
     #if DEBUG
     /// DEBUG-only handle for `DebugDataReset` (docs/design/dev-notes.md).
     ///
@@ -87,7 +97,9 @@ struct AppDependencies: Sendable {
         onboardingDrafts: OnboardingDraftStore = EmptyOnboardingDraftStore(),
         userProfileRepository: UserProfileRepository,
         gaitSessionRepository: GaitSessionRepository,
-        baselineRepository: BaselineRepository
+        baselineRepository: BaselineRepository,
+        archiveRestorer: ArchiveRestoring? = nil,
+        storeEvents: StoreReplacementEvents = StoreReplacementEvents()
     ) {
         self.logService = logService
         self.clock = clock
@@ -105,6 +117,8 @@ struct AppDependencies: Sendable {
         self.userProfileRepository = userProfileRepository
         self.gaitSessionRepository = gaitSessionRepository
         self.baselineRepository = baselineRepository
+        self.archiveRestorer = archiveRestorer
+        self.storeEvents = storeEvents
     }
 }
 
@@ -138,6 +152,11 @@ extension AppDependencies {
         let sessions = SwiftDataGaitSessionRepository(reader: reader, writer: writer)
         let baselines = SwiftDataBaselineRepository(reader: reader, writer: writer)
         let profiles = SwiftDataUserProfileRepository(reader: reader, writer: writer)
+        // One cache and one broadcaster, shared by the commit path and the
+        // restore path: a restore that rebuilt a different cache would leave
+        // the commit path reading stale baseline states.
+        let stateStore = BaselineStateStore(sessions: sessions, baselines: baselines)
+        let storeEvents = StoreReplacementEvents()
         let outcomes = SessionOutcomeService(
             processor: SessionProcessor(algorithm: GaitAnalysisPipeline(), logService: logService),
             commits: SessionCommitService(
@@ -145,7 +164,7 @@ extension AppDependencies {
                 baselines: baselines,
                 writer: writer,
                 reader: reader,
-                stateStore: BaselineStateStore(sessions: sessions, baselines: baselines),
+                stateStore: stateStore,
                 logService: logService,
                 clock: clock
             ),
@@ -180,7 +199,14 @@ extension AppDependencies {
             onboardingDrafts: UserDefaultsOnboardingDraftStore(),
             userProfileRepository: profiles,
             gaitSessionRepository: sessions,
-            baselineRepository: baselines
+            baselineRepository: baselines,
+            archiveRestorer: ArchiveRestoreService(
+                replacer: SwiftDataStoreReplacer(reader: reader, writer: writer),
+                events: storeEvents,
+                logService: logService,
+                rebuildBaselineStates: { try await stateStore.rebuild() }
+            ),
+            storeEvents: storeEvents
         )
 
         #if DEBUG

@@ -77,6 +77,12 @@ enum StabilyzError: Error, Equatable {
         case notAStabilyzArchive
         /// The picked file could not be read at all (Task 10.3.1).
         case unreadableFile
+        /// The store could not be replaced, and it is exactly as it was
+        /// before the restore began (Task 10.3.4).
+        case restoreFailed
+        /// The replace failed **and** the pre-restore state could not be put
+        /// back. The one import failure that cannot promise nothing changed.
+        case restoreIncomplete
     }
 
     enum SchemaCompatibility: Equatable {

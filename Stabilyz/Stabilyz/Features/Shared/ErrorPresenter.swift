@@ -141,6 +141,19 @@ enum ErrorPresenter {
                 isRecoverable: true,
                 reassuresDataUnchanged: true
             )
+        case .archiveImport(.restoreFailed):
+            ErrorPresentation(
+                message: "The backup couldn't be restored. Your existing data hasn't changed.",
+                isRecoverable: true,
+                reassuresDataUnchanged: true
+            )
+        case .archiveImport(.restoreIncomplete):
+            // The only import outcome that must not say nothing changed: it
+            // did, and could not be undone. Restoring again is the way back.
+            ErrorPresentation(
+                message: "Restoring didn't finish, and some of your data may be missing. Try restoring the backup again.",
+                isRecoverable: true
+            )
 
         case .schemaCompatibility(.futureSchema):
             ErrorPresentation(

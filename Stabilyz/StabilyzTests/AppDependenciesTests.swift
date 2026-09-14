@@ -216,3 +216,13 @@ private extension AppDependencies {
     #expect(live.archiveInspector is ArchiveInspectionService)
     #expect(AppDependencies.storeUnavailable().archiveInspector is ArchiveInspectionService)
 }
+
+// MARK: - Restore execution (Task 10.3.4)
+
+@Test func theLiveGraphCanRestoreAndTheDegradedGraphCannot() throws {
+    let live = AppDependencies.live(container: try StoreContainer.make(inMemory: true))
+    #expect(live.archiveRestorer is ArchiveRestoreService)
+
+    // No container to replace into — the same reason it cannot commit a session.
+    #expect(AppDependencies.storeUnavailable().archiveRestorer == nil)
+}
