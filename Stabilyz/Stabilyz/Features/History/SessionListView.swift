@@ -2,15 +2,15 @@ import SwiftUI
 
 /// The Result tab's session list (Figma node 64:7837, docs/04 §4.13).
 ///
-/// Built to the node's "Recent Sessions" group: a 20pt bold section title over
-/// a 26pt grouped card at the 24pt screen margin, one row per walk, each with a
-/// chevron into that walk's Score screen. The node's share button, baseline
-/// card, trend chart and summary line are not here — they arrive with the trend
-/// (Task 9.1.2) and the clinician summary (Task 9.2.1).
+/// Built to the node: the selected mode's trend card and its summary line
+/// (Task 9.1.2), then the "Recent Sessions" group — a 20pt bold section title
+/// over a 26pt grouped card at the 24pt screen margin, one row per walk, each
+/// with a chevron into that walk's Score screen. The node's share button is not
+/// here; it belongs to the clinician summary (Task 9.2.1).
 ///
 /// A `ScrollView` of primitives rather than `List(.insetGrouped)`: the trend
-/// card lands above this group in 9.1.2, and a grouped list embedded under
-/// other content brings a second set of margins and its own scroll view (§5).
+/// card sits above the list, and a grouped list embedded under other content
+/// brings a second set of margins and its own scroll view (§5).
 struct SessionListView: View {
     @Bindable var model: SessionListViewModel
 
@@ -26,6 +26,7 @@ struct SessionListView: View {
                     if model.showsFailureBanner {
                         failureBanner
                     }
+                    trendGroup(model.trend)
                     sessionsGroup
                 case .empty:
                     let empty = model.emptyState
@@ -71,6 +72,22 @@ struct SessionListView: View {
 
     private var modeBinding: Binding<TestMode> {
         Binding(get: { model.mode }, set: { model.select($0) })
+    }
+
+    // MARK: - Trend
+
+    /// The trend card, and under it the latest scored walk's summary line, as
+    /// the node places it.
+    private func trendGroup(_ trend: StabilityTrend) -> some View {
+        VStack(alignment: .leading, spacing: Space.x4) {
+            StabilityTrendChartView(trend: trend)
+            if let summary = trend.latestSummary {
+                Text(summary)
+                    .font(StabilyzFont.smallRegular)
+                    .foregroundStyle(StabilyzColor.ink900)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
     }
 
     // MARK: - Sessions

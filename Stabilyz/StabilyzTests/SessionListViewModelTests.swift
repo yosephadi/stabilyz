@@ -493,3 +493,47 @@ private let utc = TimeZone(identifier: "UTC")!
 
     #expect(model.rows.map(\.id) == [next.id, first.id])
 }
+
+// MARK: - The trend follows the segment (Task 9.1.2)
+
+@MainActor @Test func theTrendIsTheSelectedModesOnly() async {
+    let quickScored = GaitSession.fixtureValid(mode: .quickTest, startedAt: at(5), score: .fixture(relativeIndex: 108))
+    let fullScored = GaitSession.fixtureValid(mode: .fullTest, startedAt: at(6), score: .fixture(relativeIndex: 96))
+    let model = makeModel(StubHistoryRepository(
+        calibration(.quickTest) + calibration(.fullTest) + [quickScored, fullScored]
+    ))
+    await model.load()
+
+    model.select(.quickTest)
+    #expect(model.trend.mode == .quickTest)
+    #expect(model.trend.points.map(\.id) == [quickScored.id])
+
+    model.select(.fullTest)
+    #expect(model.trend.mode == .fullTest)
+    #expect(model.trend.points.map(\.id) == [fullScored.id])
+}
+
+@MainActor @Test func aModeStillCalibratingShowsTheCalibrationCard() async {
+    let model = makeModel(StubHistoryRepository(Array(calibration(.fullTest).prefix(2))))
+    await model.load()
+
+    model.select(.fullTest)
+
+    #expect(model.content == .sessions)
+    #expect(model.trend.state == .calibrating(completed: 2, required: 5))
+    #expect(model.trend.points.isEmpty)
+}
+
+@MainActor @Test func aNewlyScoredWalkJoinsTheTrendOnReload() async {
+    let repository = StubHistoryRepository(calibration())
+    let model = makeModel(repository)
+    await model.load()
+    #expect(model.trend.state == .awaitingFirstScore)
+
+    let sixth = GaitSession.fixtureValid(startedAt: at(5), score: .fixture(relativeIndex: 104))
+    await repository.setStored(calibration() + [sixth])
+    await model.load()
+
+    #expect(model.trend.state == .trend)
+    #expect(model.trend.points.map(\.index) == [104])
+}

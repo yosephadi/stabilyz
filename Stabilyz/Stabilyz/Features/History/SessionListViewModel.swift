@@ -61,6 +61,11 @@ final class SessionListViewModel {
         allRows.filter { $0.mode == mode }
     }
 
+    /// The selected mode's trend, and only that mode's [PRD OQ-5].
+    var trend: StabilityTrend {
+        StabilityTrend(mode: mode, rows: allRows, baselineIndex: baselineIndex)
+    }
+
     var content: Content {
         if rows.isEmpty == false { return .sessions }
         switch phase {
