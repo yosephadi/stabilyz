@@ -608,3 +608,114 @@ private func makeCoordinator(
     #expect(await recorder.isRecording)
     _ = try await recorder.stop()
 }
+
+// MARK: - Start & Stop Haptics, switched off
+
+@MainActor
+@Test func withHapticsOffNothingIsFeltAtGo() async throws {
+    // The user turned Start & Stop Haptics off. T-0 must be still: no
+    // `playSessionStart`, and nothing else either.
+    let (coordinator, recorder, haptics, _, ticker, _) = makeCoordinator()
+
+    coordinator.start(mode: .quickTest, audioConfig: .none, hapticsEnabled: false)
+    for entered in 1...3 {
+        await ticker.waitUntilEntered(entered)
+        await ticker.release()
+    }
+    await coordinator.waitUntilFinished()
+
+    #expect(await haptics.count(of: .sessionStart) == 0)
+    #expect(await haptics.taps.isEmpty)
+    // Not even warmed: nothing is going to play, so nothing is prepared.
+    #expect(await haptics.recordedCalls.isEmpty)
+    _ = try await recorder.stop()
+}
+
+@MainActor
+@Test func withHapticsOffTheCountdownStillRunsOnTheNumeralsAlone() async throws {
+    // [PRD §7 AC]: "If haptics are unavailable or disabled, the countdown runs
+    // on the visible channel alone, with no error and no blocked Start." Every
+    // numeral still shows, and the session still starts at T-0.
+    let (coordinator, recorder, haptics, _, ticker, _) = makeCoordinator()
+
+    coordinator.start(mode: .quickTest, audioConfig: .none, hapticsEnabled: false)
+
+    for (entered, numeral) in zip(1...3, [3, 2, 1]) {
+        await ticker.waitUntilEntered(entered)
+        #expect(coordinator.state == .counting(secondsRemaining: numeral))
+        #expect(await haptics.count(of: .cadenceTick) == 0, "no tick at \(numeral)")
+        await ticker.release()
+    }
+    await coordinator.waitUntilFinished()
+
+    #expect(coordinator.state == .running)
+    #expect(await recorder.isRecording)
+    _ = try await recorder.stop()
+}
+
+@MainActor
+@Test func hapticsStayOnByDefault() async throws {
+    // The toggle defaults on [PRD OQ-6], and a caller that says nothing gets
+    // the full countdown — the gate removes haptics only when asked to.
+    let (coordinator, recorder, haptics, _, ticker, _) = makeCoordinator()
+
+    coordinator.start(mode: .quickTest, audioConfig: .none, hapticsEnabled: true)
+    for entered in 1...3 {
+        await ticker.waitUntilEntered(entered)
+        await ticker.release()
+    }
+    await coordinator.waitUntilFinished()
+
+    #expect(await haptics.taps == [.cadenceTick, .cadenceTick, .cadenceTick, .sessionStart])
+    _ = try await recorder.stop()
+}
+
+@MainActor
+@Test func withHapticsOffACancelledCountdownIsStill() async throws {
+    // Cancel normally plays the stop pulse, so a pocketed phone can feel the
+    // countdown end. With haptics off it must not: that pulse is one of the
+    // haptics the user turned off.
+    let (coordinator, recorder, haptics, _, ticker, _) = makeCoordinator()
+
+    coordinator.start(mode: .quickTest, audioConfig: .none, hapticsEnabled: false)
+    await ticker.waitUntilEntered(1)
+    await ticker.release()
+    await ticker.waitUntilEntered(2)
+
+    async let cancelled: Void = coordinator.cancel()
+    await ticker.releaseAll()
+    await cancelled
+
+    #expect(coordinator.state == .cancelled)
+    #expect(await recorder.isPrimed == false)
+    #expect(await haptics.count(of: .sessionStop) == 0)
+    #expect(await haptics.recordedCalls.isEmpty)
+}
+
+@MainActor
+@Test func aRetryHonoursTheHapticsChoiceMadeForIt() async throws {
+    // The gate is chosen per `start`, not once for the coordinator's life. A
+    // countdown cancelled with haptics off and retried with them on must be
+    // felt the second time.
+    let (coordinator, recorder, haptics, _, ticker, _) = makeCoordinator()
+
+    coordinator.start(mode: .quickTest, audioConfig: .none, hapticsEnabled: false)
+    await ticker.waitUntilEntered(1)
+    async let cancelled: Void = coordinator.cancel()
+    await ticker.releaseAll()
+    await cancelled
+    coordinator.reset()
+    #expect(await haptics.recordedCalls.isEmpty)
+
+    coordinator.start(mode: .quickTest, audioConfig: .none, hapticsEnabled: true)
+    let alreadyEntered = await ticker.waitsEntered
+    for step in 1...3 {
+        await ticker.waitUntilEntered(alreadyEntered + step)
+        await ticker.release()
+    }
+    await coordinator.waitUntilFinished()
+
+    #expect(coordinator.state == .running)
+    #expect(await haptics.taps == [.cadenceTick, .cadenceTick, .cadenceTick, .sessionStart])
+    _ = try await recorder.stop()
+}

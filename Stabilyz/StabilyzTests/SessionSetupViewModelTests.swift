@@ -90,7 +90,7 @@ private func makeModel(
     mode: TestMode = .quickTest,
     baseline: BaselineState = .notStarted,
     authorization: MotionAuthorizationStatus = .authorized,
-    onStart: @escaping @MainActor (TestMode, SessionAudioConfig) -> Void = { _, _ in },
+    onStart: @escaping @MainActor (TestMode, SessionAudioConfig, Bool) -> Void = { _, _, _ in },
     openSettings: @escaping @MainActor () -> Void = {}
 ) -> SessionSetupViewModel {
     let (sessions, baselines) = stores(for: baseline, mode: mode)
@@ -313,9 +313,9 @@ private func makeModel(
 @Test func startHandsTheModeAndConfigOutwardWithoutRecording() {
     // This screen chooses a session; it does not begin one. Task 8.2.6 owns
     // the countdown that does.
-    let handed = Locked<[(TestMode, SessionAudioConfig)]>([])
-    let model = makeModel(mode: .fullTest, baseline: .building(validCount: 2)) { mode, config in
-        handed.withLock { $0.append((mode, config)) }
+    let handed = Locked<[(TestMode, SessionAudioConfig, Bool)]>([])
+    let model = makeModel(mode: .fullTest, baseline: .building(validCount: 2)) { mode, config, haptics in
+        handed.withLock { $0.append((mode, config, haptics)) }
     }
     model.isAudioCueOn = true
 
@@ -325,6 +325,21 @@ private func makeModel(
     #expect(calls.count == 1)
     #expect(calls.first?.0 == .fullTest)
     #expect(calls.first?.1 == .stepFeedback)
+    // On by default [PRD OQ-6], and handed over as such.
+    #expect(calls.first?.2 == true)
+}
+
+@MainActor
+@Test func turningHapticsOffIsHandedToTheSession() {
+    // The toggle used to be read by nothing: the countdown played every haptic
+    // regardless. What the user chose here is what the session must receive.
+    let handed = Locked<Bool?>(nil)
+    let model = makeModel { _, _, haptics in handed.withLock { $0 = haptics } }
+    model.isHapticsOn = false
+
+    model.start()
+
+    #expect(handed.withLock { $0 } == false)
 }
 
 // MARK: - Permission pre-flight
@@ -378,7 +393,7 @@ private func makeModel(
 @MainActor
 @Test func aBlockedStartHandsNothingOutward() async {
     let handed = Locked(false)
-    let model = makeModel(authorization: .denied) { _, _ in handed.withLock { $0 = true } }
+    let model = makeModel(authorization: .denied) { _, _, _ in handed.withLock { $0 = true } }
     await model.refreshPermission()
 
     model.start()
@@ -409,7 +424,7 @@ private func makeModel(
         baselines: StubBaselineRepository(),
         motionSensor: StubMotionService(),
         logService: SetupLog(),
-        onStart: { _, _ in }
+        onStart: { _, _, _ in }
     )
 
     await model.refreshBaselineStates()
@@ -428,7 +443,7 @@ private func makeModel(
         baselines: StubBaselineRepository(stored: [.fullTest: baseline]),
         motionSensor: StubMotionService(),
         logService: SetupLog(),
-        onStart: { _, _ in }
+        onStart: { _, _, _ in }
     )
 
     await model.refreshBaselineStates()
@@ -446,7 +461,7 @@ private func makeModel(
         baselines: StubBaselineRepository(stored: [.quickTest: .fixture(mode: .quickTest)]),
         motionSensor: StubMotionService(),
         logService: SetupLog(),
-        onStart: { _, _ in }
+        onStart: { _, _, _ in }
     )
 
     await model.refreshBaselineStates()
@@ -472,7 +487,7 @@ private func makeModel(
         baselines: StubBaselineRepository(),
         motionSensor: StubMotionService(),
         logService: log,
-        onStart: { _, _ in }
+        onStart: { _, _, _ in }
     )
 
     await model.refreshBaselineStates()
@@ -493,7 +508,7 @@ private func makeModel(
         baselines: StubBaselineRepository(),
         motionSensor: StubMotionService(),
         logService: SetupLog(),
-        onStart: { _, _ in }
+        onStart: { _, _, _ in }
     )
 
     await model.refreshBaselineStates()
@@ -514,7 +529,7 @@ private func makeModel(
         baselines: baselines,
         motionSensor: StubMotionService(),
         logService: SetupLog(),
-        onStart: { _, _ in }
+        onStart: { _, _, _ in }
     )
     await model.refreshBaselineStates()
     model.isAudioCueOn = true
@@ -537,7 +552,7 @@ private func makeModel(
         baselines: StubBaselineRepository(),
         motionSensor: StubMotionService(),
         logService: SetupLog(),
-        onStart: { _, _ in }
+        onStart: { _, _, _ in }
     )
     failing.apply(establishedBaseline, for: .quickTest)
     await failing.refreshBaselineStates()

@@ -20,6 +20,10 @@ import SwiftUI
 struct SessionCoverView: View {
     let mode: TestMode
     let audioConfig: SessionAudioConfig
+    /// Start & Stop Haptics from the setup screen. Gates every countdown haptic
+    /// through the coordinator, and seeds the recording screen's own toggle —
+    /// which is what gates Stop, and stays free to change mid-walk.
+    let hapticsEnabled: Bool
     let dependencies: AppDependencies
     /// Returns to the setup screen. Called on cancel, on failure, and after a
     /// walk is stopped.
@@ -40,11 +44,13 @@ struct SessionCoverView: View {
     init(
         mode: TestMode,
         audioConfig: SessionAudioConfig,
+        hapticsEnabled: Bool,
         dependencies: AppDependencies,
         dismiss: @escaping () -> Void
     ) {
         self.mode = mode
         self.audioConfig = audioConfig
+        self.hapticsEnabled = hapticsEnabled
         self.dependencies = dependencies
         self.dismiss = dismiss
 
@@ -59,6 +65,9 @@ struct SessionCoverView: View {
         _session = State(initialValue: ActiveSessionViewModel(
             mode: mode,
             audioConfig: audioConfig,
+            // Starts where the user left it on setup, not unconditionally on:
+            // this toggle is what gates Stop.
+            isHapticsOn: hapticsEnabled,
             // Assigned below, once `self` exists — the closure has to reach the
             // view's state, which the initializer is still building.
             onStop: {},
@@ -101,7 +110,7 @@ struct SessionCoverView: View {
         .interactiveDismissDisabled(!phase.isDismissible)
         .task {
             session.onStop = endWalk
-            coordinator.start(mode: mode, audioConfig: audioConfig)
+            coordinator.start(mode: mode, audioConfig: audioConfig, hapticsEnabled: hapticsEnabled)
         }
         .onChange(of: coordinator.state) { _, state in
             handle(state)

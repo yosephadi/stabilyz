@@ -50,6 +50,21 @@ final class CountdownCoordinator {
     private let logService: LogService
     private let policy: CountdownPolicy
 
+    /// What this countdown actually plays through: `haptics` when the user left
+    /// Start & Stop Haptics on, a silent double when they turned it off.
+    ///
+    /// **Swapped once, at `start`, rather than checked at each call.** Every
+    /// haptic this type plays — the warm-up, each tick, Go, the cancel pulse —
+    /// goes through here, so a disabled countdown cannot leak one through a
+    /// branch someone forgot to guard. It is re-chosen on every `start`, so a
+    /// retry after a cancel honours whatever the user has chosen since.
+    ///
+    /// Turning haptics off costs the user nothing they need: the numerals run
+    /// regardless, which is the channel [PRD §7 AC] requires — "if haptics are
+    /// unavailable or disabled, the countdown runs on the visible channel
+    /// alone".
+    private var cues: HapticFeedbackService
+
     /// The running countdown, so `cancel()` can interrupt a sleeping tick
     /// rather than letting the user wait out the rest of a second they have
     /// already decided against.
@@ -66,6 +81,7 @@ final class CountdownCoordinator {
     ) {
         self.recorder = recorder
         self.haptics = haptics
+        self.cues = haptics
         self.audio = audio
         self.clock = clock
         self.logService = logService
@@ -91,8 +107,11 @@ final class CountdownCoordinator {
     /// Ignored if a countdown is already running — a double-tap on Start Test
     /// must not prime twice or leave a second countdown ticking behind the
     /// first.
-    func start(mode: TestMode, audioConfig: SessionAudioConfig) {
+    /// - Parameter hapticsEnabled: the user's Start & Stop Haptics choice. Off
+    ///   means no tick, no Go and no cancel pulse — nothing felt at all.
+    func start(mode: TestMode, audioConfig: SessionAudioConfig, hapticsEnabled: Bool = true) {
         guard countdownTask == nil else { return }
+        cues = hapticsEnabled ? haptics : SilentHapticFeedbackService()
         countdownTask = Task { [weak self] in
             await self?.run(mode: mode, audioConfig: audioConfig)
         }
@@ -148,7 +167,7 @@ final class CountdownCoordinator {
         // the slow one. Never load-bearing: a device with no Taptic Engine
         // degrades silently here and the numerals carry the countdown alone
         // [PRD OQ-6].
-        await haptics.prepare()
+        await cues.prepare()
 
         do {
             try await recorder.prime(mode: mode, audioConfig: audioConfig)
@@ -174,7 +193,7 @@ final class CountdownCoordinator {
 
             state = .counting(secondsRemaining: remaining)
             // The tap lands with the numeral, not after it.
-            await haptics.playCadenceTick()
+            await cues.playCadenceTick()
             await ticker.waitForTick(policy.tickInterval)
         }
 
@@ -195,7 +214,7 @@ final class CountdownCoordinator {
         // user feels marks T-0 rather than trailing it — and the service returns
         // as soon as the vibration is scheduled, so its own length does not push
         // the session open behind the anchor stamped above.
-        await haptics.playSessionStart()
+        await cues.playSessionStart()
 
         do {
             recordingEvents = try await recorder.begin(at: anchor)
@@ -205,7 +224,7 @@ final class CountdownCoordinator {
             // The session never opened, so the primed sensors are still ours
             // to release.
             await recorder.abort()
-            await haptics.teardown()
+            await cues.teardown()
             state = .failed(stabilyzError(from: error))
             logService.log(.error, .session, "countdown reached T-0 but the session refused to start")
         }
@@ -218,7 +237,7 @@ final class CountdownCoordinator {
         // harmless — it is a no-op from idle — and means this path does not
         // depend on remembering how far priming got.
         await recorder.abort()
-        await haptics.teardown()
+        await cues.teardown()
         state = .failed(stabilyzError(from: error))
         logService.log(.error, .session, "countdown abandoned: priming failed")
     }
@@ -228,8 +247,8 @@ final class CountdownCoordinator {
         // The same vibration that ends a walk. A cancelled countdown is an ending
         // too, and the user who has already pocketed the phone needs to feel
         // that it stopped.
-        await haptics.playSessionStop()
-        await haptics.teardown()
+        await cues.playSessionStop()
+        await cues.teardown()
         state = .cancelled
         recordingEvents = nil
         logService.log(.info, .session, "countdown cancelled before T-0; no session created")

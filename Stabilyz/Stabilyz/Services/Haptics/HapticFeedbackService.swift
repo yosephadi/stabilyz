@@ -6,8 +6,11 @@ import Foundation
 /// other**: numerals for the user still looking at the phone, a tap per second
 /// for the user who has already pocketed it. Haptics are the convenience half.
 /// The on-screen numerals are the required fallback, so nothing here is ever
-/// load-bearing — a device without a Taptic Engine, or a user with System
-/// Haptics switched off, loses nothing they need.
+/// load-bearing — a device without a Taptic Engine, a user with System Haptics
+/// switched off, or a user who turned Start & Stop Haptics off in the app loses
+/// nothing they need. That last case never reaches an implementation of this
+/// protocol at all: `CountdownCoordinator` plays through a silent double
+/// instead, and the recording screen's toggle gates Stop.
 ///
 /// **No method throws, and no method reports failure.** Haptic trouble is
 /// surfaced only as silence, exactly like audio (docs/10 §10.4): no error, no

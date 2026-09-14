@@ -24,6 +24,8 @@ struct MainShellView: View {
     struct PendingSession: Equatable, Identifiable {
         let mode: TestMode
         let audioConfig: SessionAudioConfig
+        /// Start & Stop Haptics, as the user left it on the setup screen.
+        let hapticsEnabled: Bool
 
         /// The mode is enough: only one session can be pending at a time, and
         /// re-presenting the same mode is the same sheet.
@@ -50,7 +52,7 @@ struct MainShellView: View {
             motionSensor: dependencies.motionSensor,
             logService: dependencies.logService,
             openSettings: SystemSettingsLink.open,
-            onStart: { _, _ in }
+            onStart: { _, _, _ in }
         ))
     }
 
@@ -85,6 +87,7 @@ struct MainShellView: View {
             SessionCoverView(
                 mode: session.mode,
                 audioConfig: session.audioConfig,
+                hapticsEnabled: session.hapticsEnabled,
                 dependencies: dependencies,
                 dismiss: { pendingSession = nil }
             )
@@ -102,11 +105,15 @@ struct MainShellView: View {
     }
 
     /// Start, tapped: the chosen session is what the cover is presented with.
-    private func handOff(mode: TestMode, audioConfig: SessionAudioConfig) {
-        pendingSession = PendingSession(mode: mode, audioConfig: audioConfig)
+    private func handOff(mode: TestMode, audioConfig: SessionAudioConfig, hapticsEnabled: Bool) {
+        pendingSession = PendingSession(
+            mode: mode,
+            audioConfig: audioConfig,
+            hapticsEnabled: hapticsEnabled
+        )
         dependencies.logService.log(
             .info, .session,
-            "session setup handed off: mode=\(mode.rawValue) audio=\(audioConfig)"
+            "session setup handed off: mode=\(mode.rawValue) audio=\(audioConfig) haptics=\(hapticsEnabled)"
         )
     }
 }

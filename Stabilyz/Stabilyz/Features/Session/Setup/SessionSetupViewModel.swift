@@ -51,9 +51,13 @@ final class SessionSetupViewModel {
 
     /// The pre-baseline audio cue. **Off by default** [PRD §7 AC].
     var isAudioCueOn = false
-    /// The countdown's taps and the stop pulse. On by default — unlike the
-    /// audio cues these do not influence gait, they mark when the measurement
-    /// starts and stops [PRD OQ-6].
+    /// The countdown's ticks, Go, and the stop pulse. On by default — unlike
+    /// the audio cues these do not influence gait, they mark when the
+    /// measurement starts and stops [PRD OQ-6].
+    ///
+    /// Handed to the session through `onStart`. Until it was, this toggle was
+    /// read by nothing: the countdown played every haptic regardless and the
+    /// recording screen's own toggle started on whatever the user had chosen.
     var isHapticsOn = true
 
     private let sessions: GaitSessionRepository
@@ -71,7 +75,7 @@ final class SessionSetupViewModel {
     /// shell holds this model in `@State` and so builds it in its own
     /// initializer, where the closure would have to reach state that does not
     /// exist yet. It is assigned once, before the screen is interactive.
-    var onStart: @MainActor (TestMode, SessionAudioConfig) -> Void
+    var onStart: @MainActor (TestMode, SessionAudioConfig, Bool) -> Void
 
     init(
         mode: TestMode = .quickTest,
@@ -80,7 +84,7 @@ final class SessionSetupViewModel {
         motionSensor: MotionSensorService,
         logService: LogService,
         openSettings: @escaping @MainActor () -> Void = {},
-        onStart: @escaping @MainActor (TestMode, SessionAudioConfig) -> Void
+        onStart: @escaping @MainActor (TestMode, SessionAudioConfig, Bool) -> Void
     ) {
         self.mode = mode
         self.sessions = sessions
@@ -321,7 +325,10 @@ final class SessionSetupViewModel {
     func start() {
         guard isStartEnabled else { return }
         let config = audioConfig
-        logService.log(.info, .session, "session setup: start \(mode.rawValue) audio=\(config)")
-        onStart(mode, config)
+        logService.log(
+            .info, .session,
+            "session setup: start \(mode.rawValue) audio=\(config) haptics=\(isHapticsOn)"
+        )
+        onStart(mode, config, isHapticsOn)
     }
 }
