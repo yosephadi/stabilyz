@@ -29,24 +29,24 @@ protocol HapticFeedbackService: Sendable {
     /// One countdown tick, per numeral (5, 4, 3, 2, 1).
     ///
     /// A single light tap, because it repeats once a second and because it has
-    /// to stay clearly *lighter* and *shorter* than the burst at Go — a user reading the countdown
+    /// to stay clearly *lighter* and *shorter* than the sustained vibration at Go — a user reading the countdown
     /// through their pocket has only that contrast to tell "1" from "go"
     /// [PRD OQ-6].
     func playCadenceTick() async
 
-    /// T-0. The heavy, perceptibly distinct burst at "Go", alongside the start
-    /// tone [PRD OQ-6].
+    /// T-0. A sustained, perceptibly distinct vibration at "Go", alongside the
+    /// start tone [PRD OQ-6].
     ///
-    /// **Returns before it has finished playing.** It is a multi-pulse pattern
-    /// sized to be felt through a pocket (`HapticPattern.sessionStart`), and
-    /// the caller must not wait for the last pulse: the countdown plays this
-    /// immediately before opening the session against a `TimeAnchor` already
-    /// stamped at T-0.
+    /// **Returns before it has finished playing.** It is held for hundreds of
+    /// milliseconds so it can be felt through a pocket
+    /// (`HapticPattern.sessionStart`), and the caller must not wait for it to
+    /// end: the countdown plays this immediately before opening the session
+    /// against a `TimeAnchor` already stamped at T-0.
     func playSessionStart() async
 
-    /// Stop [PRD OQ-6]. Distinct from both of the above — a longer burst than
-    /// Go, so the one cue a user may be waiting on with the phone out of sight
-    /// is the hardest of the three to miss (`HapticPattern.sessionStop`).
+    /// Stop [PRD OQ-6]. A single sustained vibration, a touch longer than Go,
+    /// so the one cue a user may be waiting on with the phone out of sight is
+    /// the hardest of the three to miss (`HapticPattern.sessionStop`).
     ///
     /// Returns before it has finished playing, like Go.
     func playSessionStop() async

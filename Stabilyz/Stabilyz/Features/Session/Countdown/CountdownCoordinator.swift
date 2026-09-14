@@ -190,11 +190,11 @@ final class CountdownCoordinator {
         // moment `begin` was scheduled (docs/07 §7.4).
         let anchor = TimeAnchor(clock: clock)
 
-        // The heavy, distinct burst, alongside the start tone the recorder
-        // requests. Fired before `begin` rather than after, so what the user
-        // feels marks T-0 rather than trailing it — and the service returns on
-        // its first pulse rather than its last, so the burst's own length does
-        // not push the session open behind the anchor stamped above.
+        // The sustained, distinct vibration, alongside the start tone the
+        // recorder requests. Fired before `begin` rather than after, so what the
+        // user feels marks T-0 rather than trailing it — and the service returns
+        // as soon as the vibration is scheduled, so its own length does not push
+        // the session open behind the anchor stamped above.
         await haptics.playSessionStart()
 
         do {
@@ -225,7 +225,7 @@ final class CountdownCoordinator {
 
     private func finishCancelled() async {
         await recorder.abort()
-        // The same burst that ends a walk. A cancelled countdown is an ending
+        // The same vibration that ends a walk. A cancelled countdown is an ending
         // too, and the user who has already pocketed the phone needs to feel
         // that it stopped.
         await haptics.playSessionStop()

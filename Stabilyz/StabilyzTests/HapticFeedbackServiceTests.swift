@@ -1,3 +1,4 @@
+import CoreHaptics
 import Foundation
 import Testing
 @testable import Stabilyz
@@ -24,53 +25,82 @@ private final class HapticLog: LogService, @unchecked Sendable {
 // MARK: - The patterns [PRD OQ-6]
 
 @Test func theCountdownTickStaysASingleLightTap() {
-    // It fires once a second for five seconds; the rhythm carries it. Making
-    // it heavier or longer would destroy the contrast against Go, which is the
-    // only thing telling "1" apart from "walk now" through a pocket.
-    #expect(HapticPattern.cadenceTick.pulseCount == 1)
-    #expect(HapticPattern.cadenceTick.weight == .light)
+    // It fires once a second for five seconds; the rhythm carries it. A
+    // sustained tick would blur into the next one and destroy the contrast
+    // against Go, which is the only thing telling "1" apart from "walk now".
+    #expect(HapticPattern.cadenceTick.kind == .transient(.light))
     #expect(HapticPattern.cadenceTick.duration == .zero)
+    #expect(HapticPattern.cadenceTick.isSustained == false)
 }
 
-@Test func startAndStopAreBurstsRatherThanSingleTaps() {
-    // A lone transient impact is the cue most often missed through clothing.
-    // Both of the cues that mark a session boundary repeat.
-    #expect(HapticPattern.sessionStart.pulseCount > 1)
-    #expect(HapticPattern.sessionStop.pulseCount > 1)
-    #expect(HapticPattern.sessionStart.weight == .heavy)
-    #expect(HapticPattern.sessionStop.weight == .heavy)
+@Test func goAndStopAreSustainedVibrationsRatherThanTaps() {
+    // A transient is a click of a few milliseconds, and a pocket swallows it.
+    // Both cues that mark a session boundary hold for hundreds.
+    for pattern in [HapticPattern.sessionStart, .sessionStop] {
+        #expect(pattern.isSustained)
+        #expect(pattern.duration >= .milliseconds(400))
+        #expect(pattern.duration <= .milliseconds(500))
+    }
 }
 
-@Test func stopIsAMarkedlyLongerBurstThanStart() {
-    // What tells them apart in a pocket is length, not counting pulses: Go is
-    // a bump marking an instant, Stop is a shudder that cannot be mistaken for
-    // something beginning.
-    #expect(HapticPattern.sessionStop.pulseCount > HapticPattern.sessionStart.pulseCount)
-    #expect(HapticPattern.sessionStop.duration > HapticPattern.sessionStart.duration * 2)
+@Test func sustainedCuesDriveFullyAtLowSharpness() {
+    // Fabric damps the high-frequency content that makes a haptic feel sharp
+    // and lets the low-frequency body through, so the rumble is what carries.
+    for pattern in [HapticPattern.sessionStart, .sessionStop] {
+        guard case .continuous(_, let intensity, let sharpness) = pattern.kind else {
+            Issue.record("\(pattern) should be continuous")
+            continue
+        }
+        #expect(intensity == 1.0)
+        #expect(sharpness == 0.3)
+    }
 }
 
-@Test func everyPatternOutweighsOrOutlastsTheTick() {
+@Test func stopIsASinglePulseThatOutlastsGo() {
+    // [PRD §5]: "a single haptic pulse". One held vibration, not a burst —
+    // and the longer of the two, since Stop is the cue most likely to be
+    // waited on with the phone out of sight.
+    #expect(HapticPattern.sessionStop.duration > HapticPattern.sessionStart.duration)
+    #expect(LiveHapticFeedbackService.events(for: .sessionStop).count == 1)
+}
+
+@Test func everyBoundaryCueOutlastsTheTick() {
     // The tick is the floor. Neither boundary cue may collapse into it.
     for pattern in [HapticPattern.sessionStart, .sessionStop] {
         #expect(pattern != HapticPattern.cadenceTick)
-        #expect(pattern.weight == .heavy || pattern.duration > HapticPattern.cadenceTick.duration)
+        #expect(pattern.duration > HapticPattern.cadenceTick.duration)
     }
 }
 
-@Test func burstGapsAreLongEnoughToBeFeltSeparately() {
-    // Pulses closer together than ~50ms fuse into one sensation, which would
-    // spend the hardware and deliver a single tap.
-    for pattern in [HapticPattern.sessionStart, .sessionStop] where pattern.pulseCount > 1 {
-        #expect(pattern.gap >= .milliseconds(50))
-    }
+// MARK: - The CoreHaptics translation
+
+@Test func aSustainedCueBecomesOneContinuousEngineEvent() throws {
+    // Asserted without hardware: building an event needs no Taptic Engine,
+    // only playing one does.
+    let events = LiveHapticFeedbackService.events(for: .sessionStart)
+    let event = try #require(events.first)
+
+    #expect(events.count == 1)
+    #expect(event.type == .hapticContinuous)
+    #expect(event.relativeTime == 0)
+    #expect(abs(event.duration - 0.4) < 1e-9)
+
+    let intensity = event.eventParameters.first { $0.parameterID == CHHapticEvent.ParameterID.hapticIntensity }
+    let sharpness = event.eventParameters.first { $0.parameterID == CHHapticEvent.ParameterID.hapticSharpness }
+    #expect(intensity?.value == 1.0)
+    #expect(sharpness?.value == 0.3)
 }
 
-@Test func noBurstRunsLongEnoughToBlurTheMomentItMarks() {
-    // Go names an instant and Stop ends one. A pattern running past a beat or
-    // so would stop being an event and start being an alarm.
-    for pattern in [HapticPattern.sessionStart, .sessionStop] {
-        #expect(pattern.duration <= .milliseconds(500))
-    }
+@Test func stopBecomesTheLongerEngineEvent() throws {
+    let event = try #require(LiveHapticFeedbackService.events(for: .sessionStop).first)
+    #expect(event.type == .hapticContinuous)
+    #expect(abs(event.duration - 0.5) < 1e-9)
+}
+
+@Test func theTickNeverReachesTheEngine() {
+    // A transient stays with the feedback generator, which honours the user's
+    // System Haptics setting. Only the two boundary cues use CoreHaptics.
+    #expect(LiveHapticFeedbackService.events(for: .cadenceTick).isEmpty)
 }
 
 // MARK: - The double records what it was asked to play
@@ -236,10 +266,10 @@ private final class HapticLog: LogService, @unchecked Sendable {
     }
 }
 
-@Test func theLiveServiceReturnsWellInsideTheBurstItStarted() async {
+@Test func theLiveServiceReturnsWellInsideTheVibrationItStarted() async {
     // The countdown plays Go immediately before opening the session against a
-    // `TimeAnchor` already stamped at T-0. A call that waited for the last
-    // pulse of a burst would push the recorder open behind its own origin.
+    // `TimeAnchor` already stamped at T-0. A call that held for the length of
+    // the vibration would push the recorder open behind its own origin.
     let haptics = LiveHapticFeedbackService(logService: HapticLog())
     await haptics.prepare()
 
@@ -248,15 +278,15 @@ private final class HapticLog: LogService, @unchecked Sendable {
     await haptics.playSessionStop()
     let elapsed = ContinuousClock.now - started
 
-    let bursts = HapticPattern.sessionStart.duration + HapticPattern.sessionStop.duration
-    #expect(elapsed < bursts, "the service waited for its own pattern to finish")
+    let cues = HapticPattern.sessionStart.duration + HapticPattern.sessionStop.duration
+    #expect(elapsed < cues, "the service waited for its own pattern to finish")
 }
 
-@Test func aBurstSurvivesTheTeardownThatFollowsIt() async {
+@Test func aSustainedCueSurvivesTheTeardownThatFollowsIt() async {
     // Stop is played and the countdown tears down immediately afterwards. The
-    // trailing pulses hold their generator directly, so releasing the pool
-    // mid-burst is not allowed to take the rest of the pattern with it — and
-    // on hardware that cannot play at all, nothing was scheduled to survive.
+    // engine is told to stop once its players finish rather than at once, so a
+    // teardown landing mid-vibration cannot cut it short — and on hardware that
+    // cannot play at all, no engine exists to stop.
     let haptics = LiveHapticFeedbackService(logService: HapticLog())
     await haptics.prepare()
     await haptics.playSessionStop()

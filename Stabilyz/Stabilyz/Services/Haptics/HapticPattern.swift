@@ -3,70 +3,80 @@ import Foundation
 /// What one haptic cue actually feels like ([PRD OQ-6], docs/07 §7.1).
 ///
 /// A value rather than a line inside the live service, because the thing worth
-/// holding to is the *shape* — how many pulses, how heavy, how long — and that
-/// is the one part of a haptic no test can observe by playing it. The simulator
-/// has no Taptic Engine, so the patterns are asserted here and the hardware is
-/// only asked not to blow up.
+/// holding to is the *shape* — transient or sustained, how long, how hard, how
+/// sharp — and that is the one part of a haptic no test can observe by playing
+/// it. The simulator has no Taptic Engine, so the patterns are asserted here and
+/// the hardware is only asked not to blow up.
 ///
 /// **Sized for a phone in a pocket.** The countdown's contract is that a user
-/// who has already pocketed the device can still read the flow [PRD OQ-6], and
-/// a single transient impact through a trouser pocket is easy to miss entirely.
-/// Start and Stop are therefore multi-pulse bursts: the repetition is what
-/// survives the clothing, and the *count and length* are what tell them apart
-/// once they do. The per-second tick stays a single light tap — it repeats five
-/// times on its own, and making it heavier would destroy the contrast the tick
-/// exists to create against Go.
+/// who has already pocketed the device can still read the flow [PRD OQ-6]. A
+/// transient impact — even a heavy one, even repeated — is a click of a few
+/// milliseconds, and through a trouser pocket it is easy to miss entirely. Go
+/// and Stop are therefore *sustained* vibrations: energy delivered over
+/// hundreds of milliseconds rather than a spike, at low sharpness so the motor
+/// produces a rumble that carries through fabric rather than a crisp tap that
+/// the fabric absorbs.
+///
+/// The per-second tick stays a light transient. It repeats five times on its
+/// own, and a sustained tick would blur into the one after it and destroy the
+/// contrast that exists to tell "1" from "walk now".
 struct HapticPattern: Sendable, Equatable {
 
-    /// The impact weights this app uses, named without UIKit so the shape stays
-    /// assertable in a plain test.
+    /// The two transient weights this app uses, named without UIKit so the
+    /// shape stays assertable in a plain test.
     enum Weight: Sendable, Equatable {
         case light
         case heavy
     }
 
-    let weight: Weight
-    /// How many impacts the burst is. One is a plain tap.
-    let pulseCount: Int
-    /// The spacing between consecutive pulses. Zero for a single tap.
-    let gap: Duration
-
-    /// First pulse to last. The perceptual difference between Start and Stop is
-    /// mostly this: one is a bump, the other is a shudder.
-    var duration: Duration {
-        gap * (pulseCount - 1)
+    enum Kind: Sendable, Equatable {
+        /// A single impact: effectively instantaneous.
+        case transient(Weight)
+        /// A continuous vibration held for `duration`.
+        ///
+        /// - Parameters:
+        ///   - intensity: 0...1, how strongly the motor drives.
+        ///   - sharpness: 0...1. Low is a dull rumble, high a crisp buzz. Low is
+        ///     what survives clothing: fabric damps the high-frequency content
+        ///     that makes a haptic feel sharp, and lets the low-frequency body
+        ///     through.
+        case continuous(duration: Duration, intensity: Double, sharpness: Double)
     }
 
-    /// One countdown numeral.
-    ///
-    /// Light and single, deliberately. It fires once a second for five seconds,
-    /// so the rhythm carries it; what it must never do is approach the weight
-    /// of Go, which is the only thing distinguishing "1" from "walk now".
-    static let cadenceTick = HapticPattern(weight: .light, pulseCount: 1, gap: .zero)
+    let kind: Kind
+
+    /// How long the cue lasts. Zero for a transient.
+    var duration: Duration {
+        switch kind {
+        case .transient: .zero
+        case .continuous(let duration, _, _): duration
+        }
+    }
+
+    var isSustained: Bool { duration > .zero }
+
+    /// One countdown numeral. Light and instantaneous, deliberately.
+    static let cadenceTick = HapticPattern(kind: .transient(.light))
 
     /// T-0.
     ///
-    /// A double bump at the heaviest weight UIKit offers. Two pulses rather
-    /// than one because a lone impact is the cue most often missed through
-    /// clothing, and only two because Go has to stay short — it marks an
-    /// instant, and a burst that rolled on would blur the moment it is naming.
+    /// The shorter of the two sustained cues. Go marks an instant, so it holds
+    /// only as long as it takes to be felt through a pocket, and is over well
+    /// before the first stride lands.
     static let sessionStart = HapticPattern(
-        weight: .heavy,
-        pulseCount: 2,
-        gap: .milliseconds(100)
+        kind: .continuous(duration: .milliseconds(400), intensity: 1.0, sharpness: 0.3)
     )
 
     /// Stop, and a countdown cancelled before it.
     ///
-    /// Three heavy pulses spread wider than Start's two: 240ms end to end
-    /// against 100ms. That length is the point — Stop is the one cue a user may
-    /// be waiting on with the phone out of sight, and a longer shudder is far
-    /// harder to miss or to mistake for the start of something. The extra pulse
-    /// and the extra spacing both push the same way, so the two are told apart
-    /// by duration rather than by counting taps.
+    /// **One sustained vibration** — [PRD §5] calls this "a single haptic
+    /// pulse", and a held rumble is that more faithfully than a burst of taps.
+    /// A touch longer than Go: Stop is the cue a user is most likely to be
+    /// waiting on with the phone out of sight, so it is the last to be cut
+    /// short. The two never occur back to back — one opens a walk and the other
+    /// closes it minutes later, each beside its own tone — so the length is
+    /// reinforcement, not the only thing telling them apart.
     static let sessionStop = HapticPattern(
-        weight: .heavy,
-        pulseCount: 3,
-        gap: .milliseconds(120)
+        kind: .continuous(duration: .milliseconds(500), intensity: 1.0, sharpness: 0.3)
     )
 }
