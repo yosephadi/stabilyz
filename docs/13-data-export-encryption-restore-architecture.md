@@ -33,7 +33,7 @@ Stabilyz Export File (.stabilyz [REC extension])
 ## 13.2 Encryption Flow (Export)
 
 1. User sets + confirms passphrase in the Export wizard; the **unrecoverable-passphrase warning is shown before generation [PRD]**.
-2. Passphrase normalized (Unicode NFC [REC]), converted to bytes, held only in memory for the operation [PRD: never written to disk; no recovery].
+2. Passphrase canonicalized (leading/trailing whitespace trimmed, then Unicode NFC — §13.3), converted to bytes, held only in memory for the operation [PRD: never written to disk; no recovery].
 3. **KDF [PRD]:** PBKDF2-HMAC-SHA256 via CommonCrypto `CCKeyDerivationPBKDF` (Apple's vetted implementation; CryptoKit does not provide PBKDF2), **unique 16-byte random salt per export [PRD]** (SecRandomCopyBytes), iteration count calibrated on-device (~200–500 ms; starting point ~300k [REC], stored in header so old exports stay decryptable).
 4. **AEAD [PRD]:** AES-256-GCM via CryptoKit, random 12-byte nonce, seal the serialized payload.
 5. Write **ciphertext only** to a temp file (no plaintext temp file ever exists [REC — serialize in memory]), present via the **system share sheet [PRD]** (destination is the user's choice; explicit user action only, never automatic), then delete the temp file.
@@ -43,7 +43,8 @@ Stabilyz Export File (.stabilyz [REC extension])
 
 - Never stored, never logged, never sent anywhere [PRD OQ-2].
 - Held as a mutable byte buffer during KDF and cleared after key derivation where possible [REC — Swift `String` cannot be zeroed; the byte-buffer approach bounds exposure; realistic residual risk accepted and documented].
-- Minimum length policy [REC: 8+ chars; PRD does not specify — flagged as a product decision].
+- **Minimum length — decided 2026-09-15 (Task 10.2.1):** 8 characters, counted as a person sees them (an emoji is one), after leading and trailing whitespace is removed. Empty and whitespace-only passphrases are refused. The export wizard requires a matching confirmation and an acknowledged unrecoverable-passphrase warning before anything is generated.
+- **Canonical form — decided 2026-09-15:** before a passphrase becomes key material it is **trimmed of leading and trailing whitespace, then Unicode NFC-normalized**, at export and at restore alike (`PassphrasePolicy.canonical`). Trimming means a space a keyboard adds can never lock someone out of their own backup; spaces inside the passphrase are part of it. NFC means an accented letter typed as one code point or as a letter plus a combining mark derives the same key. **This is a file-format contract:** changing either rule would stop existing exports opening.
 
 ## 13.4 Import Flow & Validation Order
 

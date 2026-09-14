@@ -11,6 +11,7 @@ private let allErrors: [StabilyzError] = [
     .processing(.tooFewStrides), .processing(.excessiveNoise), .processing(.cancelled),
     .persistence(.saveFailed), .persistence(.storeCorruption),
     .export(.keyDerivationFailed), .export(.fileWriteFailed), .export(.shareFailed),
+    .export(.archiveGenerationFailed),
     .archiveImport(.wrongPassphrase), .archiveImport(.corruptedArchive),
     .archiveImport(.notAStabilyzArchive),
     .schemaCompatibility(.futureSchema(version: 9)),
@@ -66,7 +67,8 @@ private let allErrors: [StabilyzError] = [
         .archiveImport(.notAStabilyzArchive),
         .schemaCompatibility(.futureSchema(version: 9)),
         .schemaCompatibility(.unsupportedEnvelope(version: 9)),
-        .export(.fileWriteFailed)
+        .export(.fileWriteFailed),
+        .export(.archiveGenerationFailed)
     ]
 
     for error in guaranteed {

@@ -64,6 +64,9 @@ enum StabilyzError: Error, Equatable {
         case keyDerivationFailed
         case fileWriteFailed
         case shareFailed
+        /// The store could not be read into a payload, or the payload could
+        /// not be sealed (Task 10.2.2).
+        case archiveGenerationFailed
     }
 
     /// Import failures. The key-check value is what lets a wrong passphrase be

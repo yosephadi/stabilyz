@@ -33,6 +33,19 @@ struct FileManagerFileIO: FileIO {
         try fileManager.removeItem(at: url)
     }
 
+    func writeProtected(_ data: Data, to url: URL) throws {
+        try data.write(to: url, options: [.atomic, .completeFileProtection])
+    }
+
+    func createDirectory(at url: URL) throws {
+        try fileManager.createDirectory(at: url, withIntermediateDirectories: true)
+    }
+
+    func contentsOfDirectory(at url: URL) throws -> [URL] {
+        guard fileExists(at: url) else { return [] }
+        return try fileManager.contentsOfDirectory(at: url, includingPropertiesForKeys: nil)
+    }
+
     func copyItem(at source: URL, to destination: URL) throws {
         try fileManager.copyItem(at: source, to: destination)
     }

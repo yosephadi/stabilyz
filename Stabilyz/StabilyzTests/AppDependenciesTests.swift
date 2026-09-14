@@ -198,3 +198,13 @@ private extension AppDependencies {
         _ = try UnwiredKeyDerivation().deriveKey(passphrase: [1], salt: [2], iterations: 1, keyByteCount: 32)
     }
 }
+
+// MARK: - Export (Task 10.2.2)
+
+@MainActor @Test func theExportFlowIsBuiltFromTheGraphsOwnStoreAndCoder() throws {
+    let live = AppDependencies.live(container: try StoreContainer.make(inMemory: true))
+    #expect(live.archiveExporter is ArchiveExportService)
+
+    let flow = live.makeExportFlow(onClose: {})
+    #expect(flow.phase == .entering)
+}

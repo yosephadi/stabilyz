@@ -49,6 +49,9 @@ private struct UnwritableFileIO: FileIO {
     func write(_ data: Data, to url: URL) throws { throw Failure() }
     func remove(at url: URL) throws {}
     func copyItem(at source: URL, to destination: URL) throws { throw Failure() }
+    func writeProtected(_ data: Data, to url: URL) throws { throw Failure() }
+    func createDirectory(at url: URL) throws { throw Failure() }
+    func contentsOfDirectory(at url: URL) throws -> [URL] { [] }
 }
 
 /// Armed at the shared anchor by default: every test below that is about
