@@ -6,10 +6,10 @@ import SwiftUI
 /// router chrome the setup screen sits inside — it belongs here rather than in
 /// `SessionSetupView`, which draws only its own content.
 ///
-/// Result and You are placeholders until their tasks land (9.1.1 History,
-/// 9.2.1 Clinician Summary, Settings). They are named rather than empty so the
-/// shell is visible in the running app, the same way `ContentView` names its
-/// unbuilt phases.
+/// Result carries the session list (Task 9.1.1); its trend and the clinician
+/// summary join it in 9.1.2 and 9.2.1. You is a placeholder until its task
+/// lands, named rather than empty so the shell is visible in the running app,
+/// the same way `ContentView` names its unbuilt phases.
 struct MainShellView: View {
     let dependencies: AppDependencies
     /// Passed through so the DEBUG reset gesture can re-resolve the root.
@@ -32,6 +32,15 @@ struct MainShellView: View {
         var id: TestMode { mode }
     }
 
+    /// Named so it does not shadow SwiftUI's own `Tab`.
+    enum ShellTab: Hashable {
+        case walk
+        case result
+        case you
+    }
+
+    /// Selected so History's empty state can hand the user to the Walk tab.
+    @State private var selectedTab: ShellTab = .walk
     @State private var pendingSession: PendingSession?
     /// Held rather than rebuilt per body pass.
     ///
@@ -40,6 +49,9 @@ struct MainShellView: View {
     /// the just-committed session changed and start again from nothing —
     /// which is exactly what the screen must show after a commit [PRD §5].
     @State private var setupModel: SessionSetupViewModel
+    /// Held for the same reason: the filter the user chose should survive the
+    /// cover, and the list is refreshed rather than rebuilt when it closes.
+    @State private var historyModel: SessionListViewModel
 
     init(dependencies: AppDependencies, router: AppRouter) {
         self.dependencies = dependencies
@@ -54,26 +66,44 @@ struct MainShellView: View {
             openSettings: SystemSettingsLink.open,
             onStart: { _, _, _ in }
         ))
+        _historyModel = State(initialValue: SessionListViewModel(
+            sessions: dependencies.gaitSessionRepository,
+            logService: dependencies.logService,
+            // What a baseline scores by construction, from the configuration
+            // the pipeline used — the same source the Score screen reads.
+            baselineIndex: Int(AlgorithmConfiguration.v1.composite.indexCenter)
+        ))
     }
 
     var body: some View {
-        TabView {
+        TabView(selection: $selectedTab) {
             walkTab
                 .tabItem { Label("Walk", systemImage: "figure.walk") }
+                .tag(ShellTab.walk)
 
             NavigationStack {
-                TabPlaceholder(name: "Result", task: "Task 9.1.1")
+                SessionListView(model: historyModel)
                     .navigationTitle("Result")
             }
             .tabItem { Label("Result", systemImage: "text.document.fill") }
+            .tag(ShellTab.result)
+            .task { historyModel.onSetUp = setUpFromHistory }
 
             NavigationStack {
                 TabPlaceholder(name: "You", task: "Task 8.3.1")
                     .navigationTitle("You")
             }
             .tabItem { Label("You", systemImage: "person.fill") }
+            .tag(ShellTab.you)
         }
         .tint(StabilyzColor.primary600)
+    }
+
+    /// An empty History mode's "Set Up" action: the Walk tab, with that mode
+    /// chosen. Nothing starts — Start is still the user's to tap.
+    private func setUpFromHistory(_ mode: TestMode) {
+        setupModel.select(mode)
+        selectedTab = .walk
     }
 
     /// The Walk tab: session setup, under the node's large "Walk" title, with
@@ -101,6 +131,9 @@ struct MainShellView: View {
             // a session can commit from.
             guard previous != nil, current == nil else { return }
             Task { await setupModel.refreshBaselineStates() }
+            // The walk just committed belongs at the top of Result
+            // (docs/11 §11.2: History refresh reflects the committed session).
+            Task { await historyModel.load() }
         }
     }
 
