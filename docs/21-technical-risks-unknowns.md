@@ -20,6 +20,8 @@ Sensor sampling rate (rec: 100 Hz) · orientation/axis derivation for ML/VT axes
 7. **Relative-index mapping/scale** (how composite deviation becomes e.g. 112).
 8. **Whether the 5 calibration sessions later receive retroactive scores** in History ("History lists … with their mode-relative baseline scores (once that mode's baseline exists)" vs. "from the 6th valid session onward" — recommend *no* retroactive scoring; needs product confirmation).
 9. **N for "last N sessions"** on clinician summary and encouraging-summary comparisons.
+   - **Clinician summary — CLOSED (2026-09-14, product decision, Task 9.2.1):** N = 5 **scored** sessions per mode (walk 6 onward), newest first — a one-to-one match for the five walks a baseline is built from. Calibration walks never count toward it. `ClinicianSummaryPolicy.recentScoredSessionCount`.
+   - **Encouraging-summary comparisons — still open.** A separate, versioned algorithm setting (`SummaryPolicy.recentSessionCount`, provisional 3); deliberately not changed by the clinician decision.
 10. **Encouraging-summary copy rules** (PRD: generated from real same-mode comparisons; templates unspecified).
 11. **Export-nudge cadence** beyond "after baseline is first established" ("periodically" unspecified).
 12. **Algorithm-version mismatch policy for future app updates** (§9.6).

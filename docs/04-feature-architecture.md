@@ -83,7 +83,14 @@ Feature boundaries derived from the PRD flows (§5), not from the template list.
 
 ### 4.14 Clinician Summary
 - **Responsibility:** Single screen: current baseline(s), last N sessions' scores, trend chart; both modes clearly separated; defined empty/partial states per mode. [PRD §5, §7]
-- **Entry points:** from History and Settings [PRD §5]. N is [OPEN].
+- **Entry points:** the Result tab's `stethoscope` toolbar action, presented as a modal sheet (§11.2); the Settings entry [PRD §5] lands with the You tab.
+- **Settled specification (2026-09-14, Task 9.2.1):**
+  - **Mode isolation:** a segmented Quick Test / Full Test picker. Each segment shows only that mode's baseline, sessions and trend; every read names its mode [PRD OQ-5].
+  - **Current baseline:** establishment date and **μ ± σ** (the stored, floored SD — marked when the floor was applied, with its n) for the metrics with physical units only: cadence (spm), step-time variability (% CV) and step-time asymmetry (%). "Not established" where the baseline carries no stat. No better/worse markers — metric sign conventions are [OPEN].
+  - **Last N sessions:** N = 5 **scored** sessions (walk 6 onward), newest first, calibration walks never counted (§21 #9, closed for this screen). Each shows date and time, relative index, signed delta, and the three measured values.
+  - **Trend chart:** the History trend, plotting every scored walk of the mode.
+  - **Objective only:** no provisional scores and no user-facing summary lines.
+  - **Empty/partial states per mode:** not started; "Calibrating: X of 5 walks completed"; and a refused baseline, stated cause-neutrally — "Baseline could not be established from the first 5 calibration walks." (decisions.md entry 17).
 
 ### 4.15 Settings
 - **Responsibility:** Container for Export My Data, Restore from previous export, disclaimer/About access (post-onboarding disclaimer visibility [PRD AC]).

@@ -6,10 +6,10 @@ import SwiftUI
 /// router chrome the setup screen sits inside — it belongs here rather than in
 /// `SessionSetupView`, which draws only its own content.
 ///
-/// Result carries the session list (Task 9.1.1); its trend and the clinician
-/// summary join it in 9.1.2 and 9.2.1. You is a placeholder until its task
-/// lands, named rather than empty so the shell is visible in the running app,
-/// the same way `ContentView` names its unbuilt phases.
+/// Result carries the session list and trend (Tasks 9.1.1, 9.1.2), with the
+/// Clinician Summary behind its stethoscope (Task 9.2.1). You is a placeholder
+/// until its task lands, named rather than empty so the shell is visible in the
+/// running app, the same way `ContentView` names its unbuilt phases.
 struct MainShellView: View {
     let dependencies: AppDependencies
     /// Passed through so the DEBUG reset gesture can re-resolve the root.
@@ -52,6 +52,9 @@ struct MainShellView: View {
     /// Held for the same reason: the filter the user chose should survive the
     /// cover, and the list is refreshed rather than rebuilt when it closes.
     @State private var historyModel: SessionListViewModel
+    /// The Result tab's stethoscope: the Clinician Summary (Task 9.2.1). Each
+    /// presentation builds a fresh model, so it always reads the store as it is.
+    @State private var showsClinicianSummary = false
 
     init(dependencies: AppDependencies, router: AppRouter) {
         self.dependencies = dependencies
@@ -84,6 +87,26 @@ struct MainShellView: View {
             NavigationStack {
                 SessionListView(model: historyModel)
                     .navigationTitle("Result")
+                    .toolbar {
+                        ToolbarItem(placement: .topBarTrailing) {
+                            Button {
+                                showsClinicianSummary = true
+                            } label: {
+                                Image(systemName: "stethoscope")
+                            }
+                            .accessibilityLabel(ClinicianSummaryViewModel.title)
+                        }
+                    }
+            }
+            .sheet(isPresented: $showsClinicianSummary) {
+                ClinicianSummaryView(model: ClinicianSummaryViewModel(
+                    sessions: dependencies.gaitSessionRepository,
+                    baselines: dependencies.baselineRepository,
+                    logService: dependencies.logService,
+                    baselineIndex: Int(AlgorithmConfiguration.v1.composite.indexCenter),
+                    // Opens on the mode the user was looking at.
+                    mode: historyModel.mode
+                ))
             }
             .tabItem { Label("Result", systemImage: "text.document.fill") }
             .tag(ShellTab.result)

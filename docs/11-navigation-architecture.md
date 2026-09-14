@@ -18,9 +18,9 @@ Existing User ───── Home
 |---|---|
 | Root switch (router) | Welcome / Onboarding / Main |
 | Full-screen cover | **Session flow** (countdown → recording → processing → result) — a deliberately modal, interruption-free context. **Setup is outside it**: it roots the Walk tab (§11.1), and the cover opens at the countdown, which is the first moment an interruption would cost the user something [PRD OQ-6] |
-| Sheets | Export wizard (passphrase), Restore, About/Disclaimer |
+| Sheets | Export wizard (passphrase), Restore, About/Disclaimer, **Clinician Summary** — a modal sheet from the Result tab's `stethoscope` toolbar action, in its own navigation stack with a close button (decided 2026-09-14, Task 9.2.1). It superseded the earlier push onto History's stack: a sheet leaves the Result tab untouched underneath while the phone is in a clinician's hand |
 | Alerts / confirmation dialogs | Plain-language errors; the Restore **conflict dialog** with exactly three actions: Cancel / Export current data first / Replace with backup [PRD §5] |
-| Navigation stack | History → Clinician Summary (deep link from Settings also possible) |
+| Navigation stack | History → a session's Score screen (row chevron, Task 9.1.1). The Settings entry to the Clinician Summary [PRD §5] lands with the You tab |
 
 ## 11.3 Session Flow Coordinator
 
