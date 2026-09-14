@@ -77,7 +77,7 @@ Feature boundaries derived from the PRD flows (§5), not from the template list.
 
 ### 4.13 Session History & Trends
 - **Responsibility:** List of valid past sessions labeled with mode; mode-relative scores where they exist; Swift Charts trend line, filterable/split by mode; real stored data only. [PRD §5, §7]
-- **State:** `HistoryFilter { all, quick, full }`.
+- **State:** the selected mode — a Quick Test / Full Test segment (`TestMode`), with no "All" (Task 9.1.1). Figma node 64:7837 draws two segments, and the baseline card and trend that share the control are per-mode by nature, so an "All" view would put two baselines under one heading [PRD OQ-5]. Until the user picks a segment, History opens on the mode walked most recently.
 - **Empty state:** defined for no sessions and per-mode emptiness.
 - **Edge cases:** mode with no baseline shows sessions without relative scores [OPEN: whether calibration sessions get retroactive scores — see §21].
 

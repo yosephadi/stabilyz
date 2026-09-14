@@ -107,6 +107,6 @@ Repositories map Entity ↔ Domain and enforce invariants (e.g., unique `mode` o
 
 ## 5.3 UI State Models (ephemeral, per feature)
 
-`OnboardingDraft` (Codable, **persisted to UserDefaults** for resume [PRD AC] — it is pre-profile, ephemeral, tiny [REC]) · `AppLaunchPhase` · `SessionFlowState` (machine in §11) · `RecordingViewState` (elapsed, feedback-on indicator) · `ProcessingViewState` (progress) · `ScoreViewState` / `NoisyViewState` · `HistoryFilter` · `RestoreFlowState` (conflict dialog + stages) · `ExportFlowState`.
+`OnboardingDraft` (Codable, **persisted to UserDefaults** for resume [PRD AC] — it is pre-profile, ephemeral, tiny [REC]) · `AppLaunchPhase` · `SessionFlowState` (machine in §11) · `RecordingViewState` (elapsed, feedback-on indicator) · `ProcessingViewState` (progress) · `ScoreViewState` / `NoisyViewState` · History's selected `TestMode` segment (Quick Test / Full Test, no "All" — §4.13) · `RestoreFlowState` (conflict dialog + stages) · `ExportFlowState`.
 
 **Deliberate non-duplication:** domain `GaitSession`, `Baseline`, `TestMode` serve UI directly via view models; only strata with genuinely different lifetimes (SwiftData entities, wizard drafts, flow machines) get separate types.
