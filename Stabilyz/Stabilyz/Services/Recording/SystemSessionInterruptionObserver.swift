@@ -74,15 +74,46 @@ actor SystemSessionInterruptionObserver: SessionInterruptionObserver {
 /// Production `ScreenSleepController` over `UIApplication.isIdleTimerDisabled`
 /// [REC — docs/07 §7.7]. No background motion mode is added in v1.
 struct SystemScreenSleepController: ScreenSleepController {
+    /// Where the idle timer lives. Nil means the running app.
+    private let host: (@MainActor @Sendable () -> IdleTimerHost?)?
+
+    /// - Parameter host: a stand-in for tests. The app-wide flag is shared by
+    ///   every test that runs a real recorder, so asserting against it races
+    ///   them; asserting against a stand-in does not.
+    init(host: (@MainActor @Sendable () -> IdleTimerHost?)? = nil) {
+        self.host = host
+    }
+
     func preventSleep() async {
-        #if canImport(UIKit)
-        await MainActor.run { UIApplication.shared.isIdleTimerDisabled = true }
-        #endif
+        await MainActor.run { resolvedHost()?.isIdleTimerDisabled = true }
     }
 
     func allowSleep() async {
+        await MainActor.run { resolvedHost()?.isIdleTimerDisabled = false }
+    }
+
+    @MainActor
+    private func resolvedHost() -> IdleTimerHost? {
+        host?() ?? Self.runningApplication()
+    }
+
+    /// The running app, which is what holds the real idle timer.
+    @MainActor
+    static func runningApplication() -> IdleTimerHost? {
         #if canImport(UIKit)
-        await MainActor.run { UIApplication.shared.isIdleTimerDisabled = false }
+        UIApplication.shared
+        #else
+        nil
         #endif
     }
 }
+
+/// Anything with an idle timer to hold down: `UIApplication` in the app.
+@MainActor
+protocol IdleTimerHost: AnyObject {
+    var isIdleTimerDisabled: Bool { get set }
+}
+
+#if canImport(UIKit)
+extension UIApplication: IdleTimerHost {}
+#endif
