@@ -299,9 +299,12 @@ private func component(
         provisional: .fixture(gaitConsistency: 0.9, stepTimeVariability: 0.5, trunkMotion: 0.7)
     ))
 
-    let highlight = try? #require(model.highlight)
-    #expect(highlight?.contains("gait consistency") == true)
-    #expect(highlight?.contains("step rhythm") == true)
+    guard let highlight = model.highlight else {
+        Issue.record("a pre-baseline walk with measured signals produced no highlight")
+        return
+    }
+    #expect(highlight.contains("gait consistency"))
+    #expect(highlight.contains("step rhythm"))
 }
 
 @Test func aCalibrationSessionWithNoProvisionalScoreHasNoHighlight() {

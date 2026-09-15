@@ -71,8 +71,8 @@ private func configuration(
 // MARK: - What the score is built from [PRD §7, OQ-1]
 
 @Test func theScoreRestsOnTheThreeIndependentSignals() {
-    let result = try? #require(score(.fixture()))
-    #expect(result?.contributions.map(\.signal) == [
+    guard let result = score(.fixture()) else { Issue.record("the fixture produced no score"); return }
+    #expect(result.contributions.map(\.signal) == [
         .gaitConsistency, .stepTimeVariability, .trunkMotion
     ])
 }
@@ -80,14 +80,14 @@ private func configuration(
 @Test func gaitConsistencyIsNeverTheSoleBasisOfTheProvisionalScore() {
     // [PRD §7]: a highly regular gait can still be dynamically unstable, so
     // consistency may carry at most half.
-    let result = try? #require(score(.fixture()))
-    let consistency = result?.contributions.first { $0.signal == .gaitConsistency }
+    guard let result = score(.fixture()) else { Issue.record("the fixture produced no score"); return }
+    let consistency = result.contributions.first { $0.signal == .gaitConsistency }
     #expect((consistency?.weight ?? 1) <= 0.5)
 }
 
 @Test func theWeightsAreAWholeScore() {
-    let result = try? #require(score(.fixture()))
-    let total = result?.contributions.reduce(0) { $0 + $1.weight } ?? 0
+    guard let result = score(.fixture()) else { Issue.record("the fixture produced no score"); return }
+    let total = result.contributions.reduce(0) { $0 + $1.weight }
     #expect(abs(total - 1) < 1e-9)
 }
 

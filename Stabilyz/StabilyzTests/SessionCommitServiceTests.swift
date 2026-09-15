@@ -253,7 +253,7 @@ private func invalidSession(_ index: Int, mode: TestMode = .quickTest) -> GaitSe
 
     let collector = Task { () -> [BaselineStateChange] in
         var seen: [BaselineStateChange] = []
-        for await change in await store.stateStore.changes {
+        for await change in store.stateStore.changes {
             seen.append(change)
             if seen.count == 3 { break }
         }

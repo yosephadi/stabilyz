@@ -326,6 +326,29 @@ private let stepPolicy = AlgorithmConfiguration.v1.liveStepFeedback
     await service.teardown()
 }
 
+/// Waits for the engine to settle after an interruption ends, and says which
+/// way it went: running again (true) or degraded to silence (false).
+///
+/// Not an instantaneous read. Reactivating the audio session can raise a
+/// configuration change that stops the engine for a moment before the
+/// route-change path restarts it — on a loaded simulator, long enough to be
+/// sampled. That moment is neither outcome, and reading it as one is what made
+/// this test fail intermittently under the full suite. A genuine third state
+/// still fails: it would outlast the timeout.
+private func settledAfterResume(
+    _ service: EngineAudioFeedbackService,
+    timeout: Duration = .seconds(3)
+) async -> Bool {
+    let clock = ContinuousClock()
+    let deadline = clock.now + timeout
+    while clock.now < deadline {
+        if await service.isRunning { return true }
+        if await service.isDegraded { return false }
+        try? await Task.sleep(for: .milliseconds(20))
+    }
+    return await service.isRunning
+}
+
 @Test func anInterruptionStopsTheBeatAndResumeCostsTheSameWhateverItsLength() async {
     // 7.1.2's machinery drives this; the metronome's part is that it comes back
     // at tempo **from now** [PRD §6]. The observable form of "missed beats are
@@ -350,7 +373,7 @@ private let stepPolicy = AlgorithmConfiguration.v1.liveStepFeedback
         #expect(before == queuedWhileSuspended, "beats were queued while suspended")
 
         await service.handle(.interruptionEnded)
-        guard await service.isRunning else { return nil }
+        guard await settledAfterResume(service) else { return nil }
         #expect(await service.isMetronomeRunning, "the metronome did not come back")
         return await service.scheduledBeatCount - before
     }

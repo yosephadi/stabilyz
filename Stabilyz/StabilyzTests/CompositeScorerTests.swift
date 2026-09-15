@@ -127,7 +127,7 @@ private func scoreOf(_ metrics: GaitMetrics, against baseline: Baseline, session
     let result = try scoreOf(sixth, against: baseline)
     let score = try #require(result.score)
 
-    #expect(abs(try #require(score.compositeZ) - 0.12) < 1e-9)
+    #expect(abs(score.compositeZ - 0.12) < 1e-9)
     #expect(score.relativeIndex == 112)
 }
 
