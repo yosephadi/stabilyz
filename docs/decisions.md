@@ -2496,3 +2496,40 @@ Summary; `SettingsJourneyTests` opens and closes it from You.
 
 What would change this: a request to put the summary back beside History.
 
+---
+
+## 45. Keep Current Data is a visible button, not a cancel role
+
+**Date:** 2026-09-15 · **Task:** 10.3.3 follow-up (found by Task 11.1.1) · **Status:** Decided
+
+The restore overwrite choice is a native `confirmationDialog` with three
+actions (Task 10.3.3). **Keep Current Data** was given `role: .cancel`, the
+idiomatic way to mark the non-destructive way out.
+
+On iPhone, iOS 26 **draws no cancel-role button** in a confirmation dialog: the
+action sheet shows only the other actions, and the only way to take the cancel
+path is a tap outside the sheet. `RestoreConflictJourneyTests` found this — the
+dialog rendered Replace Data and Export Current Data First, and no Keep Current
+Data.
+
+That fails [PRD §7 AC], which requires the warning to present **three choices**
+— Cancel, Export current data first, Replace with backup — explicitly. A choice
+that exists only as a tap on empty space is not presented.
+
+**Decided: Keep Current Data is a plain button** (no role). All three actions are
+rendered on every device, in the same dialog.
+
+- **Replace Data** keeps `role: .destructive` (design-system §2.3, §5).
+- **A dialog dismissed without an answer** — a tap outside, which iOS still
+  allows — is safe by construction: nothing has been touched, the opened backup
+  is kept, and Restore backup presents the same choice again
+  (`RestoreDataViewModel.restore()` on `.awaitingConfirmation`).
+- The design system's note that this is "the exact iOS pattern" still holds; it
+  is the pattern with the cancel action drawn as an ordinary one.
+
+**Held by:** `RestoreConflictJourneyTests` asserts all three buttons exist and
+taps Keep Current Data.
+
+What would change this: iOS rendering cancel-role actions in iPhone action
+sheets again, which would let the role come back without losing the button.
+
