@@ -1,10 +1,7 @@
 import SwiftUI
 
-/// The app's root, driven by `AppRouter` (docs/11 §11.1).
-///
-/// Each remaining phase's real screen arrives with its own task; until then the
-/// phase is named on screen so the routing is visible in the running app rather
-/// than only in tests.
+/// The app's root, driven by `AppRouter` (docs/11 §11.1): the launch state,
+/// Welcome, the onboarding wizard, or the Walk / Result / You shell.
 ///
 /// **The splash and `resolve()` run at the same time.** The store read starts on
 /// the first frame and the splash counts down beside it, so the ~0.9s costs the
@@ -124,21 +121,6 @@ private struct ResolvingView: View {
             .padding()
         } else {
             ProgressView()
-        }
-    }
-}
-
-private struct RootPlaceholder: View {
-    let name: String
-    var action: String?
-    var perform: (() -> Void)?
-
-    var body: some View {
-        VStack(spacing: Space.x4) {
-            Text(name).font(StabilyzFont.heading)
-            if let action, let perform {
-                Button(action, action: perform)
-            }
         }
     }
 }

@@ -1,12 +1,18 @@
 import Foundation
 
-/// Thrown by a dependency slot that has no implementation yet.
+/// Thrown by a stand-in that has nothing real behind it.
 ///
-/// The composition root is built in Phase 1 (docs/22) but most concrete
-/// services arrive in later phases. Rather than leave those slots optional —
-/// which would push `if let` noise into every call site permanently — they are
-/// filled with conformances that fail loudly and name the task that replaces
-/// them. Nothing calls these yet; the app launches to a placeholder screen.
+/// These conformances fail loudly rather than report empty or invented data.
+/// **The live graph uses none of them.** What remains:
+///
+/// - **The degraded graph** (`AppDependencies.storeUnavailable()`, a store
+///   that would not open): the motion and pedometer services and the three
+///   repositories, so that nothing reads as "no data yet".
+/// - **Test and preview doubles**: `SilentAudioFeedbackService`, and the
+///   random source, key derivation and archive coder, which prove nothing
+///   quietly substitutes for the real crypto.
+///
+/// The task numbers they carry name where each real implementation came from.
 struct DependencyNotWired: Error, Equatable, CustomStringConvertible {
     /// The protocol that has no live implementation.
     let dependency: String

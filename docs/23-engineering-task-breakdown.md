@@ -136,8 +136,10 @@ EPIC 8 — Core Flows UI
         Baseline state is read for **both** modes via `BaselineStateMachine` over
         `GaitSessionRepository` + `BaselineRepository`; an unreadable store says
         so rather than reporting "no sessions yet". `onStart` records a
-        `PendingSession` until the countdown cover lands (8.2.6). Result and You
-        are named placeholders. Ledger entry 34.
+        `PendingSession`, which presents the session cover (8.2.6). Ledger entry 34.
+      ↳ COMPLETE. The shell's other tabs are built: Result is History, the trend
+        and the Clinician Summary (9.1.1, 9.1.2, 9.2.1); You is Settings (8.3.1).
+        The Walk tab also carries the one-time backup card (10.2.3).
     Task 8.2.6 Countdown screen                                             → dep: 8.2.1, 7.3.1, 7.1.1, 4.2.2
       ↳ listed here because it runs before 8.2.2; numbered 8.2.6 so the existing
         8.2.2-8.2.5 identifiers (referenced from the EPIC 7 audit) stay stable.
@@ -189,7 +191,12 @@ EPIC 8 — Core Flows UI
         reaching 00:00 — both through `stop()`, so neither can fire twice.
         Sequence: disable, request the stop pulse, `recorder.stop()`, then the
         pipeline. Ledger entry 38.
-      ↳ STILL OPEN: interruption and gap events are drained but not surfaced.
+      ↳ RESOLVED — intentional omission. Gap and interruption events are not shown
+        on the recording screen. They change whether a walk is scoreable, which is
+        decided after Stop by the pipeline and surfaced as the Score or Noisy
+        outcome [PRD §6], never mid-walk; `ActiveSessionViewModel.observe` consumes
+        only `elapsed`. The facts themselves are kept on the session
+        (`GaitSession.gapInfo`, `interruptionCount`).
       ↳ PRD OQ-6: entered at Go, not at the tap. The elapsed clock anchors to T-0, so
         the countdown contributes nothing to it. Stop stays **instant** — no countdown,
         a single haptic pulse plus the stop tone; the asymmetry with Start is deliberate
@@ -203,6 +210,10 @@ EPIC 8 — Core Flows UI
         Do not swap the slot without the lifecycle — `prepare()` activates an
         `AVAudioSession` and something must deactivate it. Delete the stale
         "Task 7.1.1 replaces this" comment at the same time.
+      ↳ DONE (`84b75fa`). `EngineAudioFeedbackService` is in both production graphs,
+        and `SessionRecorder` owns its lifecycle: `prepare()` at session start,
+        `teardown()` at the end. The stale comment is gone.
+      ↳ COMPLETE.
     Task 8.2.3 Processing screen + routing to Score/Noisy                   → dep: 5.1.1
       ↳ DONE except the destination. `ProcessingView` (mark, title, mode-named
         body, privacy line) is non-dismissible while the pipeline runs — after
@@ -211,13 +222,25 @@ EPIC 8 — Core Flows UI
         runs buffer → `SessionProcessor` → `GaitSession` → `SessionCommitService`,
         and both production graphs carry it (nil in the degraded one, which has no
         store to commit to). Ledger entry 38.
-      ↳ STILL OPEN: `.finished` and `.failed` currently just close the cover —
-        the Score and Noisy screens are 8.2.4/8.2.5.
+      ↳ COMPLETE (`a393308`). `.finished` routes to the outcome inside the cover
+        (`SessionCoverView.completion(for:)`): a valid walk to the Score screen
+        (8.2.4), an invalid one to the Noisy screen (8.2.5). `.failed` closes the
+        cover by design, so the error is reported beside Start on the setup screen,
+        where trying again happens (docs/15 §15.1).
     Task 8.2.4 Score screen (building/relative states, expandable signals)  → dep: 6.2.3
       ↳ carries EPIC 6 audit ACs 7/9/10: the building state, the
         "vs. your baseline" rendering, and the provisional framing.
         Screen-level, so unverifiable until this screen exists.
+      ↳ COMPLETE. `Features/Session/Result/SessionScoreView` over the pure
+        `SessionScorePresentation`: the building state (Walk X of 5, with the
+        provisional within-walk score on its own labelled 0-100 scale), the
+        relative index against the mode's baseline, and the expandable signals.
+        Also opened for a stored session from a History row (`4572ccf`, 9.1.1).
+        The EPIC 6 audit ACs are covered by the presentation's tests.
     Task 8.2.5 Noisy screen (plain-language, invalid, no score)
+      ↳ COMPLETE (`a393308`). `SessionCompletionView` over `SessionCompletionContent`:
+        the plain-language reason a walk was not scored, no score on either scale,
+        and nothing counted toward the baseline [PRD §5, §6, §7].
   Feature 8.3 Home
     Task 8.3.1 You tab & Settings (export, restore, clinician summary, About/disclaimer) → dep: 10.2.2, 10.3.3
       ↳ REPURPOSED from "Home empty/populated + trend snapshot + export nudge"
@@ -254,6 +277,15 @@ EPIC 10 — Backup (Export/Import/Restore)
     Task 10.3.3 Settings conflict flow (Cancel/Export-first/Replace)        → dep: 10.2.2
     Task 10.3.4 Atomic replace + snapshot + rollback + state invalidation   → dep: 10.3.1, 3.1.2
     Task 10.3.5 Kill-point atomicity test suite                              → dep: 10.3.4
+      ↳ IMPLEMENTED; true process-kill test DEFERRED to device validation (11.2).
+        Built and verified: the on-disk serialized snapshot (`StoreSnapshotCoding`,
+        SHA-256 verified) and restore-in-progress marker, staged before the first
+        write; and launch recovery (`RestoreRecoveryService`, run by the router
+        before its first store read). `RestoreRecoveryTests` reproduce every state
+        an interruption can leave (killed before the write, after the write,
+        with a store that could not be put back, damaged or unreadable snapshot)
+        and assert the recovered store row-for-row. What is not yet run is
+        docs/19's kill-point injection against a real terminated process.
 
 EPIC 11 — Validation & Release
   Feature 11.1 Test Hardening
