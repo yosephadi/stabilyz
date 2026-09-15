@@ -105,6 +105,12 @@ private final class QuietLog: LogService, @unchecked Sendable {
     func endInterval(_ interval: SignpostInterval) {}
 }
 
+/// A store with nothing in it, so every restore here goes straight ahead;
+/// the overwrite choice is `RestoreOverwriteTests`'.
+private struct EmptyStore: LocalDataDetecting {
+    func hasLocalData() async throws -> Bool { false }
+}
+
 /// What the screen reported outward. Not isolated, so it can be a default
 /// argument.
 private final class Outcomes {
@@ -148,6 +154,8 @@ private func makeHarness(withRestorer: Bool = true) -> Harness {
     let model = RestoreDataViewModel(
         inspector: inspector,
         restorer: withRestorer ? restorer : nil,
+        localData: EmptyStore(),
+        makeExportFlow: nil,
         fileAccess: access,
         logService: QuietLog(),
         onRestored: { outcomes.receipts.append($0) },

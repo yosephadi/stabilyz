@@ -44,6 +44,33 @@ struct RestoreDataView: View {
         ) { result in
             Task { await model.fileImported(result) }
         }
+        // The overwrite choice (Task 10.3.3): a native action sheet, as the
+        // design system specifies for this decision, with Replace in iOS's
+        // destructive style (§2.3, §5).
+        .confirmationDialog(
+            RestoreDataViewModel.replaceTitle,
+            isPresented: $model.isConfirmationPresented,
+            titleVisibility: .visible
+        ) {
+            Button(RestoreDataViewModel.replaceLabel, role: .destructive) {
+                Task { await model.confirmReplace() }
+            }
+            if model.canExportFirst {
+                Button(RestoreDataViewModel.exportFirstLabel) { model.exportCurrentDataFirst() }
+            }
+            Button(RestoreDataViewModel.keepLabel, role: .cancel) { model.keepCurrentData() }
+        } message: {
+            Text(RestoreDataViewModel.replaceMessage)
+        }
+        .sheet(
+            item: Binding(
+                get: { model.exportFlow },
+                set: { if $0 == nil { model.exportClosed() } }
+            ),
+            onDismiss: { model.exportDismissed() }
+        ) { flow in
+            ExportFlowView(model: flow)
+        }
         .onDisappear { model.discardSecrets() }
     }
 
@@ -185,3 +212,7 @@ struct RestoreDataView: View {
         Task { await model.restore() }
     }
 }
+
+/// Export My Data is presented by identity from Restore your data's
+/// "Export Current Data First".
+extension ExportFlowModel: Identifiable {}

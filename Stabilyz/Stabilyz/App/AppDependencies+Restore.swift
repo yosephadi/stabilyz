@@ -8,7 +8,16 @@ extension AppDependencies {
         ArchiveInspectionService(coder: secureArchive, fileIO: fileIO, logService: logService)
     }
 
-    /// Restore your data, ready to present (Task 10.3.2). `onFinished` runs
+    /// Whether a restore would overwrite anything (Task 10.3.3).
+    var localDataDetector: LocalDataDetecting {
+        RepositoryLocalDataDetector(
+            profiles: userProfileRepository,
+            sessions: gaitSessionRepository,
+            baselines: baselineRepository
+        )
+    }
+
+    /// Restore your data, ready to present (Tasks 10.3.2–10.3.3). `onFinished` runs
     /// when the screen closes or the restore succeeds; the app root moves on
     /// by itself, from the store-replacement broadcast.
     @MainActor
@@ -16,6 +25,8 @@ extension AppDependencies {
         RestoreDataViewModel(
             inspector: archiveInspector,
             restorer: archiveRestorer,
+            localData: localDataDetector,
+            makeExportFlow: { onClose in makeExportFlow(onClose: onClose) },
             fileAccess: SystemSecurityScopedAccess(),
             logService: logService,
             onRestored: { _ in onFinished() },
