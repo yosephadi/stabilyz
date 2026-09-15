@@ -155,6 +155,10 @@ enum Controls {
     /// Equal to the home-indicator inset by coincidence, not derivation — this
     /// one is the gap the node draws above a tab bar, and moves with that node.
     static let tabFooterBottomGap: CGFloat = 34
+
+    /// The picked file's tile on Restore your data (Figma 64:3890: 90x70).
+    static let fileThumbnailWidth: CGFloat = 90
+    static let fileThumbnailHeight: CGFloat = 70
 }
 
 /// Corner radii (§4). No sharp corners anywhere.
@@ -166,6 +170,8 @@ enum Radius {
     /// ordering between them carries no meaning.
     static let card: CGFloat = 26
     static let sheet: CGFloat = 24
+    /// The picked file's tile (Figma 64:3890).
+    static let thumbnail: CGFloat = 5
 }
 
 /// Fixed accessibility minimums (§4, §9).

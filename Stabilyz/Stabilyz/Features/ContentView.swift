@@ -40,6 +40,13 @@ struct ContentView: View {
         // the fade happens whichever of the two inputs ends the splash.
         .animation(.easeInOut(duration: Motion.rootCrossFade), value: isShowingSplash)
         .task { await router.resolve() }
+        // A restore replaced the store: the root is whatever the new store
+        // says it is — Home, for any export (docs/11 §11.1, §11.4).
+        .task {
+            for await _ in dependencies.storeEvents.subscribe() {
+                await router.resolve()
+            }
+        }
     }
 
     /// The splash also stands in for the `resolving` phase's spinner — that is
@@ -62,7 +69,10 @@ struct ContentView: View {
                     Task { await router.resolve() }
                 }
             case .firstLaunch:
-                WelcomeView { router.beginOnboarding() }
+                WelcomeView(
+                    beginOnboarding: { router.beginOnboarding() },
+                    makeRestore: { onFinished in dependencies.makeRestoreFlow(onFinished: onFinished) }
+                )
             case .onboarding:
                 OnboardingView(
                     model: OnboardingViewModel(

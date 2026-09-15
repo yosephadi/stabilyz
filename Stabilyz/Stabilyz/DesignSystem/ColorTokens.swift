@@ -154,6 +154,21 @@ enum StabilyzColor {
     static let progressFill = Color(light: 0x1D3963, dark: 0x8FB4D6)
     /// A step not yet reached.
     static let progressTrack = Color(light: 0xDBE3F3, dark: 0x2A2F37)
+
+    // MARK: - Restore (Figma nodes 64:3890, 94:579, 94:665, 94:722)
+
+    /// Light values read verbatim from the nodes; the design has no dark mode,
+    /// so the dark halves are chosen to stay legible on dark `bg-base`.
+
+    /// The one-line problem above the passphrase field ("That passphrase
+    /// didn't work"). A muted coral rather than `danger`: nothing here is
+    /// destructive, and §2.3 keeps `danger` for what is. The words carry the
+    /// problem; the colour only reinforces it (§9).
+    static let restoreProblem = Color(light: 0xBE4C4C, dark: 0xE38B8B)
+    /// The helper and problem explanation beneath the field.
+    static let restoreHelper = Color(light: 0x697281, dark: 0xB8BEC7)
+    /// The neutral tile standing in for the picked file.
+    static let fileThumbnail = Color(light: 0xD9D9D9, dark: 0x2A2F37)
 }
 
 // MARK: - Hex

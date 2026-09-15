@@ -1,4 +1,5 @@
 import SwiftUI
+import UniformTypeIdentifiers
 
 /// First launch: the app's name, what it does, and the two ways in
 /// [PRD §5] (Figma node 47:1275).
@@ -17,7 +18,12 @@ struct WelcomeView: View {
     /// store, so it is handed in rather than reached for (docs/12 §12.3).
     let beginOnboarding: () -> Void
 
-    @State private var isShowingRestoreNotice = false
+    /// "Restore from Export": builds Restore your data around the file picked
+    /// here, calling back when that screen is done with (Task 10.3.2).
+    let makeRestore: @MainActor (_ onFinished: @escaping @MainActor () -> Void) -> RestoreDataViewModel
+
+    @State private var isPickingFile = false
+    @State private var restore: RestoreDataViewModel?
 
     var body: some View {
         VStack(spacing: 0) {
@@ -44,15 +50,20 @@ struct WelcomeView: View {
         .padding(.bottom, Controls.footerBottomGap)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(StabilyzColor.bgBase)
-        .alert("Restore isn't ready yet", isPresented: $isShowingRestoreNotice) {
-            Button("OK", role: .cancel) {}
-        } message: {
-            Text(
-                """
-                Restoring from an export arrives in a later update. \
-                Choose Get Started to set Stabilyz up on this device.
-                """
-            )
+        // The picker opens over Welcome (Figma 64:4666); the passphrase screen
+        // follows once there is a file to ask about. `.data` as well as the
+        // export's type — see `RestoreDataView`.
+        .fileImporter(
+            isPresented: $isPickingFile,
+            allowedContentTypes: [ArchiveFormat.contentType, .data]
+        ) { result in
+            if case .failure(let error) = result, RestoreDataViewModel.isCancellation(error) { return }
+            let model = makeRestore { restore = nil }
+            restore = model
+            Task { await model.fileImported(result) }
+        }
+        .fullScreenCover(item: $restore) { model in
+            RestoreDataView(model: model)
         }
     }
 
@@ -96,12 +107,11 @@ struct WelcomeView: View {
             }
             .buttonStyle(.primaryCapsuleHero)
 
-            // Restore is Task 10.3.2. It is on screen from the start because
-            // [PRD §5] puts it here, and a first launch that offered no route
+            // [PRD §5] puts restore here: a first launch that offered no route
             // back to an export would be the one screen where a returning user
-            // is stuck; until the epic lands it says so rather than pretending.
+            // is stuck.
             Button {
-                isShowingRestoreNotice = true
+                isPickingFile = true
             } label: {
                 HStack(spacing: Space.x2) {
                     Image(systemName: "square.and.arrow.down")

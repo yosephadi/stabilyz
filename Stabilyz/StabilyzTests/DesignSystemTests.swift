@@ -130,6 +130,25 @@ private func contrastRatio(_ a: Color, _ b: Color, dark: Bool) -> Double {
     #expect(contrastRatio(StabilyzColor.progressFill, StabilyzColor.progressTrack, dark: false) >= 3)
 }
 
+/// Read off Figma nodes 64:3890 and 94:579 (Task 10.3.2).
+@MainActor
+@Test func theRestorePaletteMatchesTheFigmaNodes() {
+    expectColor(StabilyzColor.restoreProblem, light: 0xBE4C4C, dark: 0xE38B8B, "restore problem")
+    expectColor(StabilyzColor.restoreHelper, light: 0x697281, dark: 0xB8BEC7, "restore helper")
+    expectColor(StabilyzColor.fileThumbnail, light: 0xD9D9D9, dark: 0x2A2F37, "file thumbnail")
+    #expect(Controls.fileThumbnailWidth == 90)
+    #expect(Controls.fileThumbnailHeight == 70)
+    #expect(Radius.thumbnail == 5)
+}
+
+@MainActor
+@Test func theRestoreCopyColoursStayLegibleInBothModes() {
+    for dark in [false, true] {
+        #expect(contrastRatio(StabilyzColor.restoreProblem, StabilyzColor.bgBase, dark: dark) >= 4.5, "dark: \(dark)")
+        #expect(contrastRatio(StabilyzColor.restoreHelper, StabilyzColor.bgBase, dark: dark) >= 4.5, "dark: \(dark)")
+    }
+}
+
 @MainActor
 @Test func darkModeNeverUsesPureBlack() {
     // §8: #0D1117 keeps enough warmth to avoid OLED smearing.

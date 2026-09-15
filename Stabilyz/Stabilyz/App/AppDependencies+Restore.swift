@@ -7,4 +7,19 @@ extension AppDependencies {
     var archiveInspector: ArchiveInspecting {
         ArchiveInspectionService(coder: secureArchive, fileIO: fileIO, logService: logService)
     }
+
+    /// Restore your data, ready to present (Task 10.3.2). `onFinished` runs
+    /// when the screen closes or the restore succeeds; the app root moves on
+    /// by itself, from the store-replacement broadcast.
+    @MainActor
+    func makeRestoreFlow(onFinished: @escaping @MainActor () -> Void) -> RestoreDataViewModel {
+        RestoreDataViewModel(
+            inspector: archiveInspector,
+            restorer: archiveRestorer,
+            fileAccess: SystemSecurityScopedAccess(),
+            logService: logService,
+            onRestored: { _ in onFinished() },
+            onClose: onFinished
+        )
+    }
 }
