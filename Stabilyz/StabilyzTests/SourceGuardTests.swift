@@ -4,7 +4,7 @@ import Testing
 
 /// Locates the app's source tree relative to this file, so the scans do not
 /// depend on a bundle resource or on where the tests are run from.
-private enum SourceTree {
+enum SourceTree {
     static func appSourceRoot(file: StaticString = #filePath) -> URL {
         URL(fileURLWithPath: String(describing: file))
             .deletingLastPathComponent()   // StabilyzTests

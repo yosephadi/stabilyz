@@ -167,7 +167,7 @@ struct RestoreRecoveryService: RestoreRecovering {
             snapshot = try StoreSnapshotCoding.decode(data)
         } catch {
             discardStaging()
-            logService.log(.error, .backup, "restore recovery: snapshot damaged (\(error)); store left as it is")
+            logService.log(.error, .backup, "restore recovery: snapshot damaged (\(LogRedaction.describe(error))); store left as it is")
             return .snapshotUnusable
         }
 

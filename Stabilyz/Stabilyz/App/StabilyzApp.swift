@@ -22,7 +22,7 @@ struct StabilyzApp: App {
         } catch {
             // Never crash on a store that will not open; run degraded and say so.
             let degraded = AppDependencies.storeUnavailable()
-            degraded.logService.log(.error, .persistence, "store unavailable at launch: \(error)")
+            degraded.logService.log(.error, .persistence, "store unavailable at launch: \(LogRedaction.describe(error))")
             dependencies = degraded
         }
     }

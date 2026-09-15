@@ -233,7 +233,8 @@ actor EngineAudioFeedbackService: AudioFeedbackService {
 
         metronome = schedule
         metronomeBPM = bpm
-        logService.log(.info, .audio, "metronome started at \(Int(bpm)) bpm")
+        // Not the tempo: it is the baseline cadence, a metric value (docs/20).
+        logService.log(.info, .audio, "metronome started")
         scheduleMetronomeBatch()
     }
 

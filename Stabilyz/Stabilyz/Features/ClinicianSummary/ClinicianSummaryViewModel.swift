@@ -87,7 +87,7 @@ final class ClinicianSummaryViewModel {
             phase = .loaded
         } catch {
             guard current == generation else { return }
-            logService.log(.error, .persistence, "clinician summary load failed: \(error)")
+            logService.log(.error, .persistence, "clinician summary load failed: \(LogRedaction.describe(error))")
             phase = .failed
         }
     }

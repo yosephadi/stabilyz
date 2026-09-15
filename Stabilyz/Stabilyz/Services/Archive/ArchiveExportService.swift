@@ -125,7 +125,7 @@ struct ArchiveExportService: ArchiveExporting {
             logService.log(.error, .backup, "export key derivation failed")
             throw StabilyzError.export(.keyDerivationFailed)
         } catch {
-            logService.log(.error, .backup, "export sealing failed: \(error)")
+            logService.log(.error, .backup, "export sealing failed: \(LogRedaction.describe(error))")
             throw StabilyzError.export(.archiveGenerationFailed)
         }
 

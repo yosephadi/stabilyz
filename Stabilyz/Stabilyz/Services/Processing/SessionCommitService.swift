@@ -121,7 +121,7 @@ struct SessionCommitService: Sendable {
             // The walk is valid data and is kept. No substitute baseline, no
             // restart of calibration (docs/decisions.md entry 17).
             try await writer.save(session)
-            logService.log(.warning, .baseline, "baseline refused: mode=\(mode.rawValue) reason=\(error)")
+            logService.log(.warning, .baseline, "baseline refused: mode=\(mode.rawValue) reason=\(LogRedaction.describe(error))")
             let count = try await sessions.validSessionCount(mode: mode)
             return try await result(
                 for: session,

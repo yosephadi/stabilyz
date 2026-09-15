@@ -134,7 +134,7 @@ final class SessionListViewModel {
             phase = .loaded
         } catch {
             guard current == generation else { return }
-            logService.log(.error, .persistence, "history load failed: \(error)")
+            logService.log(.error, .persistence, "history load failed: \(LogRedaction.describe(error))")
             phase = .failed
         }
     }
