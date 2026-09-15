@@ -58,7 +58,12 @@ struct RestoreDataView: View {
             if model.canExportFirst {
                 Button(RestoreDataViewModel.exportFirstLabel) { model.exportCurrentDataFirst() }
             }
-            Button(RestoreDataViewModel.keepLabel, role: .cancel) { model.keepCurrentData() }
+            // A plain button, not `role: .cancel`: on iPhone, iOS 26 draws no
+            // cancel-role button in a confirmation dialog — only a tap outside
+            // dismisses it — and [PRD §7 AC] requires three visible choices. A
+            // dialog dismissed without an answer is still safe: nothing is
+            // touched, and Restore backup asks again.
+            Button(RestoreDataViewModel.keepLabel) { model.keepCurrentData() }
         } message: {
             Text(RestoreDataViewModel.replaceMessage)
         }
@@ -157,6 +162,7 @@ struct RestoreDataView: View {
             .padding(.horizontal, Space.x4)
             .frame(maxWidth: .infinity, minHeight: Controls.rowHeight, alignment: .leading)
             .accessibilityLabel(RestoreDataViewModel.passphraseLabel)
+            .accessibilityIdentifier("restore.passphrase")
     }
 
     // MARK: - Chrome
@@ -195,6 +201,7 @@ struct RestoreDataView: View {
             }
             .buttonStyle(.primaryCapsuleHero)
             .disabled(!model.canRestore)
+            .accessibilityIdentifier("restore.restoreBackup")
 
             Button(RestoreDataViewModel.chooseDifferentFileLabel) {
                 isPassphraseFocused = false
