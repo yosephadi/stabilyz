@@ -13,16 +13,16 @@ struct SettingsView: View {
     var body: some View {
         List {
             Section {
-                row(SettingsViewModel.clinicianSummaryLabel, systemImage: "stethoscope", disclosure: true) {
+                row(SettingsViewModel.clinicianSummaryLabel, systemImage: "stethoscope", identifier: "settings.clinicianSummary", disclosure: true) {
                     model.openClinicianSummary()
                 }
             }
 
             Section(SettingsViewModel.backupSectionTitle) {
-                row(SettingsViewModel.exportLabel, systemImage: "square.and.arrow.up") {
+                row(SettingsViewModel.exportLabel, systemImage: "square.and.arrow.up", identifier: "settings.export") {
                     model.exportMyData()
                 }
-                row(SettingsViewModel.restoreLabel, systemImage: "square.and.arrow.down") {
+                row(SettingsViewModel.restoreLabel, systemImage: "square.and.arrow.down", identifier: "settings.restore") {
                     model.restoreFromBackup()
                 }
             }
@@ -30,7 +30,7 @@ struct SettingsView: View {
             Section(SettingsViewModel.aboutSectionTitle) {
                 LabeledContent(SettingsViewModel.appNameLabel, value: SettingsViewModel.appName)
                 LabeledContent(SettingsViewModel.versionLabel, value: model.version)
-                row(SettingsViewModel.disclaimerLabel, systemImage: "doc.text", disclosure: true) {
+                row(SettingsViewModel.disclaimerLabel, systemImage: "doc.text", identifier: "settings.disclaimer", disclosure: true) {
                     model.showDisclaimer()
                 }
             }
@@ -69,6 +69,7 @@ struct SettingsView: View {
     private func row(
         _ title: String,
         systemImage: String,
+        identifier: String,
         disclosure: Bool = false,
         action: @escaping () -> Void
     ) -> some View {
@@ -96,6 +97,7 @@ struct SettingsView: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .accessibilityIdentifier(identifier)
     }
 }
 

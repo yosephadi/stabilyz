@@ -181,5 +181,6 @@ struct ActiveSessionView: View {
         Button(ActiveSessionViewModel.stopTitle) { model.stop() }
             .buttonStyle(.destructiveCapsuleHero)
             .disabled(model.isStopping)
+            .accessibilityIdentifier("session.stop")
     }
 }

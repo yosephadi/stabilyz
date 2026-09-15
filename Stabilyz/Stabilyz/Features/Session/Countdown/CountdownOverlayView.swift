@@ -49,6 +49,7 @@ struct CountdownOverlayView: View {
 
                 Button(Self.cancelTitle, action: cancel)
                     .buttonStyle(.secondaryCapsuleHero)
+                    .accessibilityIdentifier("countdown.cancel")
                     .padding(.horizontal, Space.screenMargin)
                     .padding(.bottom, Controls.coverFooterBottomGap)
             }

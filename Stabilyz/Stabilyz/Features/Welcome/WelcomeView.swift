@@ -22,6 +22,9 @@ struct WelcomeView: View {
     /// here, calling back when that screen is done with (Task 10.3.2).
     let makeRestore: @MainActor (_ onFinished: @escaping @MainActor () -> Void) -> RestoreDataViewModel
 
+    /// Opened by Restore in place of the document picker, when set (UI tests).
+    var presetRestoreFile: URL? = nil
+
     @State private var isPickingFile = false
     @State private var restore: RestoreDataViewModel?
 
@@ -57,14 +60,20 @@ struct WelcomeView: View {
             isPresented: $isPickingFile,
             allowedContentTypes: [ArchiveFormat.contentType, .data]
         ) { result in
-            if case .failure(let error) = result, RestoreDataViewModel.isCancellation(error) { return }
-            let model = makeRestore { restore = nil }
-            restore = model
-            Task { await model.fileImported(result) }
+            openRestore(result)
         }
         .fullScreenCover(item: $restore) { model in
             RestoreDataView(model: model)
         }
+    }
+
+    /// Restore your data, on a picked file. Backing out of the picker opens
+    /// nothing.
+    private func openRestore(_ result: Result<URL, Error>) {
+        if case .failure(let error) = result, RestoreDataViewModel.isCancellation(error) { return }
+        let model = makeRestore { restore = nil }
+        restore = model
+        Task { await model.fileImported(result) }
     }
 
     // MARK: - Header
@@ -106,12 +115,17 @@ struct WelcomeView: View {
                 }
             }
             .buttonStyle(.primaryCapsuleHero)
+            .accessibilityIdentifier("welcome.getStarted")
 
             // [PRD §5] puts restore here: a first launch that offered no route
             // back to an export would be the one screen where a returning user
             // is stuck.
             Button {
-                isPickingFile = true
+                if let presetRestoreFile {
+                    openRestore(.success(presetRestoreFile))
+                } else {
+                    isPickingFile = true
+                }
             } label: {
                 HStack(spacing: Space.x2) {
                     Image(systemName: "square.and.arrow.down")
@@ -119,6 +133,7 @@ struct WelcomeView: View {
                 }
             }
             .buttonStyle(.secondaryCapsuleHero)
+            .accessibilityIdentifier("welcome.restore")
         }
     }
 }

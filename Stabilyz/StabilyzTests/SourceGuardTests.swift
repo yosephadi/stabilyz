@@ -566,7 +566,10 @@ enum SourceTree {
     static let debugPaths = ["Debug", "Persistence/DebugDataReset.swift"]
 
     /// Symbols that must never be reachable from release code.
-    static let debugSymbols = ["DebugDataReset", "debugResetGesture", "DebugResetGesture", "debugStoreWriter", "eraseAllData"]
+    static let debugSymbols = [
+        "DebugDataReset", "debugResetGesture", "DebugResetGesture", "debugStoreWriter", "eraseAllData",
+        "UITestingLaunch", "UITestingStorePreparation", "uiTestingRestoreFile"
+    ]
 
     /// Whether a source is wrapped in `#if DEBUG` from its first code line.
     ///

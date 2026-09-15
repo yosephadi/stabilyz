@@ -83,6 +83,7 @@ struct RestoreDataView: View {
                     .font(StabilyzFont.subheadingBold)
                     .foregroundStyle(StabilyzColor.onboardingTitle)
                     .accessibilityAddTraits(.isHeader)
+                    .accessibilityIdentifier("restore.title")
 
                 if let file = model.file {
                     fileRow(file)
@@ -175,6 +176,7 @@ struct RestoreDataView: View {
         .buttonStyle(.plain)
         .disabled(model.phase == .restoring)
         .accessibilityLabel(RestoreDataViewModel.backLabel)
+        .accessibilityIdentifier("restore.back")
     }
 
     private var footer: some View {

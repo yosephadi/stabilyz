@@ -42,6 +42,7 @@ struct ClinicianSummaryView: View {
                         Image(systemName: "xmark")
                     }
                     .accessibilityLabel(ClinicianSummaryViewModel.closeLabel)
+                    .accessibilityIdentifier("clinicianSummary.close")
                 }
             }
             .refreshable { await model.load() }

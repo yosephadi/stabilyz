@@ -192,6 +192,7 @@ struct SessionSetupView: View {
         Button(model.startButtonTitle) { model.start() }
             .buttonStyle(.primaryCapsuleHero)
             .disabled(model.isStartEnabled == false)
+            .accessibilityIdentifier("walk.start")
     }
 
     // MARK: - Shared bits

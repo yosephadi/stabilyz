@@ -112,6 +112,7 @@ struct OnboardingView: View {
         }
         .buttonStyle(.plain)
         .accessibilityLabel(model.canGoBack ? "Back" : "Back to Welcome")
+        .accessibilityIdentifier("onboarding.back")
     }
 
     /// Skip, on the two optional screens only.
@@ -126,6 +127,7 @@ struct OnboardingView: View {
             Button("Skip") {
                 Task { await model.skip() }
             }
+            .accessibilityIdentifier("onboarding.skip")
             .font(StabilyzFont.bodyBold)
             .foregroundStyle(StabilyzColor.primary600)
             .frame(minHeight: Metrics.minimumTapTarget)
@@ -170,6 +172,7 @@ struct OnboardingView: View {
             }
             .buttonStyle(.primaryCapsuleHero)
             .disabled(!model.canContinue)
+            .accessibilityIdentifier("onboarding.next")
         }
         .padding(.horizontal, Space.screenMargin)
         .padding(.top, Space.x6)
@@ -260,6 +263,7 @@ struct OnboardingView: View {
 
                     Toggle(DisclaimerText.acknowledgement, isOn: $model.disclaimerAccepted)
                         .toggleStyle(.checkbox)
+                        .accessibilityIdentifier("onboarding.disclaimer.accept")
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
             }

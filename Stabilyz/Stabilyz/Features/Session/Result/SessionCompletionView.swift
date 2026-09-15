@@ -65,9 +65,11 @@ struct SessionCompletionView: View {
             if let viewResult {
                 Button(SessionCompletionContent.viewResultLabel, action: viewResult)
                     .buttonStyle(.primaryCapsuleHero)
+                    .accessibilityIdentifier("session.viewResult")
             }
 
             Button(SessionCompletionContent.backToWalkLabel, action: backToWalk)
+                .accessibilityIdentifier("session.backToWalk")
                 // Primary when it is the only way out, secondary when it sits
                 // beside one. The role follows what the screen is asking, not
                 // what the label says.

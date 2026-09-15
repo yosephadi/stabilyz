@@ -56,6 +56,7 @@ struct SessionScoreView: View {
             .padding(.bottom, Space.x6)
         }
         .background(StabilyzColor.bgBase)
+        .accessibilityIdentifier("score.screen")
         // Docked rather than placed after the scroll view. `safeAreaInset`
         // insets the scroll content by exactly the bar's height, so the last
         // row can always be scrolled clear of the button instead of ending
@@ -75,6 +76,7 @@ struct SessionScoreView: View {
     private func doneBar(_ done: @escaping () -> Void) -> some View {
         Button(SessionScorePresentation.doneLabel, action: done)
             .buttonStyle(.primaryCapsuleHero)
+            .accessibilityIdentifier("score.done")
             // The screen margin, so the capsule's edges line up with the column
             // of content above it rather than sitting 4pt proud of it.
             .padding(.horizontal, Space.screenMargin)

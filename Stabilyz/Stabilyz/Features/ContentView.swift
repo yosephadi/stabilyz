@@ -68,7 +68,8 @@ struct ContentView: View {
             case .firstLaunch:
                 WelcomeView(
                     beginOnboarding: { router.beginOnboarding() },
-                    makeRestore: { onFinished in dependencies.makeRestoreFlow(onFinished: onFinished) }
+                    makeRestore: { onFinished in dependencies.makeRestoreFlow(onFinished: onFinished) },
+                    presetRestoreFile: presetRestoreFile
                 )
             case .onboarding:
                 OnboardingView(
@@ -85,6 +86,16 @@ struct ContentView: View {
                 mainRoot
             }
         }
+    }
+
+    /// UI tests hand Welcome its restore file rather than driving the system
+    /// document picker. Always nil in a release build.
+    private var presetRestoreFile: URL? {
+        #if DEBUG
+        dependencies.uiTestingRestoreFile
+        #else
+        nil
+        #endif
     }
 
     /// The Walk / Result / You shell, carrying the DEBUG-only reset gesture

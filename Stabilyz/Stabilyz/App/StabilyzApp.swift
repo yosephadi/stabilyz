@@ -16,14 +16,26 @@ struct StabilyzApp: App {
     private let dependencies: AppDependencies
 
     init() {
+        dependencies = Self.makeDependencies()
+    }
+
+    private static func makeDependencies() -> AppDependencies {
+        #if DEBUG
+        // UI tests launch with `-ui-testing`: an in-memory store and replayed
+        // sensors, so every journey starts from the same state (Task 11.1.1).
+        if UITestingLaunch.isRequested, let testing = try? UITestingLaunch.dependencies() {
+            return testing
+        }
+        #endif
         do {
-            dependencies = try AppDependencies.live()
-            dependencies.logService.log(.info, .app, "Stabilyz launched")
+            let live = try AppDependencies.live()
+            live.logService.log(.info, .app, "Stabilyz launched")
+            return live
         } catch {
             // Never crash on a store that will not open; run degraded and say so.
             let degraded = AppDependencies.storeUnavailable()
             degraded.logService.log(.error, .persistence, "store unavailable at launch: \(LogRedaction.describe(error))")
-            dependencies = degraded
+            return degraded
         }
     }
 

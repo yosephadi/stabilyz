@@ -90,6 +90,11 @@ struct AppDependencies: Sendable {
     /// would otherwise have to exist in release signatures to keep call sites
     /// compiling. `nil` in the degraded graph, where there is no store to erase.
     var debugStoreWriter: StoreWriter?
+
+    /// UI tests only: the file Welcome's Restore opens instead of presenting the
+    /// system document picker, which runs out of process and cannot be driven
+    /// deterministically (Task 11.1.1).
+    var uiTestingRestoreFile: URL?
     #endif
 
     init(
@@ -137,6 +142,21 @@ struct AppDependencies: Sendable {
     }
 }
 
+/// Stand-ins for parts of the production graph, for a UI-testing launch
+/// (Task 11.1.1, docs/19 §19.3). Everything left nil is the production value;
+/// nothing outside a `#if DEBUG` launch path sets one.
+struct LiveOverrides {
+    var motionSensor: MotionSensorService?
+    var pedometer: PedometerService?
+    var audioFeedback: AudioFeedbackService?
+    var onboardingDrafts: OnboardingDraftStore?
+    var exportNudgeStore: ExportNudgeStore?
+    /// Runs before the router's first store read, in place of launch recovery.
+    var restoreRecovery: RestoreRecovering?
+
+    init() {}
+}
+
 extension AppDependencies {
     /// The production graph, backed by the SwiftData store.
     ///
@@ -148,7 +168,8 @@ extension AppDependencies {
     ///   safety net; tests point it at a scratch directory.
     static func live(
         container: ModelContainer,
-        restoreStagingDirectory: URL = RestoreStagingArea.defaultDirectory
+        restoreStagingDirectory: URL = RestoreStagingArea.defaultDirectory,
+        overrides: LiveOverrides = LiveOverrides()
     ) -> AppDependencies {
         let reader = StoreReader(modelContainer: container)
         let writer = StoreWriter(modelContainer: container)
@@ -156,15 +177,18 @@ extension AppDependencies {
         let logService = OSLogService()
         let clock = SystemClock()
         let fileIO = FileManagerFileIO()
-        let motionSensor = CoreMotionSensorService(clock: clock, logService: logService)
-        let pedometer = CoreMotionPedometerService(logService: logService)
+        let motionSensor: MotionSensorService = overrides.motionSensor
+            ?? CoreMotionSensorService(clock: clock, logService: logService)
+        let pedometer: PedometerService = overrides.pedometer
+            ?? CoreMotionPedometerService(logService: logService)
         // One instance, shared by the recorder and the interruption observer:
         // this type solely owns the `AVAudioSession` (docs/10 §10.2), so two of
         // them would be two writers to one piece of system state. It activates
         // nothing until `SessionRecorder` calls `prepare()` at the start of a
         // session, so constructing it here costs the launch nothing and the app
         // holds no audio route while the user is not walking.
-        let audioFeedback = EngineAudioFeedbackService(logService: logService)
+        let audioFeedback: AudioFeedbackService = overrides.audioFeedback
+            ?? EngineAudioFeedbackService(logService: logService)
         // Holds no hardware until `prepare()`, so constructing it at launch
         // costs nothing and nothing is reserved while the user is not walking.
         let hapticFeedback = LiveHapticFeedbackService(logService: logService)
@@ -220,7 +244,7 @@ extension AppDependencies {
                 fileIO: fileIO
             ),
             sessionOutcomes: outcomes,
-            onboardingDrafts: UserDefaultsOnboardingDraftStore(),
+            onboardingDrafts: overrides.onboardingDrafts ?? UserDefaultsOnboardingDraftStore(),
             userProfileRepository: profiles,
             gaitSessionRepository: sessions,
             baselineRepository: baselines,
@@ -231,9 +255,9 @@ extension AppDependencies {
                 staging: restoreStaging,
                 rebuildBaselineStates: { try await stateStore.rebuild() }
             ),
-            exportNudgeStore: UserDefaultsExportNudgeStore(),
+            exportNudgeStore: overrides.exportNudgeStore ?? UserDefaultsExportNudgeStore(),
             storeEvents: storeEvents,
-            restoreRecovery: RestoreRecoveryService(
+            restoreRecovery: overrides.restoreRecovery ?? RestoreRecoveryService(
                 staging: restoreStaging,
                 replacer: replacer,
                 logService: logService,
