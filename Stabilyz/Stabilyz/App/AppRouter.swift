@@ -47,15 +47,25 @@ final class AppRouter {
     private let profiles: UserProfileRepository
     private let drafts: OnboardingDraftStore
     private let logService: LogService
+    private let recovery: RestoreRecovering?
 
+    /// Set once launch recovery has settled, so it runs before the first store
+    /// read and not again — a later `resolve()` must never put back a snapshot
+    /// underneath a restore this session is running.
+    private var hasSettledRestoreRecovery = false
+
+    /// - Parameter recovery: puts the store back if a restore was interrupted
+    ///   (docs/13 §13.5 step 4, Task 10.3.5).
     init(
         profiles: UserProfileRepository,
         drafts: OnboardingDraftStore,
-        logService: LogService
+        logService: LogService,
+        recovery: RestoreRecovering? = nil
     ) {
         self.profiles = profiles
         self.drafts = drafts
         self.logService = logService
+        self.recovery = recovery
     }
 
     /// Reads the store and lands on a root.
@@ -66,6 +76,14 @@ final class AppRouter {
     func resolve() async {
         phase = .resolving
         launchFailure = nil
+
+        // An interrupted restore is put right before anything reads the store.
+        // Only a snapshot that could not be read or written back yet is tried
+        // again on a later resolve (a retry, say).
+        if !hasSettledRestoreRecovery, let recovery {
+            let outcome = await recovery.recoverInterruptedRestore()
+            hasSettledRestoreRecovery = outcome != .snapshotUnreadable && outcome != .recoveryFailed
+        }
 
         let profile: UserProfile?
         do {

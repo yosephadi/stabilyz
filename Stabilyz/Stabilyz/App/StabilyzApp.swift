@@ -33,7 +33,8 @@ struct StabilyzApp: App {
                 router: AppRouter(
                     profiles: dependencies.userProfileRepository,
                     drafts: dependencies.onboardingDrafts,
-                    logService: dependencies.logService
+                    logService: dependencies.logService,
+                    recovery: dependencies.restoreRecovery
                 ),
                 dependencies: dependencies
             )

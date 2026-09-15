@@ -71,6 +71,13 @@ struct AppDependencies: Sendable {
     /// rather than show data that no longer exists (docs/11 §11.4–11.5).
     let storeEvents: StoreReplacementEvents
 
+    /// Puts the store back if a restore was interrupted (Task 10.3.5). The
+    /// router runs it before its first store read at launch.
+    ///
+    /// **Nil when the store could not be opened**: there is nothing to recover
+    /// into, and the staging waits for a launch that has a store.
+    let restoreRecovery: RestoreRecovering?
+
     #if DEBUG
     /// DEBUG-only handle for `DebugDataReset` (docs/design/dev-notes.md).
     ///
@@ -99,7 +106,8 @@ struct AppDependencies: Sendable {
         gaitSessionRepository: GaitSessionRepository,
         baselineRepository: BaselineRepository,
         archiveRestorer: ArchiveRestoring? = nil,
-        storeEvents: StoreReplacementEvents = StoreReplacementEvents()
+        storeEvents: StoreReplacementEvents = StoreReplacementEvents(),
+        restoreRecovery: RestoreRecovering? = nil
     ) {
         self.logService = logService
         self.clock = clock
@@ -119,6 +127,7 @@ struct AppDependencies: Sendable {
         self.baselineRepository = baselineRepository
         self.archiveRestorer = archiveRestorer
         self.storeEvents = storeEvents
+        self.restoreRecovery = restoreRecovery
     }
 }
 
@@ -129,7 +138,12 @@ extension AppDependencies {
     /// with the conformances in `UnwiredDependencies.swift`, each naming the
     /// task that replaces it. As those tasks land, swap the value here — no
     /// call site changes.
-    static func live(container: ModelContainer) -> AppDependencies {
+    /// - Parameter restoreStagingDirectory: where a restore keeps its on-disk
+    ///   safety net; tests point it at a scratch directory.
+    static func live(
+        container: ModelContainer,
+        restoreStagingDirectory: URL = RestoreStagingArea.defaultDirectory
+    ) -> AppDependencies {
         let reader = StoreReader(modelContainer: container)
         let writer = StoreWriter(modelContainer: container)
 
@@ -157,6 +171,10 @@ extension AppDependencies {
         // the commit path reading stale baseline states.
         let stateStore = BaselineStateStore(sessions: sessions, baselines: baselines)
         let storeEvents = StoreReplacementEvents()
+        // The restore and launch recovery share one replacer and one staging
+        // directory: recovery reads exactly what the restore wrote.
+        let replacer = SwiftDataStoreReplacer(reader: reader, writer: writer)
+        let restoreStaging = RestoreStagingArea(directory: restoreStagingDirectory, fileIO: fileIO, clock: clock)
         let outcomes = SessionOutcomeService(
             processor: SessionProcessor(algorithm: GaitAnalysisPipeline(), logService: logService),
             commits: SessionCommitService(
@@ -201,12 +219,19 @@ extension AppDependencies {
             gaitSessionRepository: sessions,
             baselineRepository: baselines,
             archiveRestorer: ArchiveRestoreService(
-                replacer: SwiftDataStoreReplacer(reader: reader, writer: writer),
+                replacer: replacer,
                 events: storeEvents,
                 logService: logService,
+                staging: restoreStaging,
                 rebuildBaselineStates: { try await stateStore.rebuild() }
             ),
-            storeEvents: storeEvents
+            storeEvents: storeEvents,
+            restoreRecovery: RestoreRecoveryService(
+                staging: restoreStaging,
+                replacer: replacer,
+                logService: logService,
+                rebuildBaselineStates: { try await stateStore.rebuild() }
+            )
         )
 
         #if DEBUG

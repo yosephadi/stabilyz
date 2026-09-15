@@ -14,7 +14,7 @@ protocol ArchiveRestoring: Sendable {
 ///
 /// An import is a restore, not a merge [PRD OQ-2], and it is atomic: a failure
 /// at any point leaves the store exactly as it was [PRD §7 hard requirement].
-/// Two layers make that true:
+/// Three layers make that true:
 ///
 /// 1. **The transaction.** Everything is deleted and the archive inserted in
 ///    one save (`StoreWriter.replaceAll`); a failed save rolls back.
@@ -23,32 +23,40 @@ protocol ArchiveRestoring: Sendable {
 ///    that does not read back as exactly the archive, the store is compared
 ///    with the snapshot and, if it differs, the snapshot is written back and
 ///    checked again. This is what catches a failure the transaction did not.
+/// 3. **The staging (Task 10.3.5).** The same snapshot, plus an in-progress
+///    marker, is on disk before the first write, and removed only once the
+///    outcome is settled. A process that dies in between leaves the marker,
+///    and `RestoreRecoveryService` puts the snapshot back at the next launch.
+///    A store that could not be put back keeps its staging for the same
+///    reason.
 ///
 /// **Order.** Clinical rules are checked before anything is read or written;
-/// then snapshot, replace, verify. Only after verification are caches rebuilt
-/// and the replacement broadcast.
-///
-/// **Not covered here:** the process being killed mid-save. docs/13 §13.5
-/// step 4's on-disk snapshot, recovered at next launch, and the kill-point
-/// suite that proves it are Task 10.3.5.
+/// then snapshot, staging, replace, verify. Only after verification is the
+/// staging cleared, caches rebuilt and the replacement broadcast.
 struct ArchiveRestoreService: ArchiveRestoring {
     private let replacer: StoreReplacing
     private let events: StoreReplacementEvents
     private let logService: LogService
+    private let staging: RestoreStaging?
     private let rebuildBaselineStates: (@Sendable () async throws -> Void)?
 
-    /// - Parameter rebuildBaselineStates: throws away every cached
-    ///   `BaselineState` (`BaselineStateStore.rebuild`). Run before the
-    ///   broadcast, so a subscriber reloading on the event reads fresh states.
+    /// - Parameters:
+    ///   - staging: the on-disk safety net; nil only where there is no disk to
+    ///     keep one on (tests of the in-memory layers).
+    ///   - rebuildBaselineStates: throws away every cached `BaselineState`
+    ///     (`BaselineStateStore.rebuild`). Run before the broadcast, so a
+    ///     subscriber reloading on the event reads fresh states.
     init(
         replacer: StoreReplacing,
         events: StoreReplacementEvents,
         logService: LogService,
+        staging: RestoreStaging? = nil,
         rebuildBaselineStates: (@Sendable () async throws -> Void)? = nil
     ) {
         self.replacer = replacer
         self.events = events
         self.logService = logService
+        self.staging = staging
         self.rebuildBaselineStates = rebuildBaselineStates
     }
 
@@ -68,24 +76,45 @@ struct ArchiveRestoreService: ArchiveRestoring {
             throw StabilyzError.archiveImport(.restoreFailed)
         }
 
-        // 3. The replace.
+        // 3. The staging, on disk before the first write. Without it a killed
+        //    process could not be recovered, so no staging means no restore.
+        var stagedHere = false
+        if let staging {
+            do {
+                stagedHere = try staging.stage(snapshot)
+            } catch {
+                logService.log(.error, .backup, "restore staging failed; store not touched: \(type(of: error))")
+                throw StabilyzError.archiveImport(.restoreFailed)
+            }
+            if !stagedHere {
+                logService.log(.warning, .backup, "restore staging kept from an earlier restore that could not be put back")
+            }
+        }
+
+        // 4. The replace.
         do {
             try await replacer.replaceAll(with: target)
         } catch {
             logService.log(.error, .backup, "restore write failed: \(type(of: error))")
             try await putBack(snapshot)
+            if stagedHere { clearStaging() }
             throw StabilyzError.archiveImport(.restoreFailed)
         }
 
-        // 4. Verification: the store must read back as exactly the archive.
+        // 5. Verification: the store must read back as exactly the archive.
         let written = try? await replacer.contents()
         guard written == target else {
             logService.log(.error, .backup, "restore verification failed: store does not match the archive")
             try await putBack(snapshot)
+            if stagedHere { clearStaging() }
             throw StabilyzError.archiveImport(.restoreFailed)
         }
 
-        // 5. Everything cached about the old store goes.
+        // 6. Settled: the archive is the store. Any staging — this restore's,
+        //    or one kept from before — describes a store that no longer exists.
+        clearStaging()
+
+        // 7. Everything cached about the old store goes.
         do {
             try await rebuildBaselineStates?()
         } catch {
@@ -108,7 +137,8 @@ struct ArchiveRestoreService: ArchiveRestoring {
 
     // MARK: - Rollback
 
-    /// Leaves the store exactly as `snapshot`, or reports that it could not.
+    /// Leaves the store exactly as `snapshot`, or reports that it could not —
+    /// in which case the staging stays, for launch recovery.
     ///
     /// The usual case is that the transaction already rolled back and there is
     /// nothing to do; the comparison is what proves it. Otherwise the snapshot
@@ -124,8 +154,18 @@ struct ArchiveRestoreService: ArchiveRestoring {
             }
             logService.log(.info, .backup, "restore rolled back to the pre-restore snapshot")
         } catch {
-            logService.log(.error, .backup, "restore rollback failed: \(type(of: error))")
+            logService.log(.error, .backup, "restore rollback failed; staging kept for launch recovery: \(type(of: error))")
             throw StabilyzError.archiveImport(.restoreIncomplete)
+        }
+    }
+
+    /// A staging that cannot be removed would put the snapshot back at the
+    /// next launch. Logged loudly; the outcome in hand is still the right one.
+    private func clearStaging() {
+        do {
+            try staging?.clear()
+        } catch {
+            logService.log(.error, .backup, "could not remove restore staging: \(type(of: error))")
         }
     }
 
