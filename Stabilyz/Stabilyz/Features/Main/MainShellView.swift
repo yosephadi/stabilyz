@@ -6,9 +6,9 @@ import SwiftUI
 /// router chrome the setup screen sits inside — it belongs here rather than in
 /// `SessionSetupView`, which draws only its own content.
 ///
-/// Result carries the session list and trend (Tasks 9.1.1, 9.1.2), with the
-/// Clinician Summary behind its stethoscope (Task 9.2.1). You is Settings
-/// (Task 8.3.1, decisions.md entry 42).
+/// Result carries the session list and trend (Tasks 9.1.1, 9.1.2). You is
+/// Settings (Task 8.3.1, decisions.md entry 42), and the one way to the
+/// Clinician Summary.
 struct MainShellView: View {
     let dependencies: AppDependencies
     /// Passed through so the DEBUG reset gesture can re-resolve the root.
@@ -51,9 +51,6 @@ struct MainShellView: View {
     /// Held for the same reason: the filter the user chose should survive the
     /// cover, and the list is refreshed rather than rebuilt when it closes.
     @State private var historyModel: SessionListViewModel
-    /// The Result tab's stethoscope: the Clinician Summary (Task 9.2.1). Each
-    /// presentation builds a fresh model, so it always reads the store as it is.
-    @State private var showsClinicianSummary = false
     /// The You tab. Held so a presented flow survives tab switches.
     @State private var settingsModel: SettingsViewModel
     /// The Walk tab's one-time backup prompt (Task 10.2.3).
@@ -103,19 +100,6 @@ struct MainShellView: View {
             NavigationStack {
                 SessionListView(model: historyModel)
                     .navigationTitle("Result")
-                    .toolbar {
-                        ToolbarItem(placement: .topBarTrailing) {
-                            Button {
-                                showsClinicianSummary = true
-                            } label: {
-                                Image(systemName: "stethoscope")
-                            }
-                            .accessibilityLabel(ClinicianSummaryViewModel.title)
-                        }
-                    }
-            }
-            .sheet(isPresented: $showsClinicianSummary) {
-                clinicianSummary
             }
             .tabItem { Label("Result", systemImage: "text.document.fill") }
             .tag(ShellTab.result)
@@ -134,7 +118,7 @@ struct MainShellView: View {
         .tint(StabilyzColor.primary600)
     }
 
-    /// The Clinician Summary, from Result's stethoscope or from You [PRD §5].
+    /// The Clinician Summary, from You's Clinician Summary row [PRD §5].
     /// Each presentation builds a fresh model, so it always reads the store as
     /// it is, and opens on the mode Result was last showing.
     private var clinicianSummary: some View {
