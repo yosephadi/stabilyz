@@ -1,0 +1,77 @@
+# Task 1.1.2: build and run the test suite on every push to main and every PR.
+#
+# Runner: macos-26. The test targets deploy to iOS 26.4, and macos-15 carries at
+# most Xcode 26.3 with iOS 26.2 simulators, so the suite cannot build there.
+#
+# Simulator: an iPhone 17 on the newest installed iOS runtime, picked from
+# `simctl` rather than named in the destination. macos-26 has no "iPhone 16",
+# and `OS=latest` fails outright when the newest SDK has no runtime installed.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: Build and test
+    runs-on: macos-26
+    timeout-minutes: 60
+
+    steps:
+      - name: Check out
+        uses: actions/checkout@v4
+
+      - name: Select the latest Xcode
+        run: |
+          XCODE="$(ls -d /Applications/Xcode_26*.app | sort -V | tail -1)"
+          sudo xcode-select -s "$XCODE"
+          xcodebuild -version
+
+      - name: Pick a simulator
+        id: simulator
+        run: |
+          UDID="$(xcrun simctl list devices available -j | python3 -c '
+          import json, re, sys
+          wanted = "iPhone 17"
+          minimum = (26, 4)
+          runtimes = []
+          for key, devices in json.load(sys.stdin)["devices"].items():
+              match = re.search(r"iOS-(\d+)-(\d+)", key)
+              if match and devices:
+                  runtimes.append(((int(match.group(1)), int(match.group(2))), devices))
+          runtimes = [r for r in runtimes if r[0] >= minimum]
+          if not runtimes:
+              sys.exit("no iOS " + ".".join(map(str, minimum)) + "+ simulator runtime is installed")
+          version, devices = max(runtimes, key=lambda r: r[0])
+          phones = [d for d in devices if d["name"].startswith("iPhone")]
+          chosen = next((d for d in phones if d["name"] == wanted), phones[0] if phones else None)
+          if chosen is None:
+              sys.exit("no iPhone simulator on iOS " + ".".join(map(str, version)))
+          print(chosen["name"], ".".join(map(str, version)), file=sys.stderr)
+          print(chosen["udid"])
+          ')"
+          echo "udid=$UDID" >> "$GITHUB_OUTPUT"
+
+      - name: Build and test
+        run: |
+          set -o pipefail
+          xcodebuild test \
+            -project Stabilyz/Stabilyz.xcodeproj \
+            -scheme Stabilyz \
+            -destination "platform=iOS Simulator,id=${{ steps.simulator.outputs.udid }}" \
+            -resultBundlePath TestResults.xcresult \
+            CODE_SIGNING_ALLOWED=NO
+
+      - name: Upload test results
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: TestResults
+          path: TestResults.xcresult
+          retention-days: 7
