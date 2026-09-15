@@ -107,7 +107,7 @@ struct MainShellView: View {
             .task { historyModel.onSetUp = setUpFromHistory }
 
             NavigationStack {
-                SettingsView(model: settingsModel)
+                settingsView
                     .navigationTitle(SettingsViewModel.title)
             }
             .sheet(isPresented: $settingsModel.isShowingClinicianSummary) {
@@ -117,6 +117,25 @@ struct MainShellView: View {
             .tag(ShellTab.you)
         }
         .tint(StabilyzColor.primary600)
+    }
+
+    /// Settings, with the on-device benchmark in debug builds (Task 11.2.2).
+    @ViewBuilder
+    private var settingsView: some View {
+        #if DEBUG
+        SettingsView(
+            model: settingsModel,
+            debugBenchmark: HardwareBenchmark(
+                keyDerivation: dependencies.keyDerivation,
+                logService: dependencies.logService,
+                audioRoute: { [audio = dependencies.audioFeedback] in
+                    await (audio as? EngineAudioFeedbackService)?.debugRouteReport()
+                }
+            )
+        )
+        #else
+        SettingsView(model: settingsModel)
+        #endif
     }
 
     /// UI tests hand Settings its restore file rather than driving the system

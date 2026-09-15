@@ -504,3 +504,31 @@ actor EngineAudioFeedbackService: AudioFeedbackService {
         )
     }
 }
+
+#if DEBUG
+/// The audio route as the session's owner sees it, for Settings → Diagnostics
+/// (Task 11.2.2). Debug builds only.
+struct AudioRouteReport: Sendable, Equatable {
+    let outputLatency: TimeInterval
+    let ioBufferDuration: TimeInterval
+    let sampleRate: Double
+    let outputPorts: [String]
+    let category: String
+}
+
+extension EngineAudioFeedbackService {
+    /// Read-only: nothing is configured or activated. Here rather than in the
+    /// diagnostic, because this service is the session's only owner
+    /// (docs/10 §10.2) and a second component reading it would be a second
+    /// place that could one day start writing it.
+    func debugRouteReport() -> AudioRouteReport {
+        AudioRouteReport(
+            outputLatency: session.outputLatency,
+            ioBufferDuration: session.ioBufferDuration,
+            sampleRate: session.sampleRate,
+            outputPorts: session.currentRoute.outputs.map(\.portType.rawValue),
+            category: session.category.rawValue
+        )
+    }
+}
+#endif

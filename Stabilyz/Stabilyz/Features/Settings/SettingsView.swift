@@ -10,6 +10,12 @@ import UniformTypeIdentifiers
 struct SettingsView: View {
     @Bindable var model: SettingsViewModel
 
+    #if DEBUG
+    /// Debug builds only: the on-device benchmark behind Diagnostics
+    /// (Task 11.2.2).
+    var debugBenchmark: HardwareBenchmark? = nil
+    #endif
+
     var body: some View {
         List {
             Section {
@@ -35,6 +41,17 @@ struct SettingsView: View {
                 }
             }
             .font(StabilyzFont.bodyRegular)
+
+            #if DEBUG
+            if let debugBenchmark {
+                Section("Diagnostics") {
+                    NavigationLink("Hardware Benchmark") {
+                        DiagnosticsView(benchmark: debugBenchmark)
+                    }
+                    .accessibilityIdentifier("settings.diagnostics")
+                }
+            }
+            #endif
         }
         .listStyle(.insetGrouped)
         .scrollContentBackground(.hidden)

@@ -107,6 +107,13 @@ extension XCUIElementQuery {
 
 @MainActor
 extension XCUIApplication {
+    /// A tab bar button. The first match, because the iOS 26 tab bar can
+    /// briefly expose a tab twice while it redraws, and a tap on an ambiguous
+    /// query fails rather than picking one.
+    func tab(_ name: String) -> XCUIElement {
+        tabBars.buttons[name].firstMatch
+    }
+
     /// Any element whose label contains `text`, case-insensitively. For copy
     /// inside combined or long text elements.
     func element(labelContaining text: String) -> XCUIElement {

@@ -29,7 +29,7 @@ final class UnclearWalkJourneyTests: XCTestCase {
         start.waitToAppear(timeout: 15, "Back to Walk Menu returns to the Walk tab")
 
         // Never listed in History, in either mode.
-        app.tabBars.buttons["Result"].tap()
+        app.tab("Result").tap()
         app.navigationBars["Result"].waitToAppear()
         let rows = app.buttons.matching(identifier: "history.row")
         rows.waitForCount(0, timeout: 5, "an unclear walk appears in History")

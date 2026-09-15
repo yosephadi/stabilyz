@@ -563,12 +563,13 @@ enum SourceTree {
 @Suite struct DebugIsolationGuardTests {
 
     /// Files that may contain debug-only code.
-    static let debugPaths = ["Debug", "Persistence/DebugDataReset.swift"]
+    static let debugPaths = ["Debug", "Persistence/DebugDataReset.swift", "Services/System/HardwareBenchmark.swift"]
 
     /// Symbols that must never be reachable from release code.
     static let debugSymbols = [
         "DebugDataReset", "debugResetGesture", "DebugResetGesture", "debugStoreWriter", "eraseAllData",
-        "UITestingLaunch", "UITestingStorePreparation", "uiTestingRestoreFile"
+        "UITestingLaunch", "UITestingStorePreparation", "uiTestingRestoreFile",
+        "HardwareBenchmark", "DiagnosticsView", "debugBenchmark", "debugRouteReport", "AudioRouteReport"
     ]
 
     /// Whether a source is wrapped in `#if DEBUG` from its first code line.
@@ -626,7 +627,7 @@ enum SourceTree {
         let root = SourceTree.appSourceRoot()
         var checked = 0
 
-        for layer in ["Debug", "Persistence"] {
+        for layer in ["Debug", "Persistence", "Services"] {
             for file in SourceTree.swiftFiles(in: layer) where Self.isDebugFile(file.path) {
                 guard let source = try? String(contentsOf: file.url, encoding: .utf8) else {
                     Issue.record("could not read \(file.path)")

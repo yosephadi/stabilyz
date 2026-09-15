@@ -16,7 +16,7 @@ final class HistoryFilterJourneyTests: XCTestCase {
     func testEachModeSegmentListsOnlyThatModesValidWalks() {
         let app = launchStabilyz(.history)
 
-        app.tabBars.buttons["Result"].waitToAppear(timeout: 15).tap()
+        app.tab("Result").waitToAppear(timeout: 15).tap()
         app.navigationBars["Result"].waitToAppear()
 
         let segments = app.segmentedControls.buttons

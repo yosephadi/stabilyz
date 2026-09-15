@@ -14,7 +14,7 @@ final class OnboardingJourneyTests: XCTestCase {
 
         app.buttons["welcome.getStarted"].waitToAppear(timeout: 15, "a fresh install opens on Welcome")
         XCTAssertTrue(app.buttons["welcome.restore"].exists, "Welcome offers Restore from Export [PRD §5]")
-        XCTAssertFalse(app.tabBars.buttons["Walk"].exists, "nothing reaches Home before onboarding")
+        XCTAssertFalse(app.tab("Walk").exists, "nothing reaches Home before onboarding")
     }
 
     @MainActor
@@ -52,6 +52,6 @@ final class OnboardingJourneyTests: XCTestCase {
         next.tap()
 
         app.buttons["walk.start"].waitToAppear(timeout: 15, "finishing onboarding lands on the Walk tab")
-        XCTAssertTrue(app.tabBars.buttons["Walk"].isSelected)
+        XCTAssertTrue(app.tab("Walk").isSelected)
     }
 }

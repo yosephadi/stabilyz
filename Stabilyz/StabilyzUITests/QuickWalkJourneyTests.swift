@@ -41,7 +41,7 @@ final class QuickWalkJourneyTests: XCTestCase {
         start.waitToAppear(timeout: 15, "Done returns to the Walk tab")
 
         // The Result tab carries no Clinician Summary entry point: You does.
-        app.tabBars.buttons["Result"].tap()
+        app.tab("Result").tap()
         app.navigationBars["Result"].waitToAppear()
         XCTAssertFalse(app.buttons["Clinician Summary"].exists, "Result still offers the Clinician Summary")
     }

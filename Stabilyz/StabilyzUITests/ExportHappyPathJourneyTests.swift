@@ -13,7 +13,7 @@ final class ExportHappyPathJourneyTests: XCTestCase {
     func testExportingSetsAPassphraseAcknowledgesTheWarningAndOpensTheShareSheet() {
         let app = launchStabilyz(.onboarded)
 
-        app.tabBars.buttons["You"].waitToAppear(timeout: 15).tap()
+        app.tab("You").waitToAppear(timeout: 15).tap()
         app.buttons["settings.export"].waitToAppear().tap()
 
         // Step 1: the passphrase, twice. Return on the first moves to the
