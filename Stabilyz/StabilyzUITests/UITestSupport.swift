@@ -10,11 +10,21 @@ enum UITestLaunch {
     case fresh
     /// A profile past the disclaimer, so the app opens on the Walk tab.
     case onboarded
+    /// Onboarded, with Motion & Fitness denied.
+    case motionDenied
+    /// Onboarded, with a replayed walk too short to measure.
+    case unclearWalk
+    /// Onboarded, with three valid Quick Tests, one valid Full Test and one
+    /// invalid Quick Test in the store.
+    case history
 
     var arguments: [String] {
         switch self {
         case .fresh: ["-ui-testing"]
         case .onboarded: ["-ui-testing", "-ui-testing-onboarded"]
+        case .motionDenied: ["-ui-testing", "-ui-testing-onboarded", "-ui-testing-motion-denied"]
+        case .unclearWalk: ["-ui-testing", "-ui-testing-onboarded", "-ui-testing-unclear-walk"]
+        case .history: ["-ui-testing", "-ui-testing-history"]
         }
     }
 }
@@ -58,6 +68,27 @@ extension XCUIElement {
             XCTWaiter.wait(for: [gone], timeout: timeout),
             .completed,
             "\(self) was still there after \(timeout)s. \(message)",
+            file: file,
+            line: line
+        )
+    }
+}
+
+@MainActor
+extension XCUIElementQuery {
+    /// Waits until the query matches exactly `count` elements.
+    func waitForCount(
+        _ count: Int,
+        timeout: TimeInterval = 10,
+        _ message: String = "",
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) {
+        let matched = XCTNSPredicateExpectation(predicate: NSPredicate(format: "count == %d", count), object: self)
+        XCTAssertEqual(
+            XCTWaiter.wait(for: [matched], timeout: timeout),
+            .completed,
+            "expected \(count) matches, found \(self.count). \(message)",
             file: file,
             line: line
         )

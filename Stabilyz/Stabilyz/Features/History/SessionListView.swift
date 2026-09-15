@@ -112,6 +112,7 @@ struct SessionListView: View {
                     }
                     .buttonStyle(.plain)
                     .accessibilityHint(SessionListViewModel.rowHint)
+                    .accessibilityIdentifier("history.row")
                 }
             }
         }
