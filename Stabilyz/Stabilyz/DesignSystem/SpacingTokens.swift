@@ -156,6 +156,16 @@ enum Controls {
     /// one is the gap the node draws above a tab bar, and moves with that node.
     static let tabFooterBottomGap: CGFloat = 34
 
+    /// The primary action's clearance above the bottom safe area on the two
+    /// screens a walk ends on: the completion gate (including Walk Data
+    /// Unclear) and the Score screen.
+    ///
+    /// Tighter than `footerBottomGap`, by product direction: both are
+    /// content-first screens where the action closes them, so it sits low, and
+    /// one value keeps it at the same height whichever of the two a walk
+    /// ends on. Not yet in design-system.md §4.
+    static let resultFooterBottomGap: CGFloat = 24
+
     /// The picked file's tile on Restore your data (Figma 64:3890: 90x70).
     static let fileThumbnailWidth: CGFloat = 90
     static let fileThumbnailHeight: CGFloat = 70

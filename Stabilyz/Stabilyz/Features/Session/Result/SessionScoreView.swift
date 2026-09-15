@@ -81,7 +81,9 @@ struct SessionScoreView: View {
             // of content above it rather than sitting 4pt proud of it.
             .padding(.horizontal, Space.screenMargin)
             .padding(.top, Space.x4)
-            .padding(.bottom, Space.x6)
+            // The same clearance as the completion gate's action, so the
+            // primary sits at one height on both screens a walk ends on.
+            .padding(.bottom, Controls.resultFooterBottomGap)
             .background(StabilyzColor.bgBase)
     }
 

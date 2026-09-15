@@ -328,6 +328,14 @@ private func uiTextStyle(_ style: Font.TextStyle) -> UIFont.TextStyle? {
     #expect(770 - Controls.heroButtonHeight == 715)
 }
 
+@Test func theScreensAWalkEndsOnShareOneFooterClearance() {
+    // The completion gate and the Score screen anchor their primary action at
+    // the same height, on the 4pt grid, tighter than the wizard's footer.
+    #expect(Controls.resultFooterBottomGap == 24)
+    #expect(Controls.resultFooterBottomGap.truncatingRemainder(dividingBy: 4) == 0)
+    #expect(Controls.resultFooterBottomGap < Controls.footerBottomGap)
+}
+
 @Test func aChoiceRowClearsTheTapTargetFloor() {
     // §5 draws these at 52pt; §9's floor is 44. The row is the whole
     // interaction on its screen, so it may never be the tighter of the two.

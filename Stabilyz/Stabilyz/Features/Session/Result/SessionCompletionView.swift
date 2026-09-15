@@ -16,10 +16,31 @@ struct SessionCompletionView: View {
     let viewResult: (() -> Void)?
     let backToWalk: () -> Void
 
+    /// The mark, title and explanation centred in the space above the action,
+    /// and the action anchored at the bottom.
+    ///
+    /// `fixedSize` belongs to the text cluster alone. On the whole stack it
+    /// pinned the spacers to their ideal height, which is zero — so the cluster
+    /// sat under the status bar and the button rode up behind the copy instead
+    /// of sitting at the bottom.
     var body: some View {
         VStack(spacing: 0) {
-            Spacer()
+            Spacer(minLength: Space.x6)
 
+            message
+
+            Spacer(minLength: Space.x6)
+
+            actions
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .padding(.horizontal, Space.screenMargin)
+        .padding(.bottom, Controls.resultFooterBottomGap)
+        .background(StabilyzColor.bgBase)
+    }
+
+    private var message: some View {
+        VStack(spacing: 0) {
             Image(systemName: content.glyph)
                 .font(StabilyzFont.completionGlyph)
                 .foregroundStyle(glyphColor)
@@ -37,17 +58,9 @@ struct SessionCompletionView: View {
             Text(content.body)
                 .font(StabilyzFont.bodyRegular)
                 .foregroundStyle(StabilyzColor.ink600)
-
-            Spacer()
-
-            actions
         }
         .multilineTextAlignment(.center)
         .fixedSize(horizontal: false, vertical: true)
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .padding(.horizontal, Space.screenMargin)
-        .padding(.bottom, Controls.footerBottomGap)
-        .background(StabilyzColor.bgBase)
     }
 
     /// Amber for the unclear walk — §2.3 reserves it for exactly this screen —
