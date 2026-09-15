@@ -83,7 +83,7 @@ Feature boundaries derived from the PRD flows (§5), not from the template list.
 
 ### 4.14 Clinician Summary
 - **Responsibility:** Single screen: current baseline(s), last N sessions' scores, trend chart; both modes clearly separated; defined empty/partial states per mode. [PRD §5, §7]
-- **Entry points:** the Result tab's `stethoscope` toolbar action, presented as a modal sheet (§11.2); and the You tab's **Clinician Summary** row [PRD §5] (Task 8.3.1, decisions.md entry 42), which presents the same sheet.
+- **Entry point:** the You tab's **Clinician Summary** row [PRD §5: "accessible from History or Settings"] (Task 8.3.1), presented as a modal sheet (§11.2). It is the **only** entry point: the Result tab carries none (decisions.md entry 44).
 - **Settled specification (2026-09-14, Task 9.2.1):**
   - **Mode isolation:** a segmented Quick Test / Full Test picker. Each segment shows only that mode's baseline, sessions and trend; every read names its mode [PRD OQ-5].
   - **Current baseline:** establishment date and **μ ± σ** (the stored, floored SD — marked when the floor was applied, with its n) for the metrics with physical units only: cadence (spm), step-time variability (% CV) and step-time asymmetry (%). "Not established" where the baseline carries no stat. No better/worse markers — metric sign conventions are [OPEN].

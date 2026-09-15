@@ -2472,3 +2472,27 @@ What would change this: real users dismissing it without exporting, which would
 argue for one later re-prompt (e.g. at a mode's second baseline or after N scored
 walks).
 
+---
+
+## 44. The Clinician Summary lives only in the You tab
+
+**Date:** 2026-09-15 · **Task:** 9.2.1 / 8.3.1 follow-up · **Status:** Decided (product decision)
+
+The Clinician Summary had two entry points: the Result tab's `stethoscope`
+toolbar action (Task 9.2.1) and, once the You tab existed, its Clinician Summary
+row (Task 8.3.1). **By product decision, the Result tab's entry point is
+removed.** The You tab's row is the only way to the summary.
+
+[PRD §5] makes the summary "accessible from History or Settings". Settings alone
+meets that: the requirement is either, not both.
+
+**Unchanged:** the summary is still a modal sheet in its own navigation stack
+with a close button (docs/11 §11.2), still built fresh on each presentation so
+it reads the store as it is, and still opens on the mode the Result tab was last
+showing. Nothing about its content changes (docs/04 §4.14).
+
+**Held by:** `QuickWalkJourneyTests` asserts the Result tab offers no Clinician
+Summary; `SettingsJourneyTests` opens and closes it from You.
+
+What would change this: a request to put the summary back beside History.
+
