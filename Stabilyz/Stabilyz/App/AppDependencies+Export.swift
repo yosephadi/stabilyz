@@ -24,7 +24,8 @@ extension AppDependencies {
             exporter: archiveExporter,
             keyDerivation: keyDerivation,
             logService: logService,
-            onClose: onClose
+            onClose: onClose,
+            onExported: { [exportNudgeStore] in exportNudgeStore.recordExport() }
         )
     }
 }

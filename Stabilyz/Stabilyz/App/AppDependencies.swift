@@ -67,6 +67,10 @@ struct AppDependencies: Sendable {
     /// `sessionOutcomes` is: there is no container to replace into.
     let archiveRestorer: ArchiveRestoring?
 
+    /// Whether the Walk tab's backup prompt was dismissed or an export
+    /// completed (Task 10.2.3). Device state, not store data.
+    let exportNudgeStore: ExportNudgeStore
+
     /// Published after a successful restore, so long-lived view models reload
     /// rather than show data that no longer exists (docs/11 §11.4–11.5).
     let storeEvents: StoreReplacementEvents
@@ -106,6 +110,7 @@ struct AppDependencies: Sendable {
         gaitSessionRepository: GaitSessionRepository,
         baselineRepository: BaselineRepository,
         archiveRestorer: ArchiveRestoring? = nil,
+        exportNudgeStore: ExportNudgeStore = InMemoryExportNudgeStore(),
         storeEvents: StoreReplacementEvents = StoreReplacementEvents(),
         restoreRecovery: RestoreRecovering? = nil
     ) {
@@ -126,6 +131,7 @@ struct AppDependencies: Sendable {
         self.gaitSessionRepository = gaitSessionRepository
         self.baselineRepository = baselineRepository
         self.archiveRestorer = archiveRestorer
+        self.exportNudgeStore = exportNudgeStore
         self.storeEvents = storeEvents
         self.restoreRecovery = restoreRecovery
     }
@@ -225,6 +231,7 @@ extension AppDependencies {
                 staging: restoreStaging,
                 rebuildBaselineStates: { try await stateStore.rebuild() }
             ),
+            exportNudgeStore: UserDefaultsExportNudgeStore(),
             storeEvents: storeEvents,
             restoreRecovery: RestoreRecoveryService(
                 staging: restoreStaging,
@@ -296,7 +303,9 @@ extension AppDependencies {
             onboardingDrafts: UserDefaultsOnboardingDraftStore(),
             userProfileRepository: UnwiredUserProfileRepository(),
             gaitSessionRepository: UnwiredGaitSessionRepository(),
-            baselineRepository: UnwiredBaselineRepository()
+            baselineRepository: UnwiredBaselineRepository(),
+            // UserDefaults is unaffected by the store failing to open.
+            exportNudgeStore: UserDefaultsExportNudgeStore()
         )
     }
 }

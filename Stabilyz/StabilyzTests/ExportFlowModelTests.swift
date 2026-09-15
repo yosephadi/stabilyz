@@ -294,3 +294,39 @@ private func sharing(_ exporter: FakeExporter, closes: Closes = Closes()) async 
 
     #expect(exporter.requests.withLock { $0.count } == 2)
 }
+
+// MARK: - Recording a completed export (Task 10.2.3)
+
+@MainActor
+@Test func aCompletedShareIsRecordedAsAnExport() async {
+    let recorded = Closes()
+    let flow = ExportFlowModel(
+        exporter: FakeExporter(.success(prepared)),
+        keyDerivation: CalibratingKeyDerivation(calibration: 600_000),
+        logService: SilentLog(),
+        onExported: { recorded.count += 1 }
+    )
+
+    await flow.generate(ExportRequest(passphrase: Array("correct horse".utf8), iterations: 600_000))
+    await flow.shareFinished(completed: true, failed: false)
+
+    #expect(recorded.count == 1)
+}
+
+@MainActor
+@Test func aShareThatDidNotCompleteIsNotAnExport() async {
+    for (completed, failed) in [(false, false), (false, true), (true, true)] {
+        let recorded = Closes()
+        let flow = ExportFlowModel(
+            exporter: FakeExporter(.success(prepared)),
+            keyDerivation: CalibratingKeyDerivation(calibration: 600_000),
+            logService: SilentLog(),
+            onExported: { recorded.count += 1 }
+        )
+
+        await flow.generate(ExportRequest(passphrase: Array("correct horse".utf8), iterations: 600_000))
+        await flow.shareFinished(completed: completed, failed: failed)
+
+        #expect(recorded.count == 0, "completed: \(completed), failed: \(failed)")
+    }
+}

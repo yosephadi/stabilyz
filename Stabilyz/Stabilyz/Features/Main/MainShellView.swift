@@ -56,6 +56,10 @@ struct MainShellView: View {
     @State private var showsClinicianSummary = false
     /// The You tab. Held so a presented flow survives tab switches.
     @State private var settingsModel: SettingsViewModel
+    /// The Walk tab's one-time backup prompt (Task 10.2.3).
+    @State private var exportNudge: ExportNudgeViewModel
+    /// Export My Data, from the prompt's "Back up now".
+    @State private var nudgeExportFlow: ExportFlowModel?
 
     init(dependencies: AppDependencies, router: AppRouter) {
         self.dependencies = dependencies
@@ -82,6 +86,10 @@ struct MainShellView: View {
             makeRestoreFlow: { onFinished in dependencies.makeRestoreFlow(onFinished: onFinished) },
             buildInfo: SystemBuildInfo(),
             storeEvents: dependencies.storeEvents,
+            logService: dependencies.logService
+        ))
+        _exportNudge = State(initialValue: ExportNudgeViewModel(
+            store: dependencies.exportNudgeStore,
             logService: dependencies.logService
         ))
     }
@@ -150,8 +158,11 @@ struct MainShellView: View {
     /// the session cover over it once Start is tapped (docs/11 §11.2).
     private var walkTab: some View {
         NavigationStack {
-            SessionSetupView(model: setupModel)
+            SessionSetupView(model: setupModel, exportNudge: exportNudge)
                 .navigationTitle("Walk")
+        }
+        .sheet(item: $nudgeExportFlow, onDismiss: { exportNudge.refresh() }) { flow in
+            ExportFlowView(model: flow)
         }
         .fullScreenCover(item: $pendingSession) { session in
             SessionCoverView(
@@ -162,7 +173,12 @@ struct MainShellView: View {
                 dismiss: { pendingSession = nil }
             )
         }
-        .task { setupModel.onStart = handOff }
+        .task {
+            setupModel.onStart = handOff
+            exportNudge.onBackUp = {
+                nudgeExportFlow = dependencies.makeExportFlow(onClose: { nudgeExportFlow = nil })
+            }
+        }
         .onChange(of: pendingSession) { previous, current in
             // A committed session moves the mode's valid count and may have
             // established its baseline, both of which the setup screen's cards

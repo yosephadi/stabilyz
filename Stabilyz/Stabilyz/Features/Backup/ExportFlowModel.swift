@@ -45,6 +45,9 @@ final class ExportFlowModel {
     private(set) var cleanupTask: Task<Void, Never>?
 
     var onClose: @MainActor () -> Void
+    /// A backup reached a share destination. Retires the Walk tab's backup
+    /// prompt, whichever screen the export ran from (Task 10.2.3).
+    var onExported: @MainActor () -> Void
 
     private let exporter: ArchiveExporting
     private let keyDerivation: KeyDerivation
@@ -55,12 +58,14 @@ final class ExportFlowModel {
         exporter: ArchiveExporting,
         keyDerivation: KeyDerivation,
         logService: LogService,
-        onClose: @escaping @MainActor () -> Void = {}
+        onClose: @escaping @MainActor () -> Void = {},
+        onExported: @escaping @MainActor () -> Void = {}
     ) {
         self.exporter = exporter
         self.keyDerivation = keyDerivation
         self.logService = logService
         self.onClose = onClose
+        self.onExported = onExported
         self.wizard = ExportWizardViewModel(keyDerivation: keyDerivation)
         wire(wizard)
     }
@@ -123,6 +128,8 @@ final class ExportFlowModel {
             phase = .failed(Self.presentation(for: .export(.shareFailed)))
         } else {
             phase = .finished(completed ? .shared : .notShared)
+            // Only an activity that completed is a backup someone has.
+            if completed { onExported() }
         }
         await exporter.discard(prepared)
         logService.log(.info, .backup, "export share ended: completed=\(completed) failed=\(failed)")

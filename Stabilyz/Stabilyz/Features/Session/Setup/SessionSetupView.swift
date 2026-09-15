@@ -13,6 +13,8 @@ import SwiftUI
 /// to this screen.
 struct SessionSetupView: View {
     @Bindable var model: SessionSetupViewModel
+    /// The one-time backup prompt (Task 10.2.3); nil where it does not apply.
+    var exportNudge: ExportNudgeViewModel? = nil
 
     var body: some View {
         VStack(spacing: 0) {
@@ -20,6 +22,9 @@ struct SessionSetupView: View {
                 VStack(alignment: .leading, spacing: Space.x6) {
                     if model.permissionMessage != nil {
                         permissionCard
+                    }
+                    if let exportNudge, exportNudge.isVisible(given: model.baselineStates) {
+                        ExportNudgeCard(nudge: exportNudge)
                     }
                     modeGroup
                     baselineGroup
@@ -48,6 +53,8 @@ struct SessionSetupView: View {
             // setting the user may have changed while the app was away.
             await model.refreshBaselineStates()
             await model.refreshPermission()
+            // An export from Settings retires the prompt too.
+            exportNudge?.refresh()
         }
     }
 
