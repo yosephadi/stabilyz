@@ -5,6 +5,9 @@ import XCTest
 /// Every launch passes `-ui-testing`, which gives the app an empty in-memory
 /// store, replayed sensors and silent audio, so each journey starts from the
 /// same state on any simulator (docs/19 §19.3).
+/// The passphrase `-ui-testing-real-backup` seals its export with.
+let uiTestingBackupPassphrase = "correct horse battery"
+
 enum UITestLaunch {
     /// Welcome: no profile, no draft.
     case fresh
@@ -17,6 +20,11 @@ enum UITestLaunch {
     /// Onboarded, with three valid Quick Tests, one valid Full Test and one
     /// invalid Quick Test in the store.
     case history
+    /// No profile, and a wizard left on its third question (above the knee,
+    /// right side answered).
+    case onboardingDraft
+    /// `history`, with a real encrypted export as the restore file.
+    case restoreConflict
 
     var arguments: [String] {
         switch self {
@@ -25,6 +33,8 @@ enum UITestLaunch {
         case .motionDenied: ["-ui-testing", "-ui-testing-onboarded", "-ui-testing-motion-denied"]
         case .unclearWalk: ["-ui-testing", "-ui-testing-onboarded", "-ui-testing-unclear-walk"]
         case .history: ["-ui-testing", "-ui-testing-history"]
+        case .onboardingDraft: ["-ui-testing", "-ui-testing-onboarding-draft"]
+        case .restoreConflict: ["-ui-testing", "-ui-testing-history", "-ui-testing-real-backup"]
         }
     }
 }

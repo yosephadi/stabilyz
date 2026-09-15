@@ -104,6 +104,7 @@ struct ExportWizardView: View {
         .autocorrectionDisabled()
         .privacySensitive()
         .focused($focus, equals: which)
+        .accessibilityIdentifier(which == .passphrase ? "export.passphrase" : "export.confirmation")
         .submitLabel(which == .passphrase ? .next : .done)
         .onSubmit {
             switch which {
@@ -182,6 +183,7 @@ struct ExportWizardView: View {
             Toggle(ExportWizardViewModel.acknowledgementLabel, isOn: $model.hasAcknowledgedWarning)
                 .toggleStyle(.checkbox)
                 .disabled(model.step != .warning)
+                .accessibilityIdentifier("export.acknowledge")
         }
     }
 
@@ -213,6 +215,7 @@ struct ExportWizardView: View {
                 model.continueToWarning()
             }
             .buttonStyle(.primaryCapsuleHero)
+            .accessibilityIdentifier("export.continue")
 
         case .warning, .preparing, .handedOff:
             VStack(spacing: Space.x3) {
@@ -230,6 +233,7 @@ struct ExportWizardView: View {
                 }
                 .buttonStyle(.primaryCapsuleHero)
                 .disabled(!model.canCreateBackup)
+                .accessibilityIdentifier("export.create")
 
                 Button(ExportWizardViewModel.backLabel) { model.backToPassphrase() }
                     .buttonStyle(.secondaryCapsuleHero)

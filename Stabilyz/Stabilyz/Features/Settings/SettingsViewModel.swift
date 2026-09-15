@@ -38,6 +38,9 @@ final class SettingsViewModel {
 
     private let makeExportFlow: ExportFlowFactory
     private let makeRestoreFlow: RestoreFlowFactory
+    /// Opened by Restore from Backup in place of the document picker, when set
+    /// (UI tests).
+    private let presetRestoreFile: URL?
     private let storeEvents: StoreReplacementEvents
     private let logService: LogService
 
@@ -46,10 +49,12 @@ final class SettingsViewModel {
         makeRestoreFlow: @escaping RestoreFlowFactory,
         buildInfo: BuildInfoProviding,
         storeEvents: StoreReplacementEvents,
-        logService: LogService
+        logService: LogService,
+        presetRestoreFile: URL? = nil
     ) {
         self.makeExportFlow = makeExportFlow
         self.makeRestoreFlow = makeRestoreFlow
+        self.presetRestoreFile = presetRestoreFile
         self.storeEvents = storeEvents
         self.logService = logService
         version = buildInfo.appVersion
@@ -67,6 +72,10 @@ final class SettingsViewModel {
     }
 
     func restoreFromBackup() {
+        if let presetRestoreFile {
+            Task { await restoreFileImported(.success(presetRestoreFile)) }
+            return
+        }
         isPickingRestoreFile = true
     }
 

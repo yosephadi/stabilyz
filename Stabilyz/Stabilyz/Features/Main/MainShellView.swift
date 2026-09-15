@@ -83,7 +83,8 @@ struct MainShellView: View {
             makeRestoreFlow: { onFinished in dependencies.makeRestoreFlow(onFinished: onFinished) },
             buildInfo: SystemBuildInfo(),
             storeEvents: dependencies.storeEvents,
-            logService: dependencies.logService
+            logService: dependencies.logService,
+            presetRestoreFile: Self.presetRestoreFile(for: dependencies)
         ))
         _exportNudge = State(initialValue: ExportNudgeViewModel(
             store: dependencies.exportNudgeStore,
@@ -116,6 +117,16 @@ struct MainShellView: View {
             .tag(ShellTab.you)
         }
         .tint(StabilyzColor.primary600)
+    }
+
+    /// UI tests hand Settings its restore file rather than driving the system
+    /// document picker. Always nil in a release build.
+    private static func presetRestoreFile(for dependencies: AppDependencies) -> URL? {
+        #if DEBUG
+        dependencies.uiTestingRestoreFile
+        #else
+        nil
+        #endif
     }
 
     /// The Clinician Summary, from You's Clinician Summary row [PRD §5].
