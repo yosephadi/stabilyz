@@ -7,9 +7,8 @@ import SwiftUI
 /// `SessionSetupView`, which draws only its own content.
 ///
 /// Result carries the session list and trend (Tasks 9.1.1, 9.1.2), with the
-/// Clinician Summary behind its stethoscope (Task 9.2.1). You is a placeholder
-/// until its task lands, named rather than empty so the shell is visible in the
-/// running app, the same way `ContentView` names its unbuilt phases.
+/// Clinician Summary behind its stethoscope (Task 9.2.1). You is Settings
+/// (Task 8.3.1, decisions.md entry 42).
 struct MainShellView: View {
     let dependencies: AppDependencies
     /// Passed through so the DEBUG reset gesture can re-resolve the root.
@@ -55,6 +54,8 @@ struct MainShellView: View {
     /// The Result tab's stethoscope: the Clinician Summary (Task 9.2.1). Each
     /// presentation builds a fresh model, so it always reads the store as it is.
     @State private var showsClinicianSummary = false
+    /// The You tab. Held so a presented flow survives tab switches.
+    @State private var settingsModel: SettingsViewModel
 
     init(dependencies: AppDependencies, router: AppRouter) {
         self.dependencies = dependencies
@@ -75,6 +76,13 @@ struct MainShellView: View {
             // What a baseline scores by construction, from the configuration
             // the pipeline used — the same source the Score screen reads.
             baselineIndex: Int(AlgorithmConfiguration.v1.composite.indexCenter)
+        ))
+        _settingsModel = State(initialValue: SettingsViewModel(
+            makeExportFlow: { onClose in dependencies.makeExportFlow(onClose: onClose) },
+            makeRestoreFlow: { onFinished in dependencies.makeRestoreFlow(onFinished: onFinished) },
+            buildInfo: SystemBuildInfo(),
+            storeEvents: dependencies.storeEvents,
+            logService: dependencies.logService
         ))
     }
 
@@ -99,27 +107,36 @@ struct MainShellView: View {
                     }
             }
             .sheet(isPresented: $showsClinicianSummary) {
-                ClinicianSummaryView(model: ClinicianSummaryViewModel(
-                    sessions: dependencies.gaitSessionRepository,
-                    baselines: dependencies.baselineRepository,
-                    logService: dependencies.logService,
-                    baselineIndex: Int(AlgorithmConfiguration.v1.composite.indexCenter),
-                    // Opens on the mode the user was looking at.
-                    mode: historyModel.mode
-                ))
+                clinicianSummary
             }
             .tabItem { Label("Result", systemImage: "text.document.fill") }
             .tag(ShellTab.result)
             .task { historyModel.onSetUp = setUpFromHistory }
 
             NavigationStack {
-                TabPlaceholder(name: "You", task: "Task 8.3.1")
-                    .navigationTitle("You")
+                SettingsView(model: settingsModel)
+                    .navigationTitle(SettingsViewModel.title)
+            }
+            .sheet(isPresented: $settingsModel.isShowingClinicianSummary) {
+                clinicianSummary
             }
             .tabItem { Label("You", systemImage: "person.fill") }
             .tag(ShellTab.you)
         }
         .tint(StabilyzColor.primary600)
+    }
+
+    /// The Clinician Summary, from Result's stethoscope or from You [PRD §5].
+    /// Each presentation builds a fresh model, so it always reads the store as
+    /// it is, and opens on the mode Result was last showing.
+    private var clinicianSummary: some View {
+        ClinicianSummaryView(model: ClinicianSummaryViewModel(
+            sessions: dependencies.gaitSessionRepository,
+            baselines: dependencies.baselineRepository,
+            logService: dependencies.logService,
+            baselineIndex: Int(AlgorithmConfiguration.v1.composite.indexCenter),
+            mode: historyModel.mode
+        ))
     }
 
     /// An empty History mode's "Set Up" action: the Walk tab, with that mode
@@ -171,25 +188,5 @@ struct MainShellView: View {
             .info, .session,
             "session setup handed off: mode=\(mode.rawValue) audio=\(audioConfig) haptics=\(hapticsEnabled)"
         )
-    }
-}
-
-/// A named, unbuilt surface. Mirrors `ContentView`'s treatment of phases whose
-/// screens have not arrived yet.
-private struct TabPlaceholder: View {
-    let name: String
-    let task: String
-
-    var body: some View {
-        VStack(spacing: Space.x4) {
-            Text(name)
-                .font(StabilyzFont.heading)
-                .foregroundStyle(StabilyzColor.ink900)
-            Text("Arrives with \(task).")
-                .font(StabilyzFont.smallRegular)
-                .foregroundStyle(StabilyzColor.ink600)
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(StabilyzColor.bgBase)
     }
 }
