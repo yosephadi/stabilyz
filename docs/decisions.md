@@ -2388,3 +2388,48 @@ Regenerated under the protocol in `Goldens/README.md`, with approval. What moved
 
 Recorded metrics otherwise held inside tolerance, which is the reassuring part:
 the trim removes duration, not character.
+
+---
+
+## 42. The You tab is Settings; Task 8.3.1 is repurposed
+
+**Date:** 2026-09-15 · **Task:** 8.3.1 · **Status:** Decided (one item owed, below)
+
+docs/23 scheduled Task 8.3.1 as "Home empty/populated + trend snapshot + export
+nudge". There is no Home to build: Figma node 123:914 named the three persistent
+surfaces Walk / Result / You, and docs/11 §11.1 already records that this
+superseded Home / History / Settings. Walk carries Home's session entry point and
+Result carries the trend. What had no task was **You**, which docs/11 describes as
+profile and settings and which stood in the shell as a placeholder.
+
+**Task 8.3.1 is repurposed as the You tab and its Settings screen**, by the
+product owner's direction. It carries what docs/04 §4.15 puts in Settings:
+
+| Row | Source |
+|---|---|
+| Export My Data (sheet) | [PRD §5], docs/04 §4.16 |
+| Restore from Backup (picker, then Restore your data with the overwrite choice) | [PRD §5, §7 AC], docs/04 §4.17, Task 10.3.3 |
+| Clinician Summary | [PRD §5]: "accessible from History or Settings" |
+| App name, version and build | About |
+| Disclaimer | [PRD §7 AC]: readable after onboarding |
+
+**The disclaimer is `DisclaimerText.body`, verbatim** — the words the user ticked
+the box against, not new wording written for Settings. There is no terms-of-use
+document in the PRD, so Settings links only to the disclaimer.
+
+**After a restore from Settings** the replacement broadcast dismisses everything
+the tab presented, and the router re-resolves on the same broadcast, which
+rebuilds the shell around the new store (docs/11 §11.4).
+
+### ⚠️ Owed: the export nudge
+
+The repurposing does **not** carry the export nudge, and it is not optional:
+[PRD §6] asks that the app "periodically nudge toward [Export My Data] (e.g.
+after baseline is first established)". docs/04 §4.4 placed it on Home, which no
+longer exists. It needs a home (the Walk tab after a mode's baseline is
+established is the nearest equivalent) and its own task. Until then this PRD
+item is unmet.
+
+What would change this: a Figma node that reinstates a Home surface, which would
+take back the nudge and the trend snapshot.
+

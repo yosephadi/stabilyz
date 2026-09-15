@@ -219,7 +219,11 @@ EPIC 8 — Core Flows UI
         Screen-level, so unverifiable until this screen exists.
     Task 8.2.5 Noisy screen (plain-language, invalid, no score)
   Feature 8.3 Home
-    Task 8.3.1 Home empty/populated + trend snapshot + export nudge         → dep: 8.2.4
+    Task 8.3.1 You tab & Settings (export, restore, clinician summary, About/disclaimer) → dep: 10.2.2, 10.3.3
+      ↳ REPURPOSED from "Home empty/populated + trend snapshot + export nudge"
+        (decisions.md entry 42). Walk/Result/You superseded Home (docs/11 §11.1);
+        the export nudge is not carried over, and [PRD §6] still asks for it —
+        owed, with no task yet (entry 42).
 
 EPIC 9 — History & Clinician
   Feature 9.1 History
