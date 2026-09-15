@@ -222,8 +222,7 @@ EPIC 8 — Core Flows UI
     Task 8.3.1 You tab & Settings (export, restore, clinician summary, About/disclaimer) → dep: 10.2.2, 10.3.3
       ↳ REPURPOSED from "Home empty/populated + trend snapshot + export nudge"
         (decisions.md entry 42). Walk/Result/You superseded Home (docs/11 §11.1);
-        the export nudge is not carried over, and [PRD §6] still asks for it —
-        owed, with no task yet (entry 42).
+        the export nudge is not carried over; it is Task 10.2.3 (entry 43).
 
 EPIC 9 — History & Clinician
   Feature 9.1 History
@@ -247,6 +246,8 @@ EPIC 10 — Backup (Export/Import/Restore)
         invalid sessions must contain none of them. The other three limbs
         (never scored, never baseline-counted, never shown in history) are
         covered; this one cannot be tested before an archive exists.
+    Task 10.2.3 Export nudge: one-time Walk tab backup card (§21 #11)      → dep: 10.2.2, 8.3.1
+      ↳ decisions.md entry 43.
   Feature 10.3 Restore
     Task 10.3.1 Import validation order (decrypt → validate → touch)        → dep: 10.1.3
     Task 10.3.2 First-launch restore path + fallback                        → dep: 10.3.1, 8.1.1

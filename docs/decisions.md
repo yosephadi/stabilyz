@@ -2393,7 +2393,7 @@ the trim removes duration, not character.
 
 ## 42. The You tab is Settings; Task 8.3.1 is repurposed
 
-**Date:** 2026-09-15 · **Task:** 8.3.1 · **Status:** Decided (one item owed, below)
+**Date:** 2026-09-15 · **Task:** 8.3.1 · **Status:** Decided (the owed item is resolved by entry 43)
 
 docs/23 scheduled Task 8.3.1 as "Home empty/populated + trend snapshot + export
 nudge". There is no Home to build: Figma node 123:914 named the three persistent
@@ -2428,8 +2428,47 @@ The repurposing does **not** carry the export nudge, and it is not optional:
 after baseline is first established)". docs/04 §4.4 placed it on Home, which no
 longer exists. It needs a home (the Walk tab after a mode's baseline is
 established is the nearest equivalent) and its own task. Until then this PRD
-item is unmet.
+item is unmet. **Resolved by entry 43 (Task 10.2.3).**
 
 What would change this: a Figma node that reinstates a Home surface, which would
 take back the nudge and the trend snapshot.
+
+---
+
+## 43. The export nudge is one Walk tab card, once
+
+**Date:** 2026-09-15 · **Task:** 10.2.3 · **Status:** Decided (product decision)
+
+[PRD §6] asks the app to "make 'Export My Data' easy to find and periodically
+nudge toward it (e.g. after baseline is first established)", because a lost phone
+with no export loses everything. docs/21 #11 left the cadence open. Entry 42 left
+the nudge without a home once Home was gone.
+
+**Settled: a single milestone card on the Walk tab.**
+
+| | |
+|---|---|
+| Shown when | **any** mode's baseline is established (`BaselineState.isEstablished`), read from the setup screen's own baseline states |
+| Copy | "Protect your data" · "Your baseline is set. Create an encrypted backup to make sure your progress is never lost." |
+| Actions | **Back up now** — Export My Data, in a sheet · **✕** — dismiss |
+| Retired by | dismissing it, **or** any export that reaches a share destination (`ExportFlowModel.onExported`), from Walk, You, or Restore's "Export Current Data First" |
+| Re-prompts | **none** in v1 — "periodically" is read as the one milestone the PRD itself names |
+| Stored | two flags in `UserDefaults` (`com.stabilyz.exportNudge.*`), device state rather than data: not in the store, not in an export, untouched by a restore |
+
+**Not adopted: showing it for valid walks with no backup and no baseline yet.**
+The copy opens with "Your baseline is set", which would be false, and a
+calibrating user has not yet built anything the prompt exists to protect.
+
+**What counts as exported** is a share activity that completed. A share sheet
+dismissed without one, or one that failed, leaves the card: opening the flow is
+not the same as having a backup.
+
+**Consequence worth knowing:** after a restore onto a new device, the flags are
+absent, so the card offers a backup of the restored data once. That is the
+correct reading — the backup that was restored is not necessarily one the person
+still has.
+
+What would change this: real users dismissing it without exporting, which would
+argue for one later re-prompt (e.g. at a mode's second baseline or after N scored
+walks).
 

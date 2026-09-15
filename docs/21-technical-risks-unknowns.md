@@ -24,6 +24,7 @@ Sensor sampling rate (rec: 100 Hz) · orientation/axis derivation for ML/VT axes
    - **Encouraging-summary comparisons — still open.** A separate, versioned algorithm setting (`SummaryPolicy.recentSessionCount`, provisional 3); deliberately not changed by the clinician decision.
 10. **Encouraging-summary copy rules** (PRD: generated from real same-mode comparisons; templates unspecified).
 11. **Export-nudge cadence** beyond "after baseline is first established" ("periodically" unspecified).
+   - **CLOSED (2026-09-15, product decision, Task 10.2.3):** one non-intrusive **milestone card on the Walk tab**, shown once **any** mode's baseline is first established. Dismissing it, or completing an export from any screen, retires it for good — no periodic re-prompt in v1. Both facts are device state in `UserDefaults`, never store data. `ExportNudgePolicy`; decisions.md entry 43.
 12. **Algorithm-version mismatch policy for future app updates** (§9.6).
 
 ## 21.4 Risks

@@ -18,9 +18,9 @@ Existing User ───── Home
 |---|---|
 | Root switch (router) | Welcome / Onboarding / Main |
 | Full-screen cover | **Session flow** (countdown → recording → processing → result) — a deliberately modal, interruption-free context. **Setup is outside it**: it roots the Walk tab (§11.1), and the cover opens at the countdown, which is the first moment an interruption would cost the user something [PRD OQ-6] |
-| Sheets | Export wizard (passphrase), Restore, About/Disclaimer, **Clinician Summary** — a modal sheet from the Result tab's `stethoscope` toolbar action, in its own navigation stack with a close button (decided 2026-09-14, Task 9.2.1). It superseded the earlier push onto History's stack: a sheet leaves the Result tab untouched underneath while the phone is in a clinician's hand |
+| Sheets | Export wizard (passphrase) — from You, from the Walk tab's backup card, and from Restore's "Export Current Data First"; Restore your data is a full-screen cover over the tab it was opened from; **Clinician Summary** — a modal sheet from the Result tab's `stethoscope` toolbar action, in its own navigation stack with a close button (decided 2026-09-14, Task 9.2.1). It superseded the earlier push onto History's stack: a sheet leaves the Result tab untouched underneath while the phone is in a clinician's hand |
 | Alerts / confirmation dialogs | Plain-language errors; the Restore **conflict dialog** with exactly three actions: Cancel / Export current data first / Replace with backup [PRD §5] |
-| Navigation stack | History → a session's Score screen (row chevron, Task 9.1.1). The Settings entry to the Clinician Summary [PRD §5] lands with the You tab |
+| Navigation stack | History → a session's Score screen (row chevron, Task 9.1.1). You → Disclaimer (push). You's Clinician Summary row [PRD §5] presents the same sheet as Result's stethoscope (Task 8.3.1) |
 
 ## 11.3 Session Flow Coordinator
 

@@ -27,7 +27,7 @@ Feature boundaries derived from the PRD flows (§5), not from the template list.
 - **Edge cases:** bilateral selection fully supported; force-quit resume.
 
 ### 4.4 Home / Dashboard
-- **Responsibility:** Empty state ("Run your first Gait Training session") pre-first-session; afterwards latest score + trend snapshot + "Start Gait Training"; export nudge after first baseline established. [PRD §5, §6]
+- **Responsibility:** Empty state ("Run your first Gait Training session") pre-first-session; afterwards latest score + trend snapshot + "Start Gait Training"; export nudge after first baseline established. [PRD §5, §6] *(Home was superseded by Walk / Result / You, §11.1. The export nudge is the Walk tab's one-time backup card: §21 #11, decisions.md entry 43, Task 10.2.3.)*
 - **State:** derived from repositories (latest valid scored session per mode, session counts); `emptyState`/`populated`.
 - **Dependencies:** `GaitSessionRepository`, `BaselineRepository`; navigation intent into session flow.
 - **Error states:** persistence read failure → generic retry state.
@@ -83,7 +83,7 @@ Feature boundaries derived from the PRD flows (§5), not from the template list.
 
 ### 4.14 Clinician Summary
 - **Responsibility:** Single screen: current baseline(s), last N sessions' scores, trend chart; both modes clearly separated; defined empty/partial states per mode. [PRD §5, §7]
-- **Entry points:** the Result tab's `stethoscope` toolbar action, presented as a modal sheet (§11.2); the Settings entry [PRD §5] lands with the You tab.
+- **Entry points:** the Result tab's `stethoscope` toolbar action, presented as a modal sheet (§11.2); and the You tab's **Clinician Summary** row [PRD §5] (Task 8.3.1, decisions.md entry 42), which presents the same sheet.
 - **Settled specification (2026-09-14, Task 9.2.1):**
   - **Mode isolation:** a segmented Quick Test / Full Test picker. Each segment shows only that mode's baseline, sessions and trend; every read names its mode [PRD OQ-5].
   - **Current baseline:** establishment date and **μ ± σ** (the stored, floored SD — marked when the floor was applied, with its n) for the metrics with physical units only: cadence (spm), step-time variability (% CV) and step-time asymmetry (%). "Not established" where the baseline carries no stat. No better/worse markers — metric sign conventions are [OPEN].
@@ -95,6 +95,7 @@ Feature boundaries derived from the PRD flows (§5), not from the template list.
 ### 4.15 Settings
 - **Responsibility:** Container for Export My Data, Restore from previous export, disclaimer/About access (post-onboarding disclaimer visibility [PRD AC]).
 - **Dependencies:** navigation to Backup features; document persistence.
+- **Built — the You tab (Task 8.3.1, decisions.md entry 42):** a native inset-grouped list. **Clinician Summary** (sheet) · **Backup & Data:** Export My Data (sheet), Restore from Backup (document picker, then Restore your data full-screen, with the overwrite choice of Task 10.3.3) · **About & Legal:** app name, version and build, and Disclaimer (pushed; `DisclaimerText.body`, verbatim). A store replacement dismisses everything the tab presented, and the router rebuilds the shell around the new store.
 
 ### 4.16 Data Export
 - **Responsibility:** Passphrase set + confirm with unrecoverable warning; generate encrypted archive (profile, valid sessions, both baselines, preferences, versions, timestamp, integrity check); share via system share sheet; explicit user action only. [PRD §5, §7, OQ-2]
