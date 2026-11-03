@@ -35,8 +35,8 @@ iOS app for prosthetic limb users to self-measure walking stability. Local-only,
   - `Utilities/` — Clock, FileIO, RandomSource, time anchors, extensions.
 - `Stabilyz/StabilyzTests/` — unit tests.
 - `Stabilyz/StabilyzUITests/` — UI tests.
-- `Stabilyz/StabilyzWatch/` — watchOS companion target (Phase 3); never imports CoreMotion or HealthKit.
-- `Stabilyz/StabilyzWidgets/` — widget extension target for the Live Activity nudge (Phase 3).
+- `Stabilyz/StabilyzWatch Watch App/` — watchOS companion target (Phase 3), with its tests in `StabilyzWatch Watch AppTests/` and `StabilyzWatch Watch AppUITests/`; never imports CoreMotion or HealthKit.
+- `Stabilyz/StabilyzLiveActivityExtension/` — widget extension target for the Live Activity nudge (Phase 3).
 - `Stabilyz/StabilyzShared/WatchSync/` — message contract shared by the app and watch targets; Foundation only.
 - `Stabilyz/Stabilyz.xcodeproj` — NEVER edit this file.
 

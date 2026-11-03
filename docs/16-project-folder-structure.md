@@ -60,9 +60,10 @@ Stabilyz/
 
 ```text
 Stabilyz/
-├── StabilyzWatch/              # watchOS app target: the five screens, state machine,
+├── StabilyzWatch Watch App/    # watchOS app target: the five screens, state machine,
 │                               # extended runtime session, haptics (WatchKit lives here only)
-├── StabilyzWidgets/            # widget extension target: the Live Activity's UI
+├── StabilyzWatch Watch AppTests/ and StabilyzWatch Watch AppUITests/
+├── StabilyzLiveActivityExtension/  # widget extension target: the Live Activity's UI
 └── StabilyzShared/
     └── WatchSync/              # versioned Codable message contract, Foundation only,
                                 # member of both the iOS app and the watch target
