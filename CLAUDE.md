@@ -12,7 +12,7 @@ iOS app for prosthetic limb users to self-measure walking stability. Local-only,
 ## Hard architecture rules (`docs/03-application-layer-architecture.md` — violating these = redo)
 
 - Layers: Presentation → Feature/State → Domain → Algorithms → Services → Persistence. `Domain/` and `Algorithms/` import no Apple frameworks except Foundation (Accelerate additionally allowed in `Algorithms/` only).
-- Only `Services/` and `Persistence/` may import CoreMotion, AVFoundation, SwiftData, CryptoKit, or CommonCrypto.
+- Only `Services/` and `Persistence/` may import CoreMotion, AVFoundation, SwiftData, CryptoKit, or CommonCrypto. In the iOS app, WatchConnectivity and ActivityKit may be imported only under `Services/`. WatchKit is imported only in the watch target (which may also import WatchConnectivity).
 - No DSP, scoring, or baseline math in ViewModels or Views.
 - All baseline queries and scoring calls take an explicit `TestMode` parameter.
 - Persist metrics as JSON blobs; scalar columns only for queried fields (`id`, `mode`, `startedAt`, `validity`, `relativeIndex`, `algorithmVersion`).
@@ -35,6 +35,9 @@ iOS app for prosthetic limb users to self-measure walking stability. Local-only,
   - `Utilities/` — Clock, FileIO, RandomSource, time anchors, extensions.
 - `Stabilyz/StabilyzTests/` — unit tests.
 - `Stabilyz/StabilyzUITests/` — UI tests.
+- `Stabilyz/StabilyzWatch/` — watchOS companion target (Phase 3); never imports CoreMotion or HealthKit.
+- `Stabilyz/StabilyzWidgets/` — widget extension target for the Live Activity nudge (Phase 3).
+- `Stabilyz/StabilyzShared/WatchSync/` — message contract shared by the app and watch targets; Foundation only.
 - `Stabilyz/Stabilyz.xcodeproj` — NEVER edit this file.
 
 ## Build & test
