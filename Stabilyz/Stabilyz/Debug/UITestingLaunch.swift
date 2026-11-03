@@ -93,6 +93,7 @@ enum UITestingLaunch {
             draft: arguments.contains(onboardingDraftFlag) ? resumableDraft : nil
         )
         overrides.exportNudgeStore = InMemoryExportNudgeStore()
+        overrides.watchSession = SilentWatchSessionService()
         let seedReader = StoreReader(modelContainer: container)
         let seedWriter = StoreWriter(modelContainer: container)
         overrides.restoreRecovery = UITestingStorePreparation(

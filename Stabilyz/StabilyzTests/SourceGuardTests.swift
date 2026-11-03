@@ -39,15 +39,22 @@ enum SourceTree {
 /// it would be broken — adding `import SwiftData` to a domain file compiles
 /// perfectly and only shows up as a problem much later.
 @Suite struct ImportHygieneTests {
+    static let accessModifiers: Set<String> = ["public", "package", "internal", "fileprivate", "private"]
+
     /// `import X`, capturing X. Ignores anything indented, which is inside a
     /// type, and anything after a comment marker.
     static func imports(in source: String) -> [String] {
         source.split(separator: "\n").compactMap { line -> String? in
             let text = line.trimmingCharacters(in: .whitespaces)
-            guard text.hasPrefix("import ") else { return nil }
-            // `@testable import X`, `import struct Foundation.Data`, etc.
+            // `@testable import X`, `@preconcurrency import X`, `public import X`,
+            // `import struct Foundation.Data`, etc. Everything before `import`
+            // must be an attribute or an access modifier, so prose and
+            // commented-out lines (`// import X`) are not imports.
             let parts = text.split(separator: " ").map(String.init)
-            guard let module = parts.last?.split(separator: ".").first else { return nil }
+            guard let keyword = parts.firstIndex(of: "import"),
+                  keyword < parts.count - 1,
+                  parts[..<keyword].allSatisfy({ $0.hasPrefix("@") || Self.accessModifiers.contains($0) }),
+                  let module = parts.last?.split(separator: ".").first else { return nil }
             return String(module)
         }
     }
@@ -111,6 +118,20 @@ enum SourceTree {
         // The commented line is indented-free but starts with "//", so it is not
         // an import; the doc comment is prose.
         #expect(Self.imports(in: source) == ["Foundation"])
+    }
+
+    @Test func theScanSeesImportsBehindAttributesAndModifiers() {
+        // Each of these imports the module as surely as a bare `import` does,
+        // so a scan that only matched the bare form could be walked around.
+        let source = """
+        @preconcurrency import CoreMotion
+        @testable import Stabilyz
+        public import SwiftData
+        @_spi(Private) internal import HealthKit
+        import struct Foundation.Data
+        """
+        #expect(Self.imports(in: source) == ["CoreMotion", "Stabilyz", "SwiftData", "HealthKit", "Foundation"])
+        #expect(Self.imports(in: "let note = \"we import nothing\"").isEmpty)
     }
 }
 
@@ -720,5 +741,150 @@ enum SourceTree {
         let lines = Self.releaseLines(in: offending)
         #expect(lines.contains { $0.contains("DebugDataReset") })
         #expect(lines.contains { $0.contains("let x = 1") } == false)
+    }
+}
+
+// MARK: - Watch companion targets
+
+/// The import rules for the Phase 3 targets (Task 12.1.1, CLAUDE.md, docs/03
+/// rules 2 and 5).
+///
+/// - The phone is the only sensor [PRD §8 decision 1], so nothing in the watch
+///   or widget targets may reach CoreMotion, and HealthKit stays out of scope
+///   [PRD §8 decision 5].
+/// - The shared contract is compiled into two targets and must build in both,
+///   so it imports Foundation and nothing else.
+/// - In the iOS app, WatchConnectivity and ActivityKit are Apple-framework
+///   adapters like any other and live only under `Services/`.
+@Suite struct WatchTargetImportGuardTests {
+    static let watchFolders = [
+        "StabilyzWatch Watch App",
+        "StabilyzWatch Watch AppTests",
+        "StabilyzWatch Watch AppUITests",
+    ]
+    static let widgetFolder = "StabilyzLiveActivityExtension"
+    static let sharedFolder = "StabilyzShared"
+
+    static let neverInWatch: Set<String> = ["CoreMotion", "HealthKit"]
+    static let neverInWidget: Set<String> = ["CoreMotion", "HealthKit", "WatchConnectivity"]
+    static let servicesOnlyInApp: Set<String> = ["WatchConnectivity", "ActivityKit"]
+
+    /// Every `.swift` file under a folder of the Xcode project directory (a
+    /// sibling of the app source root), path relative to that directory.
+    static func swiftFiles(inProjectFolder folder: String) -> [(path: String, url: URL)] {
+        let projectRoot = SourceTree.appSourceRoot().deletingLastPathComponent()
+        guard let walker = FileManager.default.enumerator(
+            at: projectRoot.appendingPathComponent(folder), includingPropertiesForKeys: nil
+        ) else { return [] }
+
+        return walker.compactMap { entry in
+            guard let url = entry as? URL, url.pathExtension == "swift" else { return nil }
+            return (url.path.replacingOccurrences(of: projectRoot.path + "/", with: ""), url)
+        }
+    }
+
+    /// The imports in `source` that `forbidden` names.
+    static func violations(in source: String, forbidden: Set<String>) -> [String] {
+        ImportHygieneTests.imports(in: source).filter(forbidden.contains)
+    }
+
+    /// The imports in `source` that are not in `allowed`.
+    static func disallowed(in source: String, allowed: Set<String>) -> [String] {
+        ImportHygieneTests.imports(in: source).filter { !allowed.contains($0) }
+    }
+
+    static func read(_ file: (path: String, url: URL)) -> String? {
+        guard let source = try? String(contentsOf: file.url, encoding: .utf8) else {
+            Issue.record("could not read \(file.path)")
+            return nil
+        }
+        return source
+    }
+
+    @Test func theWatchTargetNeverImportsMotionOrHealth() {
+        let appFiles = Self.swiftFiles(inProjectFolder: Self.watchFolders[0])
+        #expect(appFiles.isEmpty == false, "the watch app scan found no files — the scan itself is broken")
+
+        for folder in Self.watchFolders {
+            for file in Self.swiftFiles(inProjectFolder: folder) {
+                guard let source = Self.read(file) else { continue }
+                for module in Self.violations(in: source, forbidden: Self.neverInWatch) {
+                    Issue.record("\(file.path) imports \(module) — the phone is the only sensor [PRD §8]")
+                }
+            }
+        }
+    }
+
+    @Test func theWidgetExtensionNeverImportsMotionHealthOrTheWatchLink() {
+        let files = Self.swiftFiles(inProjectFolder: Self.widgetFolder)
+        #expect(files.isEmpty == false, "the widget scan found no files — the scan itself is broken")
+
+        for file in files {
+            guard let source = Self.read(file) else { continue }
+            for module in Self.violations(in: source, forbidden: Self.neverInWidget) {
+                Issue.record("\(file.path) imports \(module) — the widget only draws the Live Activity")
+            }
+        }
+    }
+
+    @Test func theSharedContractImportsOnlyFoundation() {
+        let files = Self.swiftFiles(inProjectFolder: Self.sharedFolder)
+        #expect(files.isEmpty == false, "the shared scan found no files — the scan itself is broken")
+
+        for file in files {
+            guard let source = Self.read(file) else { continue }
+            for module in Self.disallowed(in: source, allowed: ["Foundation"]) {
+                Issue.record("\(file.path) imports \(module) — StabilyzShared is compiled into two targets and may import only Foundation")
+            }
+        }
+    }
+
+    @Test func theAppImportsTheWatchAndLiveActivityFrameworksOnlyUnderServices() {
+        var servicesImportWatchConnectivity = false
+
+        for layer in ["App", "Features", "Domain", "Algorithms", "Services", "Persistence", "DesignSystem", "Utilities", "Debug"] {
+            for file in SourceTree.swiftFiles(in: layer) {
+                guard let source = Self.read(file) else { continue }
+                let modules = Self.violations(in: source, forbidden: Self.servicesOnlyInApp)
+                if layer == "Services" {
+                    servicesImportWatchConnectivity = servicesImportWatchConnectivity || modules.contains("WatchConnectivity")
+                    continue
+                }
+                for module in modules {
+                    Issue.record("\(file.path) imports \(module) — only Services/ may import it in the iOS app")
+                }
+            }
+        }
+
+        // The live watch service imports it, so a scan that never saw it is
+        // not looking where it thinks it is.
+        #expect(servicesImportWatchConnectivity, "no Services file imports WatchConnectivity — the scan itself is broken")
+    }
+
+    @Test func theScanWouldCatchAForbiddenWatchImport() {
+        let offending = """
+        import SwiftUI
+        import CoreMotion
+        @preconcurrency import HealthKit
+        """
+        #expect(Self.violations(in: offending, forbidden: Self.neverInWatch) == ["CoreMotion", "HealthKit"])
+        #expect(Self.violations(in: "import WatchConnectivity", forbidden: Self.neverInWidget) == ["WatchConnectivity"])
+    }
+
+    @Test func theScanWouldCatchASharedFileImportingMoreThanFoundation() {
+        let offending = """
+        import Foundation
+        import SwiftUI
+        """
+        #expect(Self.disallowed(in: offending, allowed: ["Foundation"]) == ["SwiftUI"])
+        #expect(Self.disallowed(in: "import Foundation", allowed: ["Foundation"]).isEmpty)
+    }
+
+    @Test func theScanWouldCatchAFeatureImportingActivityKit() {
+        let offending = """
+        import SwiftUI
+        import ActivityKit
+        """
+        #expect(Self.violations(in: offending, forbidden: Self.servicesOnlyInApp) == ["ActivityKit"])
     }
 }

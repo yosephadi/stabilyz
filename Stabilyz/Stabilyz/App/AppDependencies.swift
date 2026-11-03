@@ -38,6 +38,10 @@ struct AppDependencies: Sendable {
     let keyDerivation: KeyDerivation
     let secureArchive: SecureArchiveCoding
 
+    /// The phone's side of the watch companion (Task 12.1.1, docs/04 §4.18).
+    /// A session never depends on it [PRD §8 decision 4].
+    let watchSession: WatchSessionService
+
     /// Actor dependency: created once and shared, restarted per session via
     /// its lifecycle methods rather than recreated (docs/12 §12.3).
     let sessionRecorder: SessionRecorder
@@ -108,6 +112,7 @@ struct AppDependencies: Sendable {
         hapticFeedback: HapticFeedbackService = SilentHapticFeedbackService(),
         keyDerivation: KeyDerivation,
         secureArchive: SecureArchiveCoding,
+        watchSession: WatchSessionService = SilentWatchSessionService(),
         sessionRecorder: SessionRecorder,
         sessionOutcomes: SessionOutcomeService? = nil,
         onboardingDrafts: OnboardingDraftStore = EmptyOnboardingDraftStore(),
@@ -129,6 +134,7 @@ struct AppDependencies: Sendable {
         self.hapticFeedback = hapticFeedback
         self.keyDerivation = keyDerivation
         self.secureArchive = secureArchive
+        self.watchSession = watchSession
         self.sessionRecorder = sessionRecorder
         self.sessionOutcomes = sessionOutcomes
         self.onboardingDrafts = onboardingDrafts
@@ -151,6 +157,9 @@ struct LiveOverrides {
     var audioFeedback: AudioFeedbackService?
     var onboardingDrafts: OnboardingDraftStore?
     var exportNudgeStore: ExportNudgeStore?
+    /// UI tests run with no watch, so a paired watch on the test machine
+    /// cannot change what the phone shows.
+    var watchSession: WatchSessionService?
     /// Runs before the router's first store read, in place of launch recovery.
     var restoreRecovery: RestoreRecovering?
 
@@ -192,6 +201,8 @@ extension AppDependencies {
         // Holds no hardware until `prepare()`, so constructing it at launch
         // costs nothing and nothing is reserved while the user is not walking.
         let hapticFeedback = LiveHapticFeedbackService(logService: logService)
+        let watchSession: WatchSessionService = overrides.watchSession
+            ?? WatchConnectivityService(logService: logService)
 
         let sessions = SwiftDataGaitSessionRepository(reader: reader, writer: writer)
         let baselines = SwiftDataBaselineRepository(reader: reader, writer: writer)
@@ -233,6 +244,7 @@ extension AppDependencies {
             hapticFeedback: hapticFeedback,
             keyDerivation: CommonCryptoKeyDerivation(),
             secureArchive: SecureArchiveCoder(),
+            watchSession: watchSession,
             sessionRecorder: SessionRecorder(
                 motionSensor: motionSensor,
                 pedometer: pedometer,
@@ -295,6 +307,9 @@ extension AppDependencies {
         // Real haptics here too: the store failing to open says nothing about
         // the Taptic Engine.
         let hapticFeedback = LiveHapticFeedbackService(logService: logService)
+        // The real watch link too: the store failing to open says nothing
+        // about the watch, and the watch never touches the store.
+        let watchSession = WatchConnectivityService(logService: logService)
 
         return AppDependencies(
             logService: logService,
@@ -310,6 +325,7 @@ extension AppDependencies {
             hapticFeedback: hapticFeedback,
             keyDerivation: CommonCryptoKeyDerivation(),
             secureArchive: SecureArchiveCoder(),
+            watchSession: watchSession,
             sessionRecorder: SessionRecorder(
                 motionSensor: motionSensor,
                 pedometer: pedometer,
