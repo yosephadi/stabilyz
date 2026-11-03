@@ -9,6 +9,11 @@ import Foundation
 /// that countdown, so a late message for an earlier session can be told apart
 /// from the current one.
 nonisolated enum PhoneToWatchMessage: Codable, Sendable, Equatable {
+    /// The mode selected on the setup screen, so Waiting can show it
+    /// [PRD §8 Watch screens]. Sent when the setup screen loads and whenever
+    /// the user changes mode. Not tied to a session: none exists yet.
+    case setupSelection(mode: WireTestMode, durationSeconds: Int)
+
     /// Sent when the numerals begin, after sensor priming.
     ///
     /// `plannedGoAt` is when Go is expected. It is a plan, not the anchor: T-0
@@ -40,7 +45,7 @@ nonisolated enum PhoneToWatchMessage: Codable, Sendable, Equatable {
         case .countdownStarted(let id, _, _, _, _, _), .started(let id, _),
              .stopped(let id), .cancelled(let id):
             id
-        case .hapticsChanged:
+        case .setupSelection, .hapticsChanged:
             nil
         }
     }

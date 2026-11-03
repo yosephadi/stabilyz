@@ -13,9 +13,12 @@ import Foundation
 /// - **Haptics** — the latest Start & Stop Haptics change since the countdown
 ///   started. A new countdown clears it, because `countdownStarted` already
 ///   carries the setting.
+/// - **Setup** — the latest mode selected on the setup screen, for Waiting.
+///   Independent of the other two: a session never erases it.
 struct WatchSyncContext: Equatable {
     private(set) var sessionState: Data?
     private(set) var haptics: Data?
+    private(set) var setup: Data?
 
     init() {}
 
@@ -28,6 +31,8 @@ struct WatchSyncContext: Equatable {
             sessionState = encoded
         case .hapticsChanged:
             haptics = encoded
+        case .setupSelection:
+            setup = encoded
         }
     }
 
@@ -36,6 +41,7 @@ struct WatchSyncContext: Equatable {
         var dictionary: [String: Any] = [:]
         dictionary[WatchSyncKeys.sessionState] = sessionState
         dictionary[WatchSyncKeys.haptics] = haptics
+        dictionary[WatchSyncKeys.setup] = setup
         return dictionary
     }
 }

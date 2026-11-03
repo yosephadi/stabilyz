@@ -26,6 +26,9 @@ nonisolated enum WatchSyncKeys {
     /// The application context's latest Start & Stop Haptics change, when one
     /// happened after the countdown started.
     static let haptics = "stabilyz.watchSync.haptics"
+
+    /// The application context's latest setup-screen selection.
+    static let setup = "stabilyz.watchSync.setup"
 }
 
 /// Encodes and decodes the contract (docs/21 §21.2).

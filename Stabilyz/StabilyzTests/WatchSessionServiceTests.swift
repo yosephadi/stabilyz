@@ -194,6 +194,19 @@ private func first<Value>(_ count: Int, of stream: AsyncStream<Value>) async -> 
         #expect(decoded(context).haptics == .hapticsChanged(enabled: false))
     }
 
+    /// Waiting needs the selection whatever the session is doing, and a
+    /// session message must never erase it — nor it the session.
+    @Test func theSetupSelectionLivesBesideTheSession() throws {
+        let setup = PhoneToWatchMessage.setupSelection(mode: .full, durationSeconds: 360)
+        let context = try record([setup, countdown, .stopped(sessionID: sessionA)])
+        let stored = (context.dictionary[WatchSyncKeys.setup] as? Data).flatMap(WatchSyncCoder.decodePhoneToWatch)
+        #expect(stored == setup)
+        #expect(decoded(context).state == .stopped(sessionID: sessionA))
+
+        let after = try record([countdown, setup])
+        #expect(decoded(after).state == countdown)
+    }
+
     @Test func aNewCountdownClearsTheEarlierHapticsChange() throws {
         let context = try record([.hapticsChanged(enabled: false), .stopped(sessionID: sessionB), countdown])
         #expect(decoded(context).state == countdown)

@@ -373,7 +373,7 @@ Dark background, navy primary, 15 pt minimum text, VoiceOver labels on every ele
 | Screen | Content |
 |---|---|
 | **Waiting** | "Start on your iPhone", selected mode and length |
-| **Countdown** | 5→1 then "Go", "Phone in pocket"; a VoiceOver announcement per numeral; no Cancel, no Stop |
+| **Countdown** | "Get ready" heading, 5→1 then "Go", "Phone in pocket"; a VoiceOver announcement per numeral; no Cancel, no Stop |
 | **Running** | Elapsed timer, progress bar, 55 pt Stop capsule |
 | **Stopped** | "Walk finished", "See your result on iPhone", Done (returns to Waiting) |
 | **Disconnected** | "Phone not reachable"; the local timer keeps running; "Keep walking. Your walk is still recording."; no Stop; no haptic |
@@ -381,8 +381,9 @@ Dark background, navy primary, 15 pt minimum text, VoiceOver labels on every ele
 ### Sync
 WatchConnectivity, phone to watch, with one message type back (the stop request). Every message is **versioned and Codable**.
 
+- **Setup selection**: the mode and length selected on the setup screen, sent when it loads and on every change, so Waiting can show them.
 - **Countdown start** (when the numerals begin, after sensor priming): mode, advertised duration, the haptic owner, the Start & Stop Haptics setting, and the **planned Go time**.
-- **Started**: the actual **T-0** anchor. T-0 is stamped at the final tick, so it is not known when the countdown starts; the watch re-syncs its clock to this value.
+- **Started**: the actual **T-0** anchor. T-0 is stamped at the final tick, so it is not known when the countdown starts; the watch re-syncs its clock to this value. If it cannot be delivered while the watch owns haptics, the phone plays the Go pulse. If the watch has not received it 2 s after the planned Go time, it moves to Running from the planned Go time with no Go haptic, and re-syncs when it arrives.
 - **State changes**: stopped, cancelled, haptics setting changed.
 - **Stop request** (watch to phone): carries the session it refers to, so a late request for a finished session is ignored.
 

@@ -32,6 +32,8 @@ import Testing
         .cancelled(sessionID: sessionID),
         .hapticsChanged(enabled: false),
         .hapticsChanged(enabled: true),
+        .setupSelection(mode: .quick, durationSeconds: 120),
+        .setupSelection(mode: .full, durationSeconds: 360),
     ]
 
     static func json(_ text: String) -> Data { Data(text.utf8) }
@@ -121,6 +123,7 @@ import Testing
         let countdown = Self.json(#"{"version":1,"message":{"countdownStarted":{"sessionID":"6F9619FF-8B86-D011-B42D-00C04FC964FF","mode":"full","durationSeconds":360,"plannedGoAt":1793000000.5,"hapticOwner":"phone","hapticsEnabled":false}}}"#)
         let stop = Self.json(#"{"version":1,"message":{"stopRequest":{"sessionID":"6F9619FF-8B86-D011-B42D-00C04FC964FF"}}}"#)
         let haptics = Self.json(#"{"version":1,"message":{"hapticsChanged":{"enabled":true}}}"#)
+        let setup = Self.json(#"{"version":1,"message":{"setupSelection":{"mode":"quick","durationSeconds":120}}}"#)
 
         #expect(WatchSyncCoder.decodePhoneToWatch(countdown) == .countdownStarted(
             sessionID: Self.sessionID,
@@ -132,6 +135,7 @@ import Testing
         ))
         #expect(WatchSyncCoder.decodeWatchToPhone(stop) == .stopRequest(sessionID: Self.sessionID))
         #expect(WatchSyncCoder.decodePhoneToWatch(haptics) == .hapticsChanged(enabled: true))
+        #expect(WatchSyncCoder.decodePhoneToWatch(setup) == .setupSelection(mode: .quick, durationSeconds: 120))
     }
 
     @Test func wireRawValuesArePinned() {
@@ -143,9 +147,10 @@ import Testing
 
     @Test func sessionScopedMessagesExposeTheirSession() {
         for message in Self.phoneMessages {
-            if case .hapticsChanged = message {
+            switch message {
+            case .hapticsChanged, .setupSelection:
                 #expect(message.sessionID == nil)
-            } else {
+            default:
                 #expect(message.sessionID == Self.sessionID)
             }
         }
