@@ -5,6 +5,7 @@
 | Local-only, no backend, no auto cloud sync [PRD §3, OQ-2] | No networking code exists; no push/background-transfer entitlements; the app itself performs zero network requests. Share-sheet destinations are OS-level, user-chosen [PRD §5] |
 | Sensitive health/mobility data | Data minimization: store only profile fields the PRD collects, per-session derived metrics, and provenance metadata. No raw sensor retention (§6.4) |
 | Permissions | Motion & Fitness only; no other permission prompts anywhere in v1. Pre-flight check + degraded Start [PRD AC] |
+| Watch Companion (Phase 3) [PRD §8] | Still no networking code. WatchConnectivity is a device-to-device link to the user's own paired watch, carrying session state only (mode, duration, timing, haptic owner, Stop) — never metrics, scores, profile fields or sensor data. The Live Activity nudge is started locally: no push token, no push entitlement, no notification, and **no new permission prompt**. No HealthKit |
 | Export security | Passphrase + PBKDF2 + AES-GCM per §13 [PRD] — the export is protected independently of device state (deliberate PRD design: no iCloud dependency [OQ-2]) |
 | Passphrase handling | Memory-only during the operation; never persisted, logged, or transmitted; clear warnings at export [PRD]; unrecoverable by design |
 | Temporary files | Export temp file contains ciphertext only; deleted after share; session scratch deleted at commit [REC]; all files use iOS data protection (.complete default) |

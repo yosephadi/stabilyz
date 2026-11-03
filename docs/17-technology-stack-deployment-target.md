@@ -3,6 +3,7 @@
 | Item | Choice | Notes |
 |---|---|---|
 | Minimum iOS | **17.0** [PRD §7] | Enables `@Observable`, SwiftData, modern Charts APIs |
+| Minimum watchOS (Phase 3) | **10.0** | The pair for iOS 17. Live Activities reach the watch only on iOS 18 / watchOS 11 [PRD OQ-7b] |
 | Swift | 5.10+ toolchain; **strict concurrency checking enabled from day one**, Swift 6 language mode adopted when stable [REC] | PRD concurrency posture demands early data-race safety |
 | UI | SwiftUI + Observation | |
 | Persistence | SwiftData | §6 |
@@ -13,6 +14,9 @@
 | Crypto | **CryptoKit (AES-GCM) + CommonCrypto (PBKDF2)** | §13; both platform-vetted [PRD: vetted platform crypto only] |
 | Files | FileManager, UniformTypeIdentifiers, SwiftUI fileImporter / share sheet | |
 | Logging | os (Logger + OSSignposter) | §20 |
+| Watch sync (Phase 3) | WatchConnectivity | Device-to-device; no networking code. `Services/Watch` only |
+| Watch runtime (Phase 3) | WatchKit (`WKExtendedRuntimeSession`, `WKInterfaceDevice` haptics) | Watch target only; no HealthKit [PRD §8] |
+| Live Activity (Phase 3) | ActivityKit + WidgetKit | Local only, no push. ActivityKit in `Services/LiveActivity`; UI in the widget extension |
 | Testing | XCTest, XCUITest | §19 |
 | SPM (external) | **None** | |
 

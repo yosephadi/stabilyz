@@ -35,6 +35,7 @@
 **Explicit boundary rules:**
 
 1. `Algorithms` and `Domain` compile with **no Apple-framework imports except `Foundation`** (`Accelerate` additionally permitted in `Algorithms`) — this is what makes the gait science independently testable and evolvable. Foundation is admitted because the domain model in §5 is specified in terms of `Date`, `UUID` and `Duration`, which have no stdlib equivalents; the rule's intent is to exclude SwiftUI, CoreMotion, AVFoundation, SwiftData and CryptoKit, and that intent is unchanged.
-2. Only `Services` and `Persistence` import CoreMotion / AVFoundation / SwiftData / CryptoKit.
+2. Only `Services` and `Persistence` import CoreMotion / AVFoundation / SwiftData / CryptoKit. In the iOS app, WatchConnectivity and ActivityKit (Phase 3) are imported only under `Services` (the watch target: rule 5).
 3. `Presentation` never imports a Service or Persistence type.
 4. Crossing layers uses domain value types or protocols — never leaks framework objects upward (e.g., a `CMSample`-like raw type from CoreMotion is converted to a domain `SensorSample` at the service boundary).
+5. **Watch Companion (Phase 3) [PRD §8]:** the watchOS app is its own target and sits outside these layers; it may import SwiftUI, WatchKit and WatchConnectivity, and never CoreMotion or HealthKit. WatchKit is imported only in the watch target. The message contract both sides speak lives in `StabilyzShared/WatchSync/` and imports Foundation only. Nothing watch-related lives in `Domain` or `Algorithms`.
