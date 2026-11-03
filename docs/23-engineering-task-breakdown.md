@@ -307,7 +307,8 @@ EPIC 12 — Watch Companion (Phase 3)  [PRD §8; docs/04 §4.18; decisions.md en
       ↳ Extend SourceGuardTests: no CoreMotion or HealthKit in the watch target;
         WatchConnectivity and ActivityKit imported only under `Services/` on the
         phone; `StabilyzShared/` imports Foundation only; Domain/Algorithms still
-        Foundation(+Accelerate) only. The existing 692 tests still pass.
+        Foundation(+Accelerate) only. The full existing suite passes, count read
+        from the result bundle.
     Task 12.1.2 Session sync contract (1d)                                   → dep: 12.1.1
       ↳ versioned Codable messages: countdownStarted (plannedGoAt), started (t0),
         stopped, cancelled, hapticsChanged; stopRequest watch → phone, carrying the
