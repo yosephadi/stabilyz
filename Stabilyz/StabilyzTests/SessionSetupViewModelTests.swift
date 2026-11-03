@@ -91,7 +91,8 @@ private func makeModel(
     baseline: BaselineState = .notStarted,
     authorization: MotionAuthorizationStatus = .authorized,
     onStart: @escaping @MainActor (TestMode, SessionAudioConfig, Bool) -> Void = { _, _, _ in },
-    openSettings: @escaping @MainActor () -> Void = {}
+    openSettings: @escaping @MainActor () -> Void = {},
+    watchSession: WatchSessionService = SilentWatchSessionService()
 ) -> SessionSetupViewModel {
     let (sessions, baselines) = stores(for: baseline, mode: mode)
     let model = SessionSetupViewModel(
@@ -100,6 +101,7 @@ private func makeModel(
         baselines: baselines,
         motionSensor: StubMotionService(authorization: authorization),
         logService: SetupLog(),
+        watchSession: watchSession,
         openSettings: openSettings,
         onStart: onStart
     )
@@ -583,4 +585,22 @@ private func makeModel(
     #expect(model.audioCueTitle == "Audio Step Feedback")
     #expect(model.baselineSupportingCopy
         == "Your baseline couldn't be set from your first 5 valid Full Tests. Your walks are still saved.")
+}
+
+// MARK: - Watch Waiting screen (Task 12.2.1)
+
+/// The watch's Waiting screen shows the selected mode and length [PRD §8].
+@MainActor @Test func theSelectionIsSharedWithTheWatchOnAppearAndOnEveryChange() async {
+    let watch = MockWatchSessionService()
+    let model = makeModel(mode: .quickTest, watchSession: watch)
+
+    await model.shareSelectionWithWatch()
+    model.select(.fullTest)
+    model.select(.fullTest) // no change, nothing sent
+    while watch.sentMessages.count < 2 { await Task.yield() }
+
+    #expect(watch.sentMessages == [
+        .setupSelection(mode: .quick, durationSeconds: 120),
+        .setupSelection(mode: .full, durationSeconds: 360),
+    ])
 }

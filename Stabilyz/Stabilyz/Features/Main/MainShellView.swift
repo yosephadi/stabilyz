@@ -68,6 +68,7 @@ struct MainShellView: View {
             baselines: dependencies.baselineRepository,
             motionSensor: dependencies.motionSensor,
             logService: dependencies.logService,
+            watchSession: dependencies.watchSession,
             openSettings: SystemSettingsLink.open,
             onStart: { _, _, _ in }
         ))

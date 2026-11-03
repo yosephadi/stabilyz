@@ -888,3 +888,49 @@ enum SourceTree {
         #expect(Self.violations(in: offending, forbidden: Self.servicesOnlyInApp) == ["ActivityKit"])
     }
 }
+
+// MARK: - Watch text size
+
+/// [PRD §8] The watch uses 15 pt minimum text. watchOS's `.footnote`,
+/// `.caption` and `.caption2` all render below that, and so does any fixed
+/// size under 15 (Task 12.2.1).
+@Suite struct WatchTextSizeGuardTests {
+    static let smallStyles = #"\.(footnote|caption2?)\b"#
+    static let smallFixedSize = #"\.system\(\s*size:\s*(\d+(\.\d+)?)"#
+
+    static func violations(in source: String) -> [String] {
+        let code = source.split(separator: "\n").map(String.init).filter {
+            !$0.trimmingCharacters(in: .whitespaces).hasPrefix("//")
+        }
+        let styles = try! NSRegularExpression(pattern: smallStyles)
+        let sizes = try! NSRegularExpression(pattern: smallFixedSize)
+        return code.filter { line in
+            let range = NSRange(line.startIndex..., in: line)
+            if styles.firstMatch(in: line, range: range) != nil { return true }
+            return sizes.matches(in: line, range: range).contains { match in
+                guard let sizeRange = Range(match.range(at: 1), in: line) else { return false }
+                return (Double(line[sizeRange]) ?? 0) < 15
+            }
+        }
+    }
+
+    @Test func watchTextIsNeverBelowFifteenPoints() {
+        let files = WatchTargetImportGuardTests.swiftFiles(inProjectFolder: "StabilyzWatch Watch App")
+        #expect(files.isEmpty == false, "the watch scan found no files — the scan itself is broken")
+        for file in files {
+            guard let source = WatchTargetImportGuardTests.read(file) else { continue }
+            for line in Self.violations(in: source) {
+                Issue.record("\(file.path): text under 15 pt — \(line.trimmingCharacters(in: .whitespaces))")
+            }
+        }
+    }
+
+    @Test func theScanWouldCatchSmallText() {
+        #expect(Self.violations(in: "Text(x).font(.footnote)").count == 1)
+        #expect(Self.violations(in: "Text(x).font(.caption2)").count == 1)
+        #expect(Self.violations(in: "let f = Font.system(size: 12)").count == 1)
+        #expect(Self.violations(in: "let f = Font.system(size: 64, weight: .bold)").isEmpty)
+        #expect(Self.violations(in: "Text(x).font(.body)").isEmpty)
+        #expect(Self.violations(in: "// .caption is too small").isEmpty)
+    }
+}

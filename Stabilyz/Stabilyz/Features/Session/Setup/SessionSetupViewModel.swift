@@ -64,6 +64,9 @@ final class SessionSetupViewModel {
     private let baselines: BaselineRepository
     private let motionSensor: MotionSensorService
     private let logService: LogService
+    /// Tells the watch which mode is selected, for its Waiting screen
+    /// [PRD §8]. Silent when there is no watch.
+    private let watchSession: WatchSessionService
     /// Opens the system Settings page for this app. Handed in rather than
     /// reached for, so the view model stays free of UIKit (docs/12 §12.3).
     private let openSettings: @MainActor () -> Void
@@ -83,6 +86,7 @@ final class SessionSetupViewModel {
         baselines: BaselineRepository,
         motionSensor: MotionSensorService,
         logService: LogService,
+        watchSession: WatchSessionService = SilentWatchSessionService(),
         openSettings: @escaping @MainActor () -> Void = {},
         onStart: @escaping @MainActor (TestMode, SessionAudioConfig, Bool) -> Void
     ) {
@@ -91,6 +95,7 @@ final class SessionSetupViewModel {
         self.baselines = baselines
         self.motionSensor = motionSensor
         self.logService = logService
+        self.watchSession = watchSession
         self.openSettings = openSettings
         self.onStart = onStart
     }
@@ -105,6 +110,17 @@ final class SessionSetupViewModel {
         // would silently opt the user into a different feature than the one
         // they turned on.
         isAudioCueOn = false
+        Task { await shareSelectionWithWatch() }
+    }
+
+    /// Sends the selected mode and its length to the watch's Waiting screen.
+    /// Called when the screen appears and on every mode change; the watch link
+    /// keeps the latest for a watch that opens later.
+    func shareSelectionWithWatch() async {
+        await watchSession.send(.setupSelection(
+            mode: WireTestMode(mode),
+            durationSeconds: WatchSyncMapping.durationSeconds(for: mode)
+        ))
     }
 
     /// Reads both modes' baseline states from the store.

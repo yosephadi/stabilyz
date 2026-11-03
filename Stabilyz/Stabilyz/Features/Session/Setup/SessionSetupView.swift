@@ -53,6 +53,7 @@ struct SessionSetupView: View {
             // setting the user may have changed while the app was away.
             await model.refreshBaselineStates()
             await model.refreshPermission()
+            await model.shareSelectionWithWatch()
             // An export from Settings retires the prompt too.
             exportNudge?.refresh()
         }

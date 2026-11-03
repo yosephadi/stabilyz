@@ -1,17 +1,17 @@
-//
-//  StabilyzWatchApp.swift
-//  StabilyzWatch Watch App
-//
-//  Created by Adi's Mac on 03/11/26.
-//
-
 import SwiftUI
 
+/// The watch companion (Phase 3, PRD §8): display, haptics and Stop only.
 @main
-struct StabilyzWatch_Watch_AppApp: App {
+struct StabilyzWatchApp: App {
+    @State private var model = WatchSessionModel(
+        link: WatchPhoneLink(),
+        announce: { AccessibilityNotification.Announcement($0).post() }
+    )
+
     var body: some Scene {
         WindowGroup {
-            ContentView()
+            WatchRootView(model: model)
+                .task { model.start() }
         }
     }
 }
