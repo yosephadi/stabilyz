@@ -31,7 +31,7 @@ import Testing
         #expect(session.id == sessionA)
         #expect(session.plannedGoAt == goAt)
         #expect(session.t0 == nil)
-        #expect(effects == [.announce("5")])
+        #expect(effects == [.announce("5"), .playHaptic(.click)])
         #expect(machine.selection == WatchSelection(mode: .quick, durationSeconds: 120))
     }
 

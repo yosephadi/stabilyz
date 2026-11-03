@@ -29,8 +29,16 @@ final class MockWatchSessionService: WatchSessionService, Sendable {
         reachabilityEvents.subscribe()
     }
 
-    func send(_ message: PhoneToWatchMessage) async {
+    func currentReachability() async -> WatchReachability {
+        reachabilityEvents.latest ?? .unavailable
+    }
+
+    /// Records the message. Delivered exactly when the mock is `.reachable`,
+    /// as a live watch would confirm it.
+    @discardableResult
+    func send(_ message: PhoneToWatchMessage) async -> WatchDelivery {
         sent.withLock { $0.append(message) }
+        return reachabilityEvents.latest == .reachable ? .delivered : .notDelivered
     }
 
     func stopRequests() -> AsyncStream<WatchStopRequest> {
@@ -50,7 +58,10 @@ struct SilentWatchSessionService: WatchSessionService {
         }
     }
 
-    func send(_ message: PhoneToWatchMessage) async {}
+    func currentReachability() async -> WatchReachability { .unavailable }
+
+    @discardableResult
+    func send(_ message: PhoneToWatchMessage) async -> WatchDelivery { .notDelivered }
 
     func stopRequests() -> AsyncStream<WatchStopRequest> {
         AsyncStream { $0.finish() }

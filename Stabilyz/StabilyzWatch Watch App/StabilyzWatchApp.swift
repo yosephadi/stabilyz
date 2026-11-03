@@ -5,6 +5,7 @@ import SwiftUI
 struct StabilyzWatchApp: App {
     @State private var model = WatchSessionModel(
         link: WatchPhoneLink(),
+        haptics: DeviceWatchHaptics(),
         announce: { AccessibilityNotification.Announcement($0).post() }
     )
 

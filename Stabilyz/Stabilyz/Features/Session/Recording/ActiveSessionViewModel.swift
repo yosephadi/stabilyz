@@ -25,8 +25,17 @@ final class ActiveSessionViewModel {
 
     /// The countdown taps and the stop pulse. Free in both directions: these
     /// fire at T-0 and at Stop, so changing one mid-walk cannot affect the
-    /// measurement [PRD OQ-6].
-    var isHapticsOn: Bool
+    /// measurement [PRD OQ-6]. A change is passed on, because the setting
+    /// governs the watch too [PRD §8].
+    var isHapticsOn: Bool {
+        didSet {
+            guard isHapticsOn != oldValue else { return }
+            onHapticsChanged(isHapticsOn)
+        }
+    }
+
+    /// Assigned by the cover, like `onStop`.
+    var onHapticsChanged: @MainActor (Bool) -> Void = { _ in }
 
     /// Assigned by the cover once it exists — the closure has to reach the
     /// view's own state, which is not available while this is being built.

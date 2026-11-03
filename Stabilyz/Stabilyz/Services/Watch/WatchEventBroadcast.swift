@@ -65,6 +65,11 @@ final class WatchEventBroadcast<Value: Sendable>: Sendable {
         }
     }
 
+    /// The value a new subscriber would be replayed, if any.
+    var latest: Value? {
+        state.withLock { $0.latest }
+    }
+
     var subscriberCount: Int {
         state.withLock { $0.subscribers.count }
     }

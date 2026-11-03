@@ -17,6 +17,14 @@ nonisolated struct WatchSession: Equatable, Sendable {
     var t0: Date?
     let hapticOwner: WireHapticOwner
     var hapticsEnabled: Bool
+    /// Set when the watch moved to Running on its own because `started` was
+    /// late (`missedStartedGrace`). `t0` is then the planned Go until the real
+    /// one arrives.
+    var t0IsEstimated = false
+
+    /// Whether this watch plays the session haptics right now: it owns them
+    /// and Start & Stop Haptics is on [PRD §8 decision 3].
+    var playsHaptics: Bool { hapticOwner == .watch && hapticsEnabled }
 }
 
 /// Where the watch is [docs/04 §4.18]:
@@ -49,6 +57,17 @@ nonisolated enum WatchEvent: Equatable, Sendable {
     case doneTapped
 }
 
+/// The session haptics the watch plays when it owns them [PRD §8 Haptics].
+/// Candidates, to be verified on a real watch (Task 12.6.1).
+nonisolated enum WatchHaptic: Equatable, Sendable {
+    /// Each countdown numeral.
+    case click
+    /// Go.
+    case start
+    /// Stop, and a cancelled countdown.
+    case stop
+}
+
 /// Something the watch must do because of an event. The machine decides; the
 /// model carries it out.
 nonisolated enum WatchEffect: Equatable, Sendable {
@@ -56,6 +75,7 @@ nonisolated enum WatchEffect: Equatable, Sendable {
     case announce(String)
     /// Ask the phone to stop this session.
     case sendStopRequest(UUID)
+    case playHaptic(WatchHaptic)
 }
 
 /// The watch companion's state machine (Task 12.2.1, docs/04 §4.18).
@@ -70,6 +90,9 @@ nonisolated enum WatchEffect: Equatable, Sendable {
 /// watch moves to Stopped only when the phone says so.
 nonisolated struct WatchSessionMachine: Equatable, Sendable {
     static let countdownStart = 5
+    /// How long after the planned Go the watch waits for `started` before
+    /// moving to Running on its own, from the planned Go and with no Go haptic.
+    static let missedStartedGrace: TimeInterval = 2
     /// How long Stop stays disabled after a tap with no answer from the phone.
     static let stopRetryInterval: TimeInterval = 3
 
@@ -138,20 +161,26 @@ nonisolated struct WatchSessionMachine: Equatable, Sendable {
             guard var session = phase.session, session.id == id else { return [] }
             let wasCounting = if case .countingDown = phase { true } else { false }
             session.t0 = t0
-            phase = isPhoneReachable || wasCounting ? .running(session) : .disconnected(session)
-            return wasCounting ? [.announce(WatchCopy.go)] : []
+            session.t0IsEstimated = false
+            // A message just arrived, so the phone is reachable.
+            isPhoneReachable = true
+            phase = .running(session)
+            // Go is felt and announced only on time. After the fallback has
+            // moved on, a late `started` only re-syncs the clock.
+            guard wasCounting else { return [] }
+            return [.announce(WatchCopy.go)] + (session.playsHaptics ? [.playHaptic(.start)] : [])
 
         case .stopped(let id):
-            guard phase.session?.id == id else { return [] }
+            guard let session = phase.session, session.id == id else { return [] }
             phase = .stopped(sessionID: id)
             stopRequestedAt = nil
-            return []
+            return session.playsHaptics ? [.playHaptic(.stop)] : []
 
         case .cancelled(let id):
-            guard phase.session?.id == id else { return [] }
+            guard let session = phase.session, session.id == id else { return [] }
             phase = .waiting
             stopRequestedAt = nil
-            return []
+            return session.playsHaptics ? [.playHaptic(.stop)] : []
 
         case .hapticsChanged(let enabled):
             update { $0.hapticsEnabled = enabled }
@@ -185,11 +214,23 @@ nonisolated struct WatchSessionMachine: Equatable, Sendable {
             stopRequestedAt = nil
         }
 
-        guard case .countingDown(let session) = phase else { return [] }
+        guard case .countingDown(var session) = phase else { return [] }
+
+        // `started` never came: the phone may have missed sending it, or the
+        // link dropped during the countdown. The walk is almost certainly
+        // recording, so show it from the planned Go — without a Go haptic,
+        // which would be late and might be wrong — and re-sync if it arrives.
+        if now.timeIntervalSince(session.plannedGoAt) >= Self.missedStartedGrace {
+            session.t0 = session.plannedGoAt
+            session.t0IsEstimated = true
+            phase = isPhoneReachable ? .running(session) : .disconnected(session)
+            return []
+        }
+
         let numeral = Self.numeral(plannedGoAt: session.plannedGoAt, at: now)
         guard numeral != announcedNumeral else { return [] }
         announcedNumeral = numeral
-        return [.announce("\(numeral)")]
+        return [.announce("\(numeral)")] + (session.playsHaptics ? [.playHaptic(.click)] : [])
     }
 
     // MARK: - Stop

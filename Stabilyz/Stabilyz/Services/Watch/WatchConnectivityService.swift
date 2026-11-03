@@ -52,16 +52,26 @@ final class WatchConnectivityService: NSObject, WatchSessionService, WCSessionDe
         stopEvents.subscribe()
     }
 
-    func send(_ message: PhoneToWatchMessage) async {
+    /// How long a live message waits for the watch's reply before it counts as
+    /// not delivered. Short, because the one caller that waits (the Go
+    /// fallback) plays its pulse late by up to this much.
+    static let replyTimeout: Duration = .milliseconds(750)
+
+    func currentReachability() async -> WatchReachability {
+        reachabilityEvents.latest ?? .unavailable
+    }
+
+    @discardableResult
+    func send(_ message: PhoneToWatchMessage) async -> WatchDelivery {
         guard let session, session.activationState == .activated,
-              session.isPaired, session.isWatchAppInstalled else { return }
+              session.isPaired, session.isWatchAppInstalled else { return .notDelivered }
 
         let encoded: Data
         do {
             encoded = try WatchSyncCoder.encode(message)
         } catch {
             logService.log(.error, .session, "watch: could not encode a message: \(LogRedaction.describe(error))")
-            return
+            return .notDelivered
         }
 
         let applicationContext = context.withLock { context -> [String: Any] in
@@ -74,10 +84,37 @@ final class WatchConnectivityService: NSObject, WatchSessionService, WCSessionDe
             logService.log(.warning, .session, "watch: application context not updated: \(LogRedaction.describe(error))")
         }
 
-        guard session.isReachable else { return }
+        guard session.isReachable else { return .notDelivered }
+        return await sendLive(encoded, on: session)
+    }
+
+    /// Sends a live message and waits for the watch's reply, or the timeout.
+    /// The watch replies to every message (`WatchPhoneLink`), so a reply means
+    /// it arrived.
+    private func sendLive(_ encoded: Data, on session: WCSession) async -> WatchDelivery {
         let logService = self.logService
-        session.sendMessage([WatchSyncKeys.message: encoded], replyHandler: nil) { error in
-            logService.log(.warning, .session, "watch: live message not delivered: \(LogRedaction.describe(error))")
+        let answered = Locked(false)
+        return await withCheckedContinuation { continuation in
+            /// Exactly one of reply, error and timeout resumes.
+            let finish: @Sendable (WatchDelivery) -> Void = { delivery in
+                let first = answered.withLock { done -> Bool in
+                    defer { done = true }
+                    return !done
+                }
+                if first { continuation.resume(returning: delivery) }
+            }
+            session.sendMessage(
+                [WatchSyncKeys.message: encoded],
+                replyHandler: { _ in finish(.delivered) },
+                errorHandler: { error in
+                    logService.log(.warning, .session, "watch: live message not delivered: \(LogRedaction.describe(error))")
+                    finish(.notDelivered)
+                }
+            )
+            Task {
+                try? await Task.sleep(for: Self.replyTimeout)
+                finish(.notDelivered)
+            }
         }
     }
 

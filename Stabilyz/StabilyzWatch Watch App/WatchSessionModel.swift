@@ -31,16 +31,19 @@ final class WatchSessionModel {
     static let tickInterval: Duration = .milliseconds(100)
 
     private let link: WatchPhoneLinking
+    private let haptics: WatchHapticPlaying
     private let clock: @MainActor () -> Date
     private let announce: @MainActor (String) -> Void
     private var tickTask: Task<Void, Never>?
 
     init(
         link: WatchPhoneLinking,
+        haptics: WatchHapticPlaying,
         clock: @escaping @MainActor () -> Date = { Date() },
         announce: @escaping @MainActor (String) -> Void
     ) {
         self.link = link
+        self.haptics = haptics
         self.clock = clock
         self.announce = announce
         self.now = clock()
@@ -86,6 +89,8 @@ final class WatchSessionModel {
             announce(text)
         case .sendStopRequest(let id):
             link.send(.stopRequest(sessionID: id))
+        case .playHaptic(let haptic):
+            haptics.play(haptic)
         }
     }
 }

@@ -15,6 +15,14 @@ enum WatchReachability: Sendable, Equatable {
     case reachable
 }
 
+/// Whether the watch confirmed it received a message.
+enum WatchDelivery: Equatable, Sendable {
+    case delivered
+    /// Not reachable, no reply in time, or an error. The application context
+    /// still holds it for later.
+    case notDelivered
+}
+
 /// A Stop tapped on the watch, for the session it names [PRD §8 decision 2].
 struct WatchStopRequest: Sendable, Equatable {
     let sessionID: UUID
@@ -35,10 +43,18 @@ protocol WatchSessionService: Sendable {
     /// stream, so the setup indicator and the countdown can both listen.
     func reachability() -> AsyncStream<WatchReachability>
 
+    /// The reachability right now: the latest value `reachability()` has
+    /// reported.
+    func currentReachability() async -> WatchReachability
+
     /// Sends a message to the watch, live if it is reachable, and keeps the
-    /// latest session state for a watch that connects later. Returns without
-    /// waiting for delivery.
-    func send(_ message: PhoneToWatchMessage) async
+    /// latest session state for a watch that connects later.
+    ///
+    /// Returns whether the watch confirmed the live message, waiting at most
+    /// `WatchConnectivityService.replyTimeout`. Callers that do not need the
+    /// answer must not wait for it: send from a task.
+    @discardableResult
+    func send(_ message: PhoneToWatchMessage) async -> WatchDelivery
 
     /// Stop requests from the watch, in arrival order. Not filtered by
     /// session: matching the ID against the running session is the caller's

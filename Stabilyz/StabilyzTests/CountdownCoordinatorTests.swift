@@ -153,9 +153,10 @@ private let threeTickPolicy = CountdownPolicy(version: 1, tickCount: 3, tickInte
 @MainActor
 private func makeCoordinator(
     motion: (any MotionSensorService)? = nil,
-    policy: CountdownPolicy = threeTickPolicy
+    policy: CountdownPolicy = threeTickPolicy,
+    watch: WatchSessionService = SilentWatchSessionService(),
+    clock: FixedClock = FixedClock()
 ) -> (CountdownCoordinator, SessionRecorder, MockHapticFeedbackService, AudioSpy, GatedTicker, CountdownLog) {
-    let clock = FixedClock()
     let log = CountdownLog()
     let audio = AudioSpy()
     let haptics = MockHapticFeedbackService()
@@ -179,7 +180,8 @@ private func makeCoordinator(
         clock: clock,
         logService: log,
         ticker: ticker,
-        policy: policy
+        policy: policy,
+        watchSession: watch
     )
     return (coordinator, recorder, haptics, audio, ticker, log)
 }
@@ -718,4 +720,235 @@ private func makeCoordinator(
     #expect(coordinator.state == .running)
     #expect(await haptics.taps == [.cadenceTick, .cadenceTick, .cadenceTick, .sessionStart])
     _ = try await recorder.stop()
+}
+
+// MARK: - Haptic ownership and the watch (Task 12.3.1)
+
+/// Runs a three-tick countdown to T-0 and waits for the watch messages.
+@MainActor
+private func countToGo(_ coordinator: CountdownCoordinator, _ ticker: GatedTicker, hapticsEnabled: Bool = true) async {
+    coordinator.start(mode: .quickTest, audioConfig: .none, hapticsEnabled: hapticsEnabled)
+    for entered in 1...3 {
+        await ticker.waitUntilEntered(entered)
+        await ticker.release()
+    }
+    await coordinator.waitUntilFinished()
+    await coordinator.watchSyncSettled()
+}
+
+@MainActor
+@Test func aReachableWatchOwnsTheHapticsAndThePhoneTapsNothing() async throws {
+    let watch = MockWatchSessionService(reachability: .reachable)
+    let clock = FixedClock()
+    let (coordinator, recorder, haptics, _, ticker, _) = makeCoordinator(watch: watch, clock: clock)
+    let countdownBegan = clock.now
+
+    await countToGo(coordinator, ticker)
+
+    #expect(coordinator.hapticOwner == .watch)
+    #expect(await haptics.taps.isEmpty, "no tick and no Go on the phone")
+    let id = try #require(coordinator.sessionID)
+    guard case .countdownStarted(let sentID, let mode, let seconds, let plannedGoAt, let owner, let enabled) = watch.sentMessages.first else {
+        Issue.record("countdownStarted not sent first: \(watch.sentMessages)")
+        return
+    }
+    #expect(sentID == id)
+    #expect(mode == .quick)
+    #expect(seconds == 120)
+    #expect(owner == .watch)
+    #expect(enabled)
+    // Three one-second ticks in this policy, so Go is planned three seconds
+    // after the first numeral.
+    #expect(plannedGoAt == countdownBegan.addingTimeInterval(3))
+    _ = try await recorder.stop()
+}
+
+@MainActor
+@Test func anUnreachableWatchLeavesTheHapticsOnThePhone() async throws {
+    let watch = MockWatchSessionService(reachability: .installedNotReachable)
+    let (coordinator, recorder, haptics, _, ticker, _) = makeCoordinator(watch: watch)
+
+    await countToGo(coordinator, ticker)
+
+    #expect(coordinator.hapticOwner == .phone)
+    #expect(await haptics.taps == [.cadenceTick, .cadenceTick, .cadenceTick, .sessionStart])
+    guard case .countdownStarted(_, _, _, _, let owner, _) = watch.sentMessages.first else {
+        Issue.record("countdownStarted not sent")
+        return
+    }
+    #expect(owner == .phone)
+    _ = try await recorder.stop()
+}
+
+/// Fixed at the first numeral: the watch dropping or arriving mid-countdown
+/// does not move the haptics.
+@MainActor
+@Test func theOwnerIsFixedAtTheFirstNumeral() async throws {
+    let watch = MockWatchSessionService(reachability: .reachable)
+    let (coordinator, recorder, haptics, _, ticker, _) = makeCoordinator(watch: watch)
+
+    coordinator.start(mode: .quickTest, audioConfig: .none)
+    await ticker.waitUntilEntered(1)
+    watch.setReachability(.installedNotReachable)
+    for entered in 1...3 {
+        await ticker.waitUntilEntered(entered)
+        await ticker.release()
+    }
+    await coordinator.waitUntilFinished()
+    await coordinator.watchSyncSettled()
+
+    #expect(coordinator.hapticOwner == .watch)
+    #expect(await haptics.taps.contains(.cadenceTick) == false)
+    _ = try await recorder.stop()
+}
+
+@MainActor
+@Test func goSendsTheRealAnchorForTheSameSession() async throws {
+    let watch = MockWatchSessionService(reachability: .reachable)
+    let (coordinator, recorder, _, _, ticker, _) = makeCoordinator(watch: watch)
+
+    await countToGo(coordinator, ticker)
+    let buffer = try await recorder.stop()
+
+    #expect(watch.sentMessages.count == 2)
+    #expect(watch.sentMessages.last == .started(sessionID: try #require(coordinator.sessionID), t0: buffer.anchor.wallClock))
+}
+
+/// Go is never silent to touch: if the owning watch did not confirm
+/// `started`, the phone plays it.
+@MainActor
+@Test func thePhonePlaysGoWhenTheOwningWatchMissesStarted() async throws {
+    let watch = MockWatchSessionService(reachability: .reachable)
+    let (coordinator, recorder, haptics, _, ticker, _) = makeCoordinator(watch: watch)
+
+    coordinator.start(mode: .quickTest, audioConfig: .none)
+    for entered in 1...3 {
+        await ticker.waitUntilEntered(entered)
+        if entered == 3 { watch.setReachability(.installedNotReachable) }
+        await ticker.release()
+    }
+    await coordinator.waitUntilFinished()
+    await coordinator.watchSyncSettled()
+
+    #expect(coordinator.hapticOwner == .watch)
+    #expect(await haptics.taps == [.sessionStart], "only the fallback Go, never a tick")
+    _ = try await recorder.stop()
+}
+
+@MainActor
+@Test func noGoFallbackWhenHapticsAreOff() async throws {
+    let watch = MockWatchSessionService(reachability: .reachable)
+    let (coordinator, recorder, haptics, _, ticker, _) = makeCoordinator(watch: watch)
+
+    coordinator.start(mode: .quickTest, audioConfig: .none, hapticsEnabled: false)
+    for entered in 1...3 {
+        await ticker.waitUntilEntered(entered)
+        if entered == 3 { watch.setReachability(.installedNotReachable) }
+        await ticker.release()
+    }
+    await coordinator.waitUntilFinished()
+    await coordinator.watchSyncSettled()
+
+    #expect(await haptics.taps.isEmpty)
+    _ = try await recorder.stop()
+}
+
+@MainActor
+@Test func aCancelIsSentAndFeltOnlyWhereTheHapticsAre() async throws {
+    for reachability in [WatchReachability.reachable, .unavailable] {
+        let watch = MockWatchSessionService(reachability: reachability)
+        let (coordinator, _, haptics, _, ticker, _) = makeCoordinator(watch: watch)
+
+        coordinator.start(mode: .quickTest, audioConfig: .none)
+        await ticker.waitUntilEntered(2)
+        let cancelling = Task { await coordinator.cancel() }
+        await ticker.releaseAll()
+        await cancelling.value
+        await coordinator.watchSyncSettled()
+
+        let id = try #require(coordinator.sessionID)
+        #expect(watch.sentMessages.last == .cancelled(sessionID: id))
+        let phoneFeltIt = await haptics.taps.contains(.sessionStop)
+        #expect(phoneFeltIt == (reachability != .reachable), "the cancel pulse belongs to the owner")
+    }
+}
+
+@MainActor
+@Test func aFailedPrimingTellsTheWatchNothing() async throws {
+    let watch = MockWatchSessionService(reachability: .reachable)
+    let (coordinator, _, _, _, ticker, _) = makeCoordinator(
+        motion: RefusingMotionService(error: .sensor(.unavailable)),
+        watch: watch
+    )
+    coordinator.start(mode: .quickTest, audioConfig: .none)
+    await coordinator.waitUntilFinished()
+    await ticker.releaseAll()
+    await coordinator.watchSyncSettled()
+
+    #expect(coordinator.hapticOwner == nil)
+    #expect(watch.sentMessages.isEmpty, "the watch never heard of this countdown")
+}
+
+/// The Stop pulse table: owner × reachability at Stop × Start & Stop Haptics.
+@MainActor
+@Test(arguments: [
+    // (watch reachable at counting, reachable at stop, haptics on, phone pulse)
+    (true, true, true, false),
+    (true, false, true, true),
+    (false, false, true, true),
+    (false, true, true, true),
+    (true, true, false, false),
+    (true, false, false, false),
+    (false, false, false, false),
+])
+func theStopPulseIsPlayedByTheOwnerOrThePhoneAsFallback(
+    reachableAtCounting: Bool, reachableAtStop: Bool, hapticsOn: Bool, phonePulse: Bool
+) async throws {
+    let watch = MockWatchSessionService(reachability: reachableAtCounting ? .reachable : .unavailable)
+    let (coordinator, recorder, haptics, _, ticker, _) = makeCoordinator(watch: watch)
+    await countToGo(coordinator, ticker)
+    await haptics.reset()
+
+    watch.setReachability(reachableAtStop ? .reachable : .installedNotReachable)
+    await coordinator.sessionStopped(hapticsOn: hapticsOn)
+    await coordinator.watchSyncSettled()
+
+    #expect(await haptics.taps == (phonePulse ? [.sessionStop] : []))
+    #expect(watch.sentMessages.last == .stopped(sessionID: try #require(coordinator.sessionID)))
+    _ = try await recorder.stop()
+}
+
+@MainActor
+@Test func aMidWalkHapticsChangeIsSentToTheWatch() async throws {
+    let watch = MockWatchSessionService(reachability: .reachable)
+    let (coordinator, recorder, _, _, ticker, _) = makeCoordinator(watch: watch)
+    await countToGo(coordinator, ticker)
+
+    coordinator.hapticsSettingChanged(false)
+    await coordinator.watchSyncSettled()
+
+    #expect(watch.sentMessages.last == .hapticsChanged(enabled: false))
+    _ = try await recorder.stop()
+}
+
+@MainActor
+@Test func everyStartMintsANewSession() async throws {
+    let watch = MockWatchSessionService(reachability: .reachable)
+    let (coordinator, _, _, _, ticker, _) = makeCoordinator(watch: watch)
+
+    coordinator.start(mode: .quickTest, audioConfig: .none)
+    await ticker.waitUntilEntered(1)
+    let first = coordinator.sessionID
+    let cancelling = Task { await coordinator.cancel() }
+    await ticker.releaseAll()
+    await cancelling.value
+    coordinator.reset()
+
+    coordinator.start(mode: .quickTest, audioConfig: .none)
+    await ticker.waitUntilEntered(2)
+    #expect(coordinator.sessionID != nil)
+    #expect(coordinator.sessionID != first)
+    let cancellingAgain = Task { await coordinator.cancel() }
+    await ticker.releaseAll()
+    await cancellingAgain.value
 }

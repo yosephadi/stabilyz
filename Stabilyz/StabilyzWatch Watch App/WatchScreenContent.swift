@@ -82,7 +82,7 @@ nonisolated enum WatchScreen: Equatable, Sendable {
             self = .countdown(numeral: "\(WatchSessionMachine.numeral(plannedGoAt: session.plannedGoAt, at: now))")
         case .running(let session):
             let t0 = session.t0 ?? session.plannedGoAt
-            if now.timeIntervalSince(t0) < Self.goHold {
+            if !session.t0IsEstimated, now.timeIntervalSince(t0) < Self.goHold {
                 self = .countdown(numeral: WatchCopy.go)
             } else {
                 self = .running(

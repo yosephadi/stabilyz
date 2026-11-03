@@ -59,7 +59,8 @@ struct SessionCoverView: View {
             haptics: dependencies.hapticFeedback,
             audio: dependencies.audioFeedback,
             clock: dependencies.clock,
-            logService: dependencies.logService
+            logService: dependencies.logService,
+            watchSession: dependencies.watchSession
         ))
         let recorder = dependencies.sessionRecorder
         _session = State(initialValue: ActiveSessionViewModel(
@@ -110,6 +111,7 @@ struct SessionCoverView: View {
         .interactiveDismissDisabled(!phase.isDismissible)
         .task {
             session.onStop = endWalk
+            session.onHapticsChanged = { coordinator.hapticsSettingChanged($0) }
             coordinator.start(mode: mode, audioConfig: audioConfig, hapticsEnabled: hapticsEnabled)
         }
         .onChange(of: coordinator.state) { _, state in
@@ -195,6 +197,7 @@ struct SessionCoverView: View {
     /// recorder freezes the buffer and releases the sensors, and only then does
     /// the pipeline run. Like every other haptic it is requested, never awaited
     /// (ledger 25) — a wedged engine costs the walk its tap, never its data.
+    /// Which device plays it is the coordinator's call (Task 12.3.1).
     private func endWalk() {
         guard phase.isRecording else { return }
         phase = .processing
@@ -211,9 +214,8 @@ struct SessionCoverView: View {
             return
         }
 
-        if session.isHapticsOn {
-            Task { await haptics.playSessionStop() }
-        }
+        let hapticsOn = session.isHapticsOn
+        Task { await coordinator.sessionStopped(hapticsOn: hapticsOn) }
 
         Task {
             do {

@@ -412,3 +412,20 @@ private func elapsedStream(_ seconds: [Int]) -> AsyncStream<SessionRecordingEven
 
     #expect(stops.withLock { $0 } == 1)
 }
+
+// MARK: - Haptics reach the watch (Task 12.3.1)
+
+/// Start & Stop Haptics governs the watch too, so a mid-walk change is passed
+/// on — once per change, not per assignment.
+@MainActor
+@Test func aHapticsToggleIsPassedOnOncePerChange() {
+    var changes: [Bool] = []
+    let model = ActiveSessionViewModel(mode: .quickTest, audioConfig: .none, isHapticsOn: true, onStop: {})
+    model.onHapticsChanged = { changes.append($0) }
+
+    model.isHapticsOn = false
+    model.isHapticsOn = false
+    model.isHapticsOn = true
+
+    #expect(changes == [false, true])
+}

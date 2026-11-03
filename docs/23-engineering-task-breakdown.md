@@ -346,7 +346,9 @@ EPIC 12 — Watch Companion (Phase 3)  [PRD §8; docs/04 §4.18; decisions.md en
     Task 12.6.1 Real-watch QA pass (0.5d)                                    → dep: 12.1.1–12.5.1
       ↳ closes every "verify on device" item: haptic patterns [OPEN] PRD OQ-7c,
         survival through wrist-down and leaving the app, reachability at countdown
-        start, watch/phone timer agreement, Live Activity on watchOS 11.
+        start, watch/phone timer agreement, Go-cue latency (watch Go on `started`
+        vs the phone's start tone, and the phone's late fallback Go), Live
+        Activity on watchOS 11.
       ↳ EXIT CONDITION: if `WKInterfaceDevice.play` does not fire reliably during a
         background extended runtime session, haptic ownership falls back to
         phone-only for every session (decisions.md entry 46).
