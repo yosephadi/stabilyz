@@ -84,6 +84,9 @@ Stabilyz is an iOS app that lets a prosthetic limb user run short, self-directed
 [Audio feedback selector] ── depends on whether this mode's baseline exists yet:
   • Before baseline exists (sessions 1-5): "Walk normally — there's no target pace" framing shown; optional **Step Feedback** toggle, off by default (a brief sound on confidently-detected steps, never a tempo)
   • After baseline exists (session 6+): optional **Metronome cue** toggle, paced to this mode's baseline cadence
+  • Watch indicator (Phase 3, see §8): if the Stabilyz watch app is reachable, one line —
+    "Timer will show on your watch" — telling the user the timer and haptics will come
+    from the watch; if it isn't, nothing is shown and nothing alarming replaces it
       │
       ▼
 [Start Test] ── tapping Start Test does not begin recording; it begins a countdown
@@ -150,7 +153,33 @@ Stabilyz is an iOS app that lets a prosthetic limb user run short, self-directed
               └── Replace with backup ──► decrypts and validates the backup using the entered passphrase, then replaces the local database atomically — a wrong passphrase or failed validation leaves the existing local database completely untouched
 ```
 
-**Out of this flow for v1** (explicitly deferred, per existing backlog): HealthKit passive track, threshold-based recommendations, turn-detection, socket-fit tagging, cohort benchmarking, and structured clinician-facing data export (e.g. a PDF report format) beyond the single summary screen — this is distinct from the personal backup export/import described above, which is in scope and exists so the user can move their own data to a new device, not to hand a report to a clinician.
+**Watch Companion alongside the session flow (Phase 3, see §8).** The phone flow above is unchanged; the watch follows it and never drives it, except for Stop:
+
+```
+Phone                                   Watch (if the user opened the app)
+─────────────────────────────────────   ─────────────────────────────────────────
+[Setup screen]                     ──►  [Waiting] "Start on your iPhone", mode + length
+  (Live Activity nudge while the          (extended runtime session starts here)
+   watch app is installed but
+   not reachable)
+[Countdown 5→1, Go]                ──►  [Countdown] 5→1 then Go, "Phone in pocket"
+  haptic owner fixed here: watch if        ticks/Go haptics if the watch owns them;
+  reachable now, else phone — for the      no Cancel, no Stop
+  whole session
+[Countdown cancelled]              ──►  [Waiting] (stop pulse if the watch owns haptics)
+[Session In Progress]              ──►  [Running] timer from T-0, progress bar, Stop
+                                        [Disconnected] when the phone is unreachable:
+                                          local timer keeps running, "Keep walking.
+                                          Your walk is still recording.", no Stop
+                                          ──► back to [Running] on reconnect
+[Stop] (phone tap, watch Stop,     ◄──  Stop on [Running] sends a stop request; the
+ or clock reaching 00:00)                 phone ends the session exactly as an on-phone
+                                          Stop
+[Processing → Score / Noisy]       ──►  [Stopped] "Walk finished", "See your result on
+                                          iPhone", Done ──► [Waiting]
+```
+
+**Out of this flow for v1** (explicitly deferred, per existing backlog): HealthKit passive track, threshold-based recommendations, turn-detection, socket-fit tagging, cohort benchmarking, and structured clinician-facing data export (e.g. a PDF report format) beyond the single summary screen — this is distinct from the personal backup export/import described above, which is in scope and exists so the user can move their own data to a new device, not to hand a report to a clinician. The Apple Watch companion is not part of v1; it is Phase 3, specified in §8.
 
 ---
 
@@ -195,6 +224,19 @@ Stabilyz is an iOS app that lets a prosthetic limb user run short, self-directed
 - **Low-confidence or false-positive step detections during Step Feedback.** A sound must only fire on steps the detector is confident are genuine — playing a sound on every raw signal spike risks creating an accidental, unintended rhythm (effectively a fake metronome the app never meant to produce), which defeats the entire point of keeping baseline sessions undisturbed.
 - **A single physical step registers as multiple detection events.** A short debounce/refractory period after each triggered sound prevents one footfall from producing a rapid double- or triple-beep.
 - **Bluetooth audio device disconnects mid-session** (AirPods die, connection drops). Both Step Feedback and the Metronome cue should fail silently to device speaker or stop cleanly — neither should crash or freeze the session.
+
+### Watch Companion (Phase 3, see §8)
+- **No paired watch, or the Stabilyz watch app isn't installed.** Nothing changes: no indicator, no nudge, the phone plays every haptic, exactly as in v1.
+- **Watch app installed but not open.** The setup screen starts a Live Activity nudging the user to open the watch app. No notification is posted and no new permission is requested. The Live Activity ends as soon as the watch becomes reachable, or when the session ends or the countdown is cancelled. The user can always start without opening the watch; the session is unaffected.
+- **Watch unreachable when the countdown starts.** The phone owns haptics for the whole session — ticks, Go and Stop — even if the watch connects later. The watch, if it connects mid-session, shows the timer and offers Stop but plays no haptics.
+- **Watch drops mid-walk** (out of range, Bluetooth off, watch app terminated). The session continues on the phone, unchanged: it is not cancelled, not paused, not invalidated, and gets no gap or interruption record — the watch is not a sensor. The watch shows Disconnected: its local timer keeps running from T-0, "Keep walking. Your walk is still recording.", no Stop button, no haptic.
+- **Watch reconnects mid-walk.** The watch re-syncs to the phone's state and T-0, returns to Running, and Stop reappears. If the session ended while the watch was away, the watch goes straight to Stopped.
+- **Stop pressed on the watch while the phone is already stopping** (the user tapped both, the clock reached 00:00, or a late or duplicate request arrived). The phone ignores every stop request after the first; the session ends exactly once. The watch shows Stopped either way.
+- **The watch owns haptics but is unreachable at Stop.** The phone plays the Stop pulse as a fallback, so the user still feels Stop. This is the one exception to fixed haptic ownership.
+- **The watch owns haptics, is unreachable, and the clock reaches 00:00.** The phone ends the session and plays the fallback Stop pulse; the watch, whose own timer also reaches the end, plays its Stop haptic locally and shows Stopped. The user may feel two buzzes, on wrist and in pocket — intended behaviour, accepted over the risk of feeling none.
+- **Countdown cancelled on the phone while the watch owns haptics.** The watch plays the stop pulse (the phone stays silent, as with every haptic it doesn't own) and returns to Waiting. The watch shows no Cancel during the countdown; cancel is phone-only.
+- **Watch screen turns off or the wrist drops mid-walk.** The extended runtime session keeps the watch app alive; the timer and haptics continue. Screen-off on the watch is never a disconnect and never affects the session.
+- **User leaves the watch app mid-walk** (presses the Digital Crown, opens another app). The extended runtime session keeps the app running in the background; returning shows the current state. If the watch app is terminated anyway, this is a watch drop (above).
 
 ---
 
@@ -277,9 +319,85 @@ Stabilyz is an iOS app that lets a prosthetic limb user run short, self-directed
 - [ ] **Restore is atomic — this is a hard requirement, not a soft preference.** If passphrase decryption, validation, or restoration fails at any point, the existing local database is left completely unchanged; there is no partially-restored or corrupted intermediate state.
 - [ ] A wrong passphrase, or an invalid/corrupted/version-incompatible file, fails the import with a plain-language message and changes nothing, on either the first-launch or Settings path.
 
+### Watch Companion (Phase 3, see §8)
+- [ ] The watch records no motion data, and nothing from the watch contributes to any metric, score, baseline, validity decision or stored session.
+- [ ] The watch never shows a score, a metric, or whether the walk was valid.
+- [ ] A session can only be started from the phone. The watch has no Start control.
+- [ ] Stop on the watch ends the session exactly as an on-phone Stop does — same recording end, same pipeline, same tones.
+- [ ] The phone acts on the first stop request only; any later or duplicate request (from either device, or after the clock reached 00:00) is ignored, and the session ends exactly once.
+- [ ] Stop is visible on the watch only in the Running state while the phone is reachable; it is hidden in Waiting, Countdown, Disconnected and Stopped.
+- [ ] If the watch app is reachable when the countdown starts, the watch plays the countdown ticks, the Go haptic and the Stop haptic, and the phone plays none of them; otherwise the phone plays them all. The choice is fixed for the whole session and does not change on reconnect or disconnect.
+- [ ] "The phone plays none" covers haptics only: the start tone, the stop tone, Step Feedback and the Metronome cue still play from the phone exactly as in v1.
+- [ ] If the watch owns haptics and is unreachable at Stop, the phone plays the Stop pulse. At 00:00 this may produce two Stop haptics (watch and phone); that is accepted.
+- [ ] If the user turned Start & Stop Haptics off, the watch plays no haptics either; a change made mid-walk reaches the watch.
+- [ ] Losing the watch at any point never cancels, pauses or invalidates a session, and never adds a gap or interruption to it.
+- [ ] Disconnected shows "Phone not reachable" and "Keep walking. Your walk is still recording.", keeps the local timer running from T-0, shows no Stop, and plays no haptic. On reconnect the watch returns to the phone's current state.
+- [ ] A cancelled countdown returns the watch to Waiting; if the watch owns haptics it plays the stop pulse. The watch shows no Cancel during the countdown.
+- [ ] The watch's timer starts from the phone's T-0, not from the moment a message arrived, and shows the same elapsed time as the phone to within one displayed second.
+- [ ] The setup screen shows one line, "Timer will show on your watch", when the watch app is reachable, and nothing when it isn't. It reads correctly in light and dark mode and has a VoiceOver label.
+- [ ] A Live Activity nudge appears while the watch app is installed but not reachable, before any session starts, and ends when the watch becomes reachable or the session ends or is cancelled. No notification is posted and no new permission is requested.
+- [ ] The watch app is opened by the user, never launched through a HealthKit workout. HealthKit is not used anywhere.
+- [ ] All five watch screens use 15 pt minimum text, a dark background and the navy primary; every element has a VoiceOver label, and each countdown numeral fires a VoiceOver announcement on the watch as on the phone.
+- [ ] The watch stays alive through screen-off and wrist-down for the whole walk, verified on a real Apple Watch.
+
 ### Build/deployment
 - [ ] The app builds and installs via TestFlight on a physical iPhone (iOS 17+).
 - [ ] A full loop — onboarding → session → score → history → clinician screen — can be completed without a crash.
+
+---
+
+## 8. Watch Companion (Phase 3)
+
+### Purpose
+An Apple Watch companion that shows the session timer on the wrist, so the user doesn't have to pull the phone out of a pocket mid-walk. It is **display + haptics + Stop only**. It adds no measurement, no scoring and no history; everything the PRD says above about sessions, scores and baselines is unchanged.
+
+### Decisions (locked)
+1. **The phone is the only sensor and the only source of truth.** No watch motion data is recorded or used in scoring. No score is shown on the watch.
+2. **Start is phone-only. Stop works from either device; the phone is authoritative.** A watch Stop ends the session exactly like an on-phone Stop. Duplicate or late stop requests are ignored. Stop is hidden on the watch while the phone is unreachable.
+3. **Haptic ownership is decided once, when the countdown starts.** If the watch is reachable at that moment, the watch plays the countdown ticks, Go and Stop, and the phone plays none of those haptics; otherwise the phone plays them. The choice is fixed for the whole session. Two clarifications:
+   - "The phone plays none" means **haptics only**. The start tone, the stop tone, Step Feedback and the Metronome cue still play from the phone, as §7 requires.
+   - **Stop fallback:** if the watch owns haptics but is unreachable at Stop, the phone plays the Stop pulse, so a Stop is never silent to touch. When the watch's own timer reaches the end while disconnected, it also plays its Stop haptic locally, so the user may feel two — accepted.
+   - The user's Start & Stop Haptics setting governs the watch too: off means no haptics on either device.
+4. **A session never depends on the watch.** Losing the watch mid-walk never cancels, pauses or invalidates the session.
+5. **Keep-alive via a watchOS extended runtime session, without HealthKit.** Apple's *physical therapy* session type runs in the background for up to an hour and needs no HealthKit; it is the recommended type (see Open Question 7a). HealthKit stays out of scope.
+
+### Launch
+The user opens the watch app manually. Before a session, while the watch app is installed but not reachable, the phone shows a **Live Activity** nudging the user to open it. The Live Activity ends as soon as the watch becomes reachable, or when the session ends or is cancelled. No notification is used, so no new permission is requested. There is no HealthKit workout launch. This must be verified on a real watch.
+
+### Phone-side indicator
+On the setup screen, when the watch app is reachable, one line: **"Timer will show on your watch"** — which also tells the user haptics will come from the watch. When it isn't reachable, nothing is shown, and nothing alarming takes its place: using the phone alone is the v1 experience, not an error. Light and dark mode; VoiceOver label.
+
+### Watch screens
+Dark background, navy primary, 15 pt minimum text, VoiceOver labels on every element.
+
+| Screen | Content |
+|---|---|
+| **Waiting** | "Start on your iPhone", selected mode and length |
+| **Countdown** | 5→1 then "Go", "Phone in pocket"; a VoiceOver announcement per numeral; no Cancel, no Stop |
+| **Running** | Elapsed timer, progress bar, 55 pt Stop capsule |
+| **Stopped** | "Walk finished", "See your result on iPhone", Done (returns to Waiting) |
+| **Disconnected** | "Phone not reachable"; the local timer keeps running; "Keep walking. Your walk is still recording."; no Stop; no haptic |
+
+### Sync
+WatchConnectivity, phone to watch, with one message type back (the stop request). Every message is **versioned and Codable**.
+
+- **Countdown start** (when the numerals begin, after sensor priming): mode, advertised duration, the haptic owner, the Start & Stop Haptics setting, and the **planned Go time**.
+- **Started**: the actual **T-0** anchor. T-0 is stamped at the final tick, so it is not known when the countdown starts; the watch re-syncs its clock to this value.
+- **State changes**: stopped, cancelled, haptics setting changed.
+- **Stop request** (watch to phone): carries the session it refers to, so a late request for a finished session is ignored.
+
+The watch runs its own clock from T-0; it does not wait for a message per second.
+
+### Haptics
+Candidates — **verify on device**:
+
+| Event | `WKHapticType` |
+|---|---|
+| Countdown tick (per numeral) | `.click` |
+| Go | `.start` |
+| Stop (and countdown cancel) | `.stop` |
+
+The Disconnected state has no haptic. Final patterns are Open Question 7c.
 
 ---
 
@@ -332,3 +450,8 @@ A few assumptions above are worth confirming or correcting before the algorithm 
    The **5-second value is provisional and tunable** — the same category as the ~90 sec / ~4 min valid-walking floors in Open Question 3, a starting point to be adjusted against real TestFlight sessions rather than a validated figure. It is a **single fixed constant** for v1: the same for Quick Test and Full Test, the same whether Step Feedback, the Metronome cue, or neither is enabled, and **not user-adjustable**. Per-mode or user-set values would add a settings surface and a second setup-time definition for no measurement benefit — the countdown is a setup affordance, not a measurement parameter. If real sessions show 5 seconds is too tight for a user who needs both hands to stow a phone, the constant moves; it doesn't become a preference.
 
    **Considered and rejected: proximity-sensor + accelerometer placement detection** — auto-firing the start haptic once the phone was detected as "settled" in a pocket, instead of counting down a fixed interval. Rejected because it's a heuristic with real misfire modes — phone in a bag rather than a pocket, wrong orientation, a user who carries the phone in hand, a pocket loose enough that the phone never settles — and every misfire either starts a session the user isn't ready for or hangs indefinitely without starting one. That's a new failure class and meaningful engineering risk for an uncertain payoff over a fixed countdown the user can see, feel, and count on. Not to be reintroduced.
+
+7. **Watch Companion (Phase 3) — open**, deliberately unresolved until real-watch testing. Everything else in §8 is decided.
+   - **(a) Extended runtime session type without HealthKit.** Apple's *physical therapy* type is the recommended fit: background runtime, up to one hour (enough for waiting plus a 6-minute walk), no HealthKit. *Self care* (10 minutes, foreground only, ended by the Digital Crown) is the fallback. Open because Apple says the type must match the app's purpose, so App Review could reject *physical therapy* for a walk test, and because a session can only start while the watch app is active. Verify on device and at review.
+   - **(b) Live Activity behaviour on the watch.** Live Activities only reach the Apple Watch Smart Stack on iOS 18 / watchOS 11 or later. With the iOS 17 floor, an iOS 17 phone gets the nudge on the phone only. Whether tapping it on the watch opens the Stabilyz watch app, and how it looks there, needs a real watch.
+   - **(c) Final haptic patterns.** `.click` per tick, `.start` at Go and `.stop` at Stop are candidates. Whether Go is perceptibly different from the ticks (as OQ-6 requires), and whether haptics fire reliably while the watch app runs in the background, are settled by on-device testing. If background haptics turn out unreliable, haptic ownership falls back to phone-only for every session (decisions.md entry 46).
