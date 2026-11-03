@@ -4,9 +4,11 @@
 
 Two test modes with 90 s / 240 s valid-walking minimums · per-mode 5-valid-session baselines, frozen in v1 · autocorrelation Ad1/Ad2 universal for all amputation types · multi-signal composite with SD floor · asymmetry secondary/unilateral-only/never fabricated · relative index not percentage · noisy sessions never scored/counted/exported · mode segregation everywhere · Step Feedback (off-by-default, confidence-gated, debounced, no tempo) vs. Metronome (post-baseline, baseline cadence) · encrypted export with PBKDF2/unique-salt/AES-GCM/self-describing metadata · restore-not-merge · **atomic restore** · no custom crypto · no backend/accounts/cloud · disclaimer hard gate · onboarding resume · permission degradation · TestFlight iOS 17+.
 
+**Watch Companion (Phase 3) [PRD §8]:** phone is the only sensor and source of truth · no score on the watch · Start phone-only, Stop from either device with the phone authoritative and duplicate/late stops ignored · Stop hidden while the phone is unreachable · haptic owner fixed at countdown start (haptics only; audio unaffected), with the phone Stop-pulse fallback and the accepted double buzz at 00:00 · losing the watch never cancels or invalidates a session · no HealthKit · Live Activity nudge only, no notification or new permission · zero third-party dependencies.
+
 ## 21.2 Technical Decisions (engineering-owned; decide before/during build)
 
-Sensor sampling rate (rec: 100 Hz) · orientation/axis derivation for ML/VT axes · trunk-proxy formulation (RMS rec) · walking-segment detection method · live step-detector design + confidence threshold · refractory duration (rec: ~300 ms) · KDF iteration count (rec: calibrate 200–500 ms) · export file extension/UTType · onboarding-draft storage (rec: UserDefaults) · invalid-session local retention (rec: retain, exclude) · metrics-as-JSON-blob persistence · PBKDF2 via CommonCrypto (forced: CryptoKit lacks PBKDF2) · TabView layout · atomic-restore mechanism (transaction + snapshot, rec).
+Sensor sampling rate (rec: 100 Hz) · orientation/axis derivation for ML/VT axes · trunk-proxy formulation (RMS rec) · walking-segment detection method · live step-detector design + confidence threshold · refractory duration (rec: ~300 ms) · KDF iteration count (rec: calibrate 200–500 ms) · export file extension/UTType · onboarding-draft storage (rec: UserDefaults) · invalid-session local retention (rec: retain, exclude) · metrics-as-JSON-blob persistence · PBKDF2 via CommonCrypto (forced: CryptoKit lacks PBKDF2) · TabView layout · atomic-restore mechanism (transaction + snapshot, rec) · **watch:** sync-contract versioning (a version field on every message; an unknown version is dropped, never guessed at) · planned Go + actual T-0 messages, since T-0 is stamped at the final tick · haptic-owner selection from reachability at counting start · watchOS minimum (**watchOS 10**, the pair for iOS 17) · contract location (`StabilyzShared/WatchSync/`, Foundation only).
 
 ## 21.3 Open Questions (PRD-intentional; do not close silently)
 
@@ -26,6 +28,9 @@ Sensor sampling rate (rec: 100 Hz) · orientation/axis derivation for ML/VT axes
 11. **Export-nudge cadence** beyond "after baseline is first established" ("periodically" unspecified).
    - **CLOSED (2026-09-15, product decision, Task 10.2.3):** one non-intrusive **milestone card on the Walk tab**, shown once **any** mode's baseline is first established. Dismissing it, or completing an export from any screen, retires it for good — no periodic re-prompt in v1. Both facts are device state in `UserDefaults`, never store data. `ExportNudgePolicy`; decisions.md entry 43.
 12. **Algorithm-version mismatch policy for future app updates** (§9.6).
+13. **Watch extended runtime session type** [PRD OQ-7a] — *physical therapy* recommended (background, 1 h, no HealthKit); *self care* is the fallback. App Review must accept the type for a walk test; verify on a real watch.
+14. **Live Activity behaviour on the watch** [PRD OQ-7b] — Smart Stack needs iOS 18 / watchOS 11; iOS 17 phones get the nudge on the phone only. Tap-to-open the watch app unverified.
+15. **Final watch haptic patterns** [PRD OQ-7c] — `.click` / `.start` / `.stop` are candidates; Go must be perceptibly distinct from the ticks.
 
 ## 21.4 Risks
 
@@ -38,7 +43,12 @@ Sensor sampling rate (rec: 100 Hz) · orientation/axis derivation for ML/VT axes
 | Mostly-turn sessions producing misleading scores (no turn detection in v1) | Medium | PRD-sanctioned user instruction; quality threshold may flag; documented limitation |
 | PBKDF2 UX (export/import delay) | Low-Medium | Calibrated iterations; progress UI |
 | iOS 17.0 `@Observable`/SwiftData early-adopter bugs | Low-Medium | Pin to latest 17.x toolchain; regression suite |
+| Watch haptics may not fire while the watch app runs in a background extended runtime session | Medium-High | Real-watch QA (Task 12.6.1). Exit condition: if unreliable, haptic ownership falls back to phone-only for every session (decisions.md 46) |
+| App Review rejects *physical therapy* as the session type for a walk test | Medium | *Self care* fallback (10 min covers a 6-min walk, but ends on a Digital Crown press); PRD OQ-7a |
+| Phone/watch wall-clock skew makes the wrist timer disagree with the phone | Low-Medium | Watch re-syncs to the real T-0 at Go; display only, never in measurement; QA checks agreement to within one displayed second |
+| WatchConnectivity latency or loss on a Stop request | Low-Medium | Phone Stop always works; Stop hidden while unreachable; first-stop-wins makes retries harmless |
+| Watch users more likely to lock a pocketed phone, widening the existing lock/background gap (docs/07 §7.7 ⚠️) | Medium | Not caused by the watch; tracked with the existing open item, validated in the same device campaign |
 
 ## 21.5 Research / Validation Required (before hard-coding assumptions)
 
-Empirical threshold tuning on real walks (noise, SD floor, valid-walking minimums — PRD says these "will be empirically validated and tuned using real-world session data" [OQ-3]) · autocorrelation reliability at variable cadence and real phone-placement orientations · pedometer/accelerometer agreement rate · audio-tick latency acceptability · stride-count sufficiency (15–20 strides reference [OQ-1]) · KDF timing on target devices. **Architectural enabler:** an internal, debug-only fixture-capture build path so real-device walks become test fixtures (§7.9).
+Empirical threshold tuning on real walks (noise, SD floor, valid-walking minimums — PRD says these "will be empirically validated and tuned using real-world session data" [OQ-3]) · autocorrelation reliability at variable cadence and real phone-placement orientations · pedometer/accelerometer agreement rate · audio-tick latency acceptability · stride-count sufficiency (15–20 strides reference [OQ-1]) · KDF timing on target devices. Real-watch validation for Phase 3: background haptics, extended runtime survival through wrist-down, reachability timing at countdown start, Live Activity on watchOS 11 (Task 12.6.1). **Architectural enabler:** an internal, debug-only fixture-capture build path so real-device walks become test fixtures (§7.9).

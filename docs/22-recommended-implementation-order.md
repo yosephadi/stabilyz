@@ -51,3 +51,7 @@ Dependencies: Phases 5–10. DoD: all AC-mappable tests automated.
 **Phase 12 — Device Validation & TestFlight**
 Tasks: physical-device session campaign incl. prosthetic-user testers if available · threshold tuning (noise/floor/valid-walking — feed back into `AlgorithmConfiguration`, not code) · KDF calibration · audio latency/route testing · TestFlight build + loop AC verification (no crash end-to-end) [PRD §2, §7].
 Dependencies: all. DoD: PRD "Define Success" criteria met.
+
+**Phase 13 — Watch Companion (product Phase 3)**
+Tasks: EPIC 12 (docs/23) — watch target + WatchConnectivity scaffolding · sync contract · five watch screens · haptic ownership · Stop from watch · disconnect resilience · extended runtime keep-alive · Live Activity nudge · real-watch QA. *Numbered 13 here so it doesn't collide with this document's Phase 3 (Persistence); the product calls it Phase 3 [PRD §8].*
+Dependencies: Phases 1–12 (the phone session flow it mirrors). DoD: PRD §7 Watch Companion ACs pass on a real watch; the existing suite still passes.

@@ -295,4 +295,58 @@ EPIC 11 — Validation & Release
     Task 11.2.1 Device campaign + threshold tuning into AlgorithmConfiguration
     Task 11.2.2 KDF calibration + audio latency validation
     Task 11.2.3 TestFlight build + end-to-end no-crash loop verification
+
+EPIC 12 — Watch Companion (Phase 3)  [PRD §8; docs/04 §4.18; decisions.md entry 46]
+  Feature 12.1 Target & Sync
+    Task 12.1.1 watchOS target + WatchConnectivity scaffolding (1d)
+      ↳ Xcode setup is done by the user (the .xcodeproj is never edited): watchOS
+        app target (watchOS 10 minimum), the `StabilyzShared/` folder with membership
+        in both targets, Background Modes → physical therapy session on the watch.
+      ↳ `WatchSessionService` protocol + `WatchConnectivityService` in
+        `Services/Watch`; mock and silent doubles; wired in both production graphs.
+      ↳ Extend SourceGuardTests: no CoreMotion or HealthKit in the watch target;
+        WatchConnectivity and ActivityKit imported only under `Services/` on the
+        phone; `StabilyzShared/` imports Foundation only; Domain/Algorithms still
+        Foundation(+Accelerate) only. The existing 692 tests still pass.
+    Task 12.1.2 Session sync contract (1d)                                   → dep: 12.1.1
+      ↳ versioned Codable messages: countdownStarted (plannedGoAt), started (t0),
+        stopped, cancelled, hapticsChanged; stopRequest watch → phone, carrying the
+        session ID. Unknown versions dropped. Round-trip and version tests.
+  Feature 12.2 Watch UI
+    Task 12.2.1 Watch UI, five states (1.5d)                                 → dep: 12.1.2
+      ↳ Waiting, Countdown, Running, Stopped, Disconnected [PRD §8]; pure state
+        machine with tests; 15 pt minimum, dark, navy primary, VoiceOver labels and
+        a per-numeral announcement. No Cancel during the countdown.
+  Feature 12.3 Session Behaviour
+    Task 12.3.1 Haptic ownership rule (0.5d)                    → dep: 12.1.2, 7.3.1, 8.2.6
+      ↳ owner fixed at counting start; phone haptics off (audio untouched) when the
+        watch owns them; phone Stop-pulse fallback when the owner is unreachable at
+        Stop; watch plays the cancel pulse; Start & Stop Haptics governs both.
+    Task 12.3.2 Stop from watch (0.5d)                                       → dep: 12.1.2, 8.2.2
+      ↳ stopRequest → `ActiveSessionViewModel.stop()`; first stop wins; mismatched
+        session IDs dropped; Stop hidden while unreachable.
+    Task 12.3.3 Disconnect resilience (0.5d)                                 → dep: 12.2.1
+      ↳ drop never touches the session; Disconnected keeps the local timer;
+        reconnect re-syncs; at 00:00 while disconnected the watch plays `.stop`
+        locally and the phone plays the fallback (double buzz accepted).
+  Feature 12.4 Keep-alive
+    Task 12.4.1 Extended runtime keep-alive (0.5d)                           → dep: 12.1.1
+      ↳ physical therapy session, started when the app becomes active on
+        Waiting, invalidated after Stopped. [OPEN] PRD OQ-7a.
+  Feature 12.5 Launch
+    Task 12.5.1 Live Activity nudge (1d)                                     → dep: 12.1.1
+      ↳ widget extension target set up by the user in Xcode. ActivityKit behind
+        `Services/LiveActivity`; started on the setup screen while the watch app is
+        installed but unreachable; ended when it becomes reachable or the session
+        ends or is cancelled. No notification, no new permission. [OPEN] PRD OQ-7b.
+      ↳ setup-screen indicator: "Timer will show on your watch" while reachable,
+        nothing otherwise; light/dark; VoiceOver label.
+  Feature 12.6 Validation
+    Task 12.6.1 Real-watch QA pass (0.5d)                                    → dep: 12.1.1–12.5.1
+      ↳ closes every "verify on device" item: haptic patterns [OPEN] PRD OQ-7c,
+        survival through wrist-down and leaving the app, reachability at countdown
+        start, watch/phone timer agreement, Live Activity on watchOS 11.
+      ↳ EXIT CONDITION: if `WKInterfaceDevice.play` does not fire reliably during a
+        background extended runtime session, haptic ownership falls back to
+        phone-only for every session (decisions.md entry 46).
 ```
