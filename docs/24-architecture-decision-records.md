@@ -62,3 +62,6 @@ Options: custom crypto · plain SHA-256 key · third-party crypto libs · **PBKD
 Chosen: platform vetted pair.
 Why: PRD mandates a real KDF, authenticated encryption, embedded parameters, and no custom primitives; CryptoKit provides AEAD but not PBKDF2, hence CommonCrypto for the KDF — both Apple-vetted.
 Trade-offs: PBKDF2 is weaker than Argon2 against GPU attacks (no native Apple Argon2 — adding a dependency is rejected); mitigated by calibrated iterations, high-entropy requirement being user-passphrase reality, and the local threat model (offline guessing by whoever obtains the file, which the KDF slows).
+
+**ADR-011 — Watch Companion Sync**
+Chosen: phone-authoritative WatchConnectivity sync with a versioned Codable contract shared by both targets; the watch displays, plays haptics when it owns them, and sends Stop. Full context, options and consequences: decisions.md entry 46 [PRD §8].

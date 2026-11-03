@@ -2533,3 +2533,80 @@ taps Keep Current Data.
 What would change this: iOS rendering cancel-role actions in iPhone action
 sheets again, which would let the role come back without losing the button.
 
+---
+
+## 46. Watch Companion: the phone decides, the watch displays
+
+**Date:** 2026-11-03 · **Task:** EPIC 12 (Phase 3) spec · **Status:** Decided
+
+Phase 3 adds an Apple Watch companion so the user can see the session timer
+without taking the phone out of a pocket. It is display + haptics + Stop only
+[PRD §8].
+
+### The five locked decisions
+
+1. **The phone is the only sensor and source of truth.** No watch motion data;
+   no score on the watch.
+2. **Start is phone-only; Stop works from either device.** The phone is
+   authoritative, a watch Stop is an on-phone Stop, duplicate or late stops are
+   ignored, and Stop is hidden on the watch while the phone is unreachable.
+3. **Haptic ownership is fixed at countdown start.** Watch reachable then → the
+   watch plays tick / Go / Stop and the phone plays none of them; otherwise the
+   phone does. Fixed for the session.
+4. **A session never depends on the watch.** Losing it never cancels, pauses or
+   invalidates a session, and is not an interruption or a gap.
+5. **Keep-alive via an extended runtime session, without HealthKit.**
+
+### How the edges were settled
+
+- **"The phone is silent" means haptics only.** The start tone, stop tone, Step
+  Feedback and Metronome cue are audio the PRD requires from the phone; a watch
+  can't replace them, and they stay exactly as in v1.
+- **Stop-pulse fallback.** With ownership fixed, an owning watch that dropped
+  would leave Stop with no haptic, breaking the PRD's "single haptic pulse" at
+  Stop. So the phone plays the Stop pulse when the owner is unreachable at Stop —
+  the only exception to the fixed owner.
+- **00:00 while disconnected.** The phone stops and plays the fallback; the
+  watch's own timer also reaches the end and plays `.stop` locally. The user may
+  feel two buzzes. Intended: two is better than the risk of none, and the watch
+  can't know the phone already played one.
+- **Countdown cancel.** The owning watch plays the stop pulse (the phone's
+  existing cancel pulse moves with ownership) and returns to Waiting. Cancel stays
+  phone-only; the watch shows no Cancel during the countdown.
+- **Start & Stop Haptics governs both devices**, including a change mid-walk
+  (entry 37), sent as `hapticsChanged`.
+- **T-0 is sent twice.** It is stamped at the final tick (docs/07 §7.3), after
+  priming, so it doesn't exist when the countdown starts. `countdownStarted`
+  carries the planned Go time; `started` carries the real anchor, and the watch
+  re-syncs to it.
+- **The nudge is a Live Activity only**, started on the setup screen while the
+  watch app is installed but unreachable, ended when it becomes reachable or the
+  session ends or is cancelled. A local notification would have needed a new
+  permission, which docs/18 rules out; a Live Activity needs none.
+- **The phone shows one line** — "Timer will show on your watch" — when the watch
+  is reachable, and nothing otherwise. Phone-only is the v1 experience, not an
+  error, so it gets no warning.
+- **The message contract lives in `StabilyzShared/WatchSync/`**, Foundation only,
+  in both targets. Domain stays watch-free, and one copy of a versioned contract
+  can't drift from itself. Its wire enums are mapped to `TestMode` in
+  `Services/Watch`.
+- **Extended runtime type: physical therapy (recommended, [OPEN] PRD OQ-7a).**
+  Apple's documentation lists four types: self care (10 min, foreground),
+  mindfulness (1 h, foreground), physical therapy (1 h, background), smart alarm
+  (30 min, scheduled). None is documented as needing HealthKit. Physical therapy
+  survives leaving the app and covers waiting plus a 6-minute walk. It must start
+  while the app is active, so it starts on Waiting, not when the countdown message
+  arrives. Self care is the fallback if App Review disagrees.
+- **watchOS 10 minimum**, the pair for iOS 17. Live Activities reach the watch
+  only on iOS 18 / watchOS 11 ([OPEN] PRD OQ-7b).
+
+### What would change this
+
+- **If real-watch QA shows `WKInterfaceDevice.play` doesn't fire reliably during
+  a background extended runtime session, haptic ownership falls back to
+  phone-only for every session.** The watch would keep the timer and Stop. This
+  is an exit condition on Task 12.6.1.
+- App Review rejecting physical therapy → self care, and the Digital-Crown edge
+  case becomes a watch drop.
+- Final haptic patterns from on-device testing ([OPEN] PRD OQ-7c) change the
+  `WKHapticType` values, not the ownership rule.

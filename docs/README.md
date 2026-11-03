@@ -46,4 +46,6 @@
 | **[REC]** | Technical recommendation / assumption where the PRD leaves implementation open |
 | **[OPEN]** | Deliberately unresolved by the PRD — must not be silently closed by engineering |
 
+The Apple Watch companion (product Phase 3) is specified in PRD §8 and decisions.md entry 46; its architecture is in §4.18 and its tasks in §23 EPIC 12.
+
 The PRD references in this document use `PRD §n` for numbered PRD sections and `PRD OQ-n` for the resolved Open Questions at the end of the PRD.
