@@ -19,11 +19,11 @@ final class RestoreConflictJourneyTests: XCTestCase {
         let rows = app.buttons.matching(identifier: "history.row")
 
         // What is there before.
-        app.tab("Result").waitToAppear(timeout: 15).tap()
+        app.selectTab("Result", timeout: 15)
         rows.waitForCount(3, "the seeded Quick Test walks are listed")
 
         // You → Restore from Backup, on the real export.
-        app.tab("You").tap()
+        app.selectTab("You")
         app.buttons["settings.restore"].waitToAppear().tap()
         app.staticTexts["restore.title"].waitToAppear(timeout: 10, "Restore from Backup opens Restore your data")
 
@@ -48,7 +48,7 @@ final class RestoreConflictJourneyTests: XCTestCase {
         // And nothing changed.
         app.buttons["restore.back"].tap()
         app.buttons["settings.restore"].waitToAppear()
-        app.tab("Result").tap()
+        app.selectTab("Result")
         rows.waitForCount(3, "keeping current data changed History")
     }
 }

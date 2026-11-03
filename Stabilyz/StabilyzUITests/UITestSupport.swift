@@ -114,6 +114,42 @@ extension XCUIApplication {
         tabBars.buttons[name].firstMatch
     }
 
+    /// Switches to a tab, and fails the test if the switch did not happen.
+    ///
+    /// Waits for the tab to be **hittable**, not just to exist. A tab bar can
+    /// be in the hierarchy while something still covers it: the session cover
+    /// puts the Walk tab back the moment its dismissal *starts*, then slides
+    /// down over the tab bar. A tap sent then lands on the cover, is dropped,
+    /// and the tab never changes (the QuickWalkJourneyTests flake). After the
+    /// tap, it waits for the tab to be selected, so a lost tap fails here,
+    /// naming the tab, instead of as a missing screen further on.
+    func selectTab(
+        _ name: String,
+        timeout: TimeInterval = 10,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) {
+        let tab = tab(name)
+        let hittable = XCTNSPredicateExpectation(predicate: NSPredicate(format: "hittable == true"), object: tab)
+        XCTAssertEqual(
+            XCTWaiter.wait(for: [hittable], timeout: timeout),
+            .completed,
+            "the \(name) tab never became tappable within \(timeout)s",
+            file: file,
+            line: line
+        )
+        tab.tap()
+
+        let selected = XCTNSPredicateExpectation(predicate: NSPredicate(format: "selected == true"), object: tab)
+        XCTAssertEqual(
+            XCTWaiter.wait(for: [selected], timeout: 5),
+            .completed,
+            "the \(name) tab was tapped but not selected",
+            file: file,
+            line: line
+        )
+    }
+
     /// Any element whose label contains `text`, case-insensitively. For copy
     /// inside combined or long text elements.
     func element(labelContaining text: String) -> XCUIElement {

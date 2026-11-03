@@ -11,7 +11,7 @@ final class SettingsJourneyTests: XCTestCase {
     @MainActor
     private func openYou() -> XCUIApplication {
         let app = launchStabilyz(.onboarded)
-        app.tab("You").waitToAppear(timeout: 15).tap()
+        app.selectTab("You", timeout: 15)
         return app
     }
 
