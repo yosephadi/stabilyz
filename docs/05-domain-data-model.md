@@ -32,7 +32,7 @@ Three model strata, deliberately **not** duplicated where a single type serves a
 |---|---|---|
 | `id` | UUID | yes |
 | `mode` | `TestMode` | yes [PRD AC: stored with session] |
-| `startedAt` / `endedAt` | Date | yes |
+| `startedAt` (= T-0) / `endedAt` | Date | yes |
 | `advertisedClockElapsed` | Duration | yes |
 | `validWalkingDuration` | Duration | yes (computed in pipeline) |
 | `outcome` | `SessionOutcome` | yes |
