@@ -36,6 +36,13 @@ final class WatchSessionModel {
 
     private let link: WatchPhoneLinking
     private let haptics: WatchHapticPlaying
+    /// Keeps the app running through wrist-down (Task 12.4.1). When, is
+    /// `keepAlivePolicy`'s call.
+    private let keepAlive: WatchKeepAliveControlling
+    private(set) var keepAlivePolicy = WatchKeepAlivePolicy()
+    /// Whether the app is active (frontmost, wrist raised). The keep-alive
+    /// can start only then.
+    private var isActive = false
     private let clock: @MainActor () -> Date
     private let announce: @MainActor (String) -> Void
     private var tickTask: Task<Void, Never>?
@@ -43,11 +50,13 @@ final class WatchSessionModel {
     init(
         link: WatchPhoneLinking,
         haptics: WatchHapticPlaying,
+        keepAlive: WatchKeepAliveControlling = NoKeepAlive(),
         clock: @escaping @MainActor () -> Date = { Date() },
         announce: @escaping @MainActor (String) -> Void
     ) {
         self.link = link
         self.haptics = haptics
+        self.keepAlive = keepAlive
         self.clock = clock
         self.announce = announce
         self.now = clock()
@@ -77,6 +86,12 @@ final class WatchSessionModel {
         }
     }
 
+    /// The app became active or stopped being active (scene phase).
+    func setActive(_ active: Bool) {
+        isActive = active
+        updateKeepAlive()
+    }
+
     func tick() { apply(.tick(clock())) }
     func tapStop() { apply(.stopTapped(at: clock())) }
     func tapDone() { apply(.doneTapped) }
@@ -86,6 +101,20 @@ final class WatchSessionModel {
         now = clock()
         for effect in effects {
             perform(effect)
+        }
+        updateKeepAlive()
+    }
+
+    private func updateKeepAlive() {
+        switch keepAlivePolicy.update(phase: machine.phase, isActive: isActive, now: clock()) {
+        case .start?:
+            // The system ending it never touches the walk; it only lets the
+            // policy start a new one at the next chance.
+            keepAlive.start { [weak self] in self?.keepAlivePolicy.keepAliveEnded() }
+        case .end?:
+            keepAlive.end()
+        case nil:
+            break
         }
     }
 

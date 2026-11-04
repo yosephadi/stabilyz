@@ -4,6 +4,7 @@ import SwiftUI
 @main
 struct StabilyzWatchApp: App {
     @State private var model = Self.makeModel()
+    @Environment(\.scenePhase) private var scenePhase
 
     private static func makeModel() -> WatchSessionModel {
         #if DEBUG
@@ -14,6 +15,7 @@ struct StabilyzWatchApp: App {
         return WatchSessionModel(
             link: WatchPhoneLink(),
             haptics: DeviceWatchHaptics(),
+            keepAlive: ExtendedRuntimeKeepAlive(),
             announce: { AccessibilityNotification.Announcement($0).post() }
         )
     }
@@ -21,7 +23,13 @@ struct StabilyzWatchApp: App {
     var body: some Scene {
         WindowGroup {
             WatchRootView(model: model)
-                .task { model.start() }
+                .task {
+                    model.start()
+                    model.setActive(scenePhase == .active)
+                }
+                .onChange(of: scenePhase) { _, phase in
+                    model.setActive(phase == .active)
+                }
         }
     }
 }
