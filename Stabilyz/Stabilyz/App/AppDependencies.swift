@@ -41,6 +41,9 @@ struct AppDependencies: Sendable {
     /// The phone's side of the watch companion (Task 12.1.1, docs/04 §4.18).
     /// A session never depends on it [PRD §8 decision 4].
     let watchSession: WatchSessionService
+    /// The Live Activity nudging the user to open the watch app
+    /// (Task 12.5.1). Nothing waits on it.
+    let watchNudge: WatchNudgeService
 
     /// Actor dependency: created once and shared, restarted per session via
     /// its lifecycle methods rather than recreated (docs/12 §12.3).
@@ -113,6 +116,7 @@ struct AppDependencies: Sendable {
         keyDerivation: KeyDerivation,
         secureArchive: SecureArchiveCoding,
         watchSession: WatchSessionService = SilentWatchSessionService(),
+        watchNudge: WatchNudgeService = SilentWatchNudgeService(),
         sessionRecorder: SessionRecorder,
         sessionOutcomes: SessionOutcomeService? = nil,
         onboardingDrafts: OnboardingDraftStore = EmptyOnboardingDraftStore(),
@@ -135,6 +139,7 @@ struct AppDependencies: Sendable {
         self.keyDerivation = keyDerivation
         self.secureArchive = secureArchive
         self.watchSession = watchSession
+        self.watchNudge = watchNudge
         self.sessionRecorder = sessionRecorder
         self.sessionOutcomes = sessionOutcomes
         self.onboardingDrafts = onboardingDrafts
@@ -160,6 +165,8 @@ struct LiveOverrides {
     /// UI tests run with no watch, so a paired watch on the test machine
     /// cannot change what the phone shows.
     var watchSession: WatchSessionService?
+    /// UI tests show no Live Activity.
+    var watchNudge: WatchNudgeService?
     /// Runs before the router's first store read, in place of launch recovery.
     var restoreRecovery: RestoreRecovering?
 
@@ -203,6 +210,8 @@ extension AppDependencies {
         let hapticFeedback = LiveHapticFeedbackService(logService: logService)
         let watchSession: WatchSessionService = overrides.watchSession
             ?? WatchConnectivityService(logService: logService)
+        let watchNudge: WatchNudgeService = overrides.watchNudge
+            ?? ActivityKitWatchNudgeService(logService: logService)
 
         let sessions = SwiftDataGaitSessionRepository(reader: reader, writer: writer)
         let baselines = SwiftDataBaselineRepository(reader: reader, writer: writer)
@@ -245,6 +254,7 @@ extension AppDependencies {
             keyDerivation: CommonCryptoKeyDerivation(),
             secureArchive: SecureArchiveCoder(),
             watchSession: watchSession,
+            watchNudge: watchNudge,
             sessionRecorder: SessionRecorder(
                 motionSensor: motionSensor,
                 pedometer: pedometer,
@@ -310,6 +320,7 @@ extension AppDependencies {
         // The real watch link too: the store failing to open says nothing
         // about the watch, and the watch never touches the store.
         let watchSession = WatchConnectivityService(logService: logService)
+        let watchNudge = ActivityKitWatchNudgeService(logService: logService)
 
         return AppDependencies(
             logService: logService,
@@ -326,6 +337,7 @@ extension AppDependencies {
             keyDerivation: CommonCryptoKeyDerivation(),
             secureArchive: SecureArchiveCoder(),
             watchSession: watchSession,
+            watchNudge: watchNudge,
             sessionRecorder: SessionRecorder(
                 motionSensor: motionSensor,
                 pedometer: pedometer,

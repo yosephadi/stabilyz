@@ -1,17 +1,14 @@
-//
-//  StabilyzLiveActivityExtensionBundle.swift
-//  StabilyzLiveActivityExtension
-//
-//  Created by Adi's Mac on 03/11/26.
-//
-
-import WidgetKit
 import SwiftUI
+import WidgetKit
 
+/// The extension holds only the watch nudge Live Activity (Task 12.5.1). No
+/// home-screen widget: the PRD has none.
 @main
 struct StabilyzLiveActivityExtensionBundle: WidgetBundle {
     var body: some Widget {
-        StabilyzLiveActivityExtension()
-        StabilyzLiveActivityExtensionLiveActivity()
+        WatchNudgeLiveActivity()
+        if #available(iOS 18.0, *) {
+            WatchNudgeSmartStackLiveActivity()
+        }
     }
 }

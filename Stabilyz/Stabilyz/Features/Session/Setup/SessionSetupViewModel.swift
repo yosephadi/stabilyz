@@ -116,6 +116,21 @@ final class SessionSetupViewModel {
     /// Sends the selected mode and its length to the watch's Waiting screen.
     /// Called when the screen appears and on every mode change; the watch link
     /// keeps the latest for a watch that opens later.
+    /// The setup screen's watch line [PRD §8]: shown only while the watch app
+    /// is reachable. Nothing takes its place otherwise — phone-only is the v1
+    /// experience, not an error.
+    static let watchLine = "Timer will show on your watch"
+
+    /// Whether the watch app is reachable now, for `watchLine`.
+    private(set) var isWatchReachable = false
+
+    /// Follows the watch's reachability for as long as the screen is up.
+    func observeWatch() async {
+        for await reachability in watchSession.reachability() {
+            isWatchReachable = reachability == .reachable
+        }
+    }
+
     func shareSelectionWithWatch() async {
         await watchSession.send(.setupSelection(
             mode: WireTestMode(mode),

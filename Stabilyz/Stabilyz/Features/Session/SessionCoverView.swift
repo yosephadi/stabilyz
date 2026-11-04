@@ -25,6 +25,9 @@ struct SessionCoverView: View {
     /// which is what gates Stop, and stays free to change mid-walk.
     let hapticsEnabled: Bool
     let dependencies: AppDependencies
+    /// Called the moment the walk stops, before its result: the watch nudge
+    /// ends with the walk [PRD §8].
+    let onWalkEnded: () -> Void
     /// Returns to the setup screen. Called on cancel, on failure, and after a
     /// walk is stopped.
     let dismiss: () -> Void
@@ -46,12 +49,14 @@ struct SessionCoverView: View {
         audioConfig: SessionAudioConfig,
         hapticsEnabled: Bool,
         dependencies: AppDependencies,
+        onWalkEnded: @escaping () -> Void = {},
         dismiss: @escaping () -> Void
     ) {
         self.mode = mode
         self.audioConfig = audioConfig
         self.hapticsEnabled = hapticsEnabled
         self.dependencies = dependencies
+        self.onWalkEnded = onWalkEnded
         self.dismiss = dismiss
 
         _coordinator = State(initialValue: CountdownCoordinator(
@@ -204,6 +209,7 @@ struct SessionCoverView: View {
     private func endWalk() {
         guard phase.isRecording else { return }
         phase = .processing
+        onWalkEnded()
 
         let recorder = dependencies.sessionRecorder
         let haptics = dependencies.hapticFeedback

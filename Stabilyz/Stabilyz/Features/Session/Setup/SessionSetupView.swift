@@ -35,6 +35,16 @@ struct SessionSetupView: View {
                 .padding(.top, Space.x4)
             }
 
+            if model.isWatchReachable {
+                footnote(SessionSetupViewModel.watchLine)
+                    .frame(maxWidth: .infinity)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, Space.screenMargin)
+                    .padding(.top, Space.x4)
+                    .accessibilityLabel(SessionSetupViewModel.watchLine)
+                    .accessibilityIdentifier("walk.watchLine")
+            }
+
             startButton
                 .padding(.horizontal, Space.screenMargin)
                 // Separates the button from content scrolled up against it;
@@ -57,6 +67,7 @@ struct SessionSetupView: View {
             // An export from Settings retires the prompt too.
             exportNudge?.refresh()
         }
+        .task { await model.observeWatch() }
     }
 
     // MARK: - Choose a test

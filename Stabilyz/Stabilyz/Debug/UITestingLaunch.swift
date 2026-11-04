@@ -94,6 +94,7 @@ enum UITestingLaunch {
         )
         overrides.exportNudgeStore = InMemoryExportNudgeStore()
         overrides.watchSession = SilentWatchSessionService()
+        overrides.watchNudge = SilentWatchNudgeService()
         let seedReader = StoreReader(modelContainer: container)
         let seedWriter = StoreWriter(modelContainer: container)
         overrides.restoreRecovery = UITestingStorePreparation(

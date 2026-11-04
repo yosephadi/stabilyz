@@ -57,6 +57,9 @@ struct MainShellView: View {
     @State private var exportNudge: ExportNudgeViewModel
     /// Export My Data, from the prompt's "Back up now".
     @State private var nudgeExportFlow: ExportFlowModel?
+    /// The Live Activity nudging the user to open the watch app
+    /// (Task 12.5.1). It follows the Walk tab and the session cover.
+    @State private var watchNudge: WatchNudgeController
 
     init(dependencies: AppDependencies, router: AppRouter) {
         self.dependencies = dependencies
@@ -91,6 +94,10 @@ struct MainShellView: View {
             store: dependencies.exportNudgeStore,
             logService: dependencies.logService
         ))
+        _watchNudge = State(initialValue: WatchNudgeController(
+            nudge: dependencies.watchNudge,
+            watchSession: dependencies.watchSession
+        ))
     }
 
     var body: some View {
@@ -118,6 +125,10 @@ struct MainShellView: View {
             .tag(ShellTab.you)
         }
         .tint(StabilyzColor.primary600)
+        .task { watchNudge.start(isOnSetup: selectedTab == .walk) }
+        .onChange(of: selectedTab) { _, tab in
+            if tab == .walk { watchNudge.setupEntered() } else { watchNudge.setupLeft() }
+        }
     }
 
     /// Settings, with the on-device benchmark in debug builds (Task 11.2.2).
@@ -185,6 +196,7 @@ struct MainShellView: View {
                 audioConfig: session.audioConfig,
                 hapticsEnabled: session.hapticsEnabled,
                 dependencies: dependencies,
+                onWalkEnded: { watchNudge.sessionEnded() },
                 dismiss: { pendingSession = nil }
             )
         }
@@ -201,6 +213,9 @@ struct MainShellView: View {
             // cover rather than on a broadcast, because this is the only place
             // a session can commit from.
             guard previous != nil, current == nil else { return }
+            // Cancel and failure end the nudge here; a stopped walk already
+            // ended it at Stop. Safe twice.
+            watchNudge.sessionEnded()
             Task { await setupModel.refreshBaselineStates() }
             // The walk just committed belongs at the top of Result
             // (docs/11 §11.2: History refresh reflects the committed session).
@@ -210,6 +225,7 @@ struct MainShellView: View {
 
     /// Start, tapped: the chosen session is what the cover is presented with.
     private func handOff(mode: TestMode, audioConfig: SessionAudioConfig, hapticsEnabled: Bool) {
+        watchNudge.sessionBegan()
         pendingSession = PendingSession(
             mode: mode,
             audioConfig: audioConfig,

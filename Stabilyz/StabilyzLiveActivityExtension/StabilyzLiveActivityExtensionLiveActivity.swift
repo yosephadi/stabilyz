@@ -1,80 +1,89 @@
-//
-//  StabilyzLiveActivityExtensionLiveActivity.swift
-//  StabilyzLiveActivityExtension
-//
-//  Created by Adi's Mac on 03/11/26.
-//
-
 import ActivityKit
-import WidgetKit
 import SwiftUI
+import WidgetKit
 
-struct StabilyzLiveActivityExtensionAttributes: ActivityAttributes {
-    public struct ContentState: Codable, Hashable {
-        // Dynamic stateful properties about your activity go here!
-        var emoji: String
-    }
+/// The watch nudge's UI (Task 12.5.1, PRD §8): Lock Screen, Dynamic Island,
+/// and on iOS 18 the watch's Smart Stack. The types and words are shared with
+/// the app, from `Services/LiveActivity/WatchNudgeAttributes.swift`.
 
-    // Fixed non-changing properties about your activity go here!
-    var name: String
-}
-
-struct StabilyzLiveActivityExtensionLiveActivity: Widget {
+/// iOS 17: phone only.
+struct WatchNudgeLiveActivity: Widget {
     var body: some WidgetConfiguration {
-        ActivityConfiguration(for: StabilyzLiveActivityExtensionAttributes.self) { context in
-            // Lock screen/banner UI goes here
-            VStack {
-                Text("Hello \(context.state.emoji)")
-            }
-            .activityBackgroundTint(Color.cyan)
-            .activitySystemActionForegroundColor(Color.black)
-
-        } dynamicIsland: { context in
-            DynamicIsland {
-                // Expanded UI goes here.  Compose the expanded UI through
-                // various regions, like leading/trailing/center/bottom
-                DynamicIslandExpandedRegion(.leading) {
-                    Text("Leading")
-                }
-                DynamicIslandExpandedRegion(.trailing) {
-                    Text("Trailing")
-                }
-                DynamicIslandExpandedRegion(.bottom) {
-                    Text("Bottom \(context.state.emoji)")
-                    // more content
-                }
-            } compactLeading: {
-                Text("L")
-            } compactTrailing: {
-                Text("T \(context.state.emoji)")
-            } minimal: {
-                Text(context.state.emoji)
-            }
-            .widgetURL(URL(string: "http://www.apple.com"))
-            .keylineTint(Color.red)
+        ActivityConfiguration(for: WatchNudgeAttributes.self) { _ in
+            WatchNudgeLockScreenView()
+        } dynamicIsland: { _ in
+            WatchNudgeIsland.make()
         }
     }
 }
 
-extension StabilyzLiveActivityExtensionAttributes {
-    fileprivate static var preview: StabilyzLiveActivityExtensionAttributes {
-        StabilyzLiveActivityExtensionAttributes(name: "World")
+/// iOS 18 and later: the same, plus the watch's Smart Stack on watchOS 11.
+@available(iOS 18.0, *)
+struct WatchNudgeSmartStackLiveActivity: Widget {
+    var body: some WidgetConfiguration {
+        ActivityConfiguration(for: WatchNudgeSmartStackAttributes.self) { _ in
+            WatchNudgeFamilyView()
+        } dynamicIsland: { _ in
+            WatchNudgeIsland.make()
+        }
+        .supplementalActivityFamilies([.small])
     }
 }
 
-extension StabilyzLiveActivityExtensionAttributes.ContentState {
-    fileprivate static var smiley: StabilyzLiveActivityExtensionAttributes.ContentState {
-        StabilyzLiveActivityExtensionAttributes.ContentState(emoji: "😀")
-     }
-     
-     fileprivate static var starEyes: StabilyzLiveActivityExtensionAttributes.ContentState {
-         StabilyzLiveActivityExtensionAttributes.ContentState(emoji: "🤩")
-     }
+/// The Lock Screen banner: what to do, and why.
+struct WatchNudgeLockScreenView: View {
+    var body: some View {
+        HStack(spacing: 12) {
+            Image(systemName: "applewatch")
+                .font(.title2)
+                .accessibilityHidden(true)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(WatchNudgeCopy.title)
+                    .font(.headline)
+                Text(WatchNudgeCopy.detail)
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+            }
+            Spacer(minLength: 0)
+        }
+        .padding()
+        .accessibilityElement(children: .combine)
+    }
 }
 
-#Preview("Notification", as: .content, using: StabilyzLiveActivityExtensionAttributes.preview) {
-   StabilyzLiveActivityExtensionLiveActivity()
-} contentStates: {
-    StabilyzLiveActivityExtensionAttributes.ContentState.smiley
-    StabilyzLiveActivityExtensionAttributes.ContentState.starEyes
+/// On iOS 18 one view serves the Lock Screen and the watch: the watch's
+/// Smart Stack is the small family.
+@available(iOS 18.0, *)
+struct WatchNudgeFamilyView: View {
+    @Environment(\.activityFamily) private var family
+
+    var body: some View {
+        switch family {
+        case .small:
+            Label(WatchNudgeCopy.smartStack, systemImage: "applewatch")
+                .font(.headline)
+                .padding()
+        default:
+            WatchNudgeLockScreenView()
+        }
+    }
+}
+
+enum WatchNudgeIsland {
+    static func make() -> DynamicIsland {
+        DynamicIsland {
+            DynamicIslandExpandedRegion(.center) {
+                WatchNudgeLockScreenView()
+            }
+        } compactLeading: {
+            Image(systemName: "applewatch")
+                .accessibilityHidden(true)
+        } compactTrailing: {
+            Text(WatchNudgeCopy.dynamicIsland)
+                .font(.caption)
+        } minimal: {
+            Image(systemName: "applewatch")
+                .accessibilityLabel(WatchNudgeCopy.dynamicIsland)
+        }
+    }
 }

@@ -604,3 +604,26 @@ private func makeModel(
         .setupSelection(mode: .full, durationSeconds: 360),
     ])
 }
+
+// MARK: - Watch line (Task 12.5.1)
+
+/// "Timer will show on your watch" shows only while the watch app is
+/// reachable [PRD §8].
+@MainActor @Test func theWatchLineFollowsReachability() async {
+    let watch = MockWatchSessionService(reachability: .installedNotReachable)
+    let model = makeModel(mode: .quickTest, watchSession: watch)
+    let observing = Task { await model.observeWatch() }
+    defer { observing.cancel() }
+
+    #expect(SessionSetupViewModel.watchLine == "Timer will show on your watch")
+    for _ in 0..<200 { await Task.yield() }
+    #expect(model.isWatchReachable == false)
+
+    watch.setReachability(.reachable)
+    for _ in 0..<2_000 where !model.isWatchReachable { await Task.yield() }
+    #expect(model.isWatchReachable)
+
+    watch.setReachability(.unavailable)
+    for _ in 0..<2_000 where model.isWatchReachable { await Task.yield() }
+    #expect(model.isWatchReachable == false)
+}

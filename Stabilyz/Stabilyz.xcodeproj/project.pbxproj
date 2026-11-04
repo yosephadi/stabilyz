@@ -97,6 +97,13 @@
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		098BB65D309B5A9300873B51 /* Exceptions for "Stabilyz" folder in "StabilyzLiveActivityExtensionExtension" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Services/LiveActivity/WatchNudgeAttributes.swift,
+			);
+			target = 098F0196309A22ED00351C15 /* StabilyzLiveActivityExtensionExtension */;
+		};
 		098F01AD309A22ED00351C15 /* Exceptions for "StabilyzLiveActivityExtension" folder in "StabilyzLiveActivityExtensionExtension" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
@@ -156,6 +163,7 @@
 			isa = PBXFileSystemSynchronizedRootGroup;
 			exceptions = (
 				09C72AED3059153A0058D0E8 /* Exceptions for "Stabilyz" folder in "Stabilyz" target */,
+				098BB65D309B5A9300873B51 /* Exceptions for "Stabilyz" folder in "StabilyzLiveActivityExtensionExtension" target */,
 			);
 			path = Stabilyz;
 			sourceTree = "<group>";
@@ -876,7 +884,7 @@
 				INFOPLIST_FILE = StabilyzLiveActivityExtension/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = StabilyzLiveActivityExtension;
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
-				IPHONEOS_DEPLOYMENT_TARGET = 17.6;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
@@ -907,7 +915,7 @@
 				INFOPLIST_FILE = StabilyzLiveActivityExtension/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = StabilyzLiveActivityExtension;
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
-				IPHONEOS_DEPLOYMENT_TARGET = 17.6;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
