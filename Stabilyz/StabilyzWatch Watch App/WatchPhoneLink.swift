@@ -7,8 +7,11 @@ import WatchConnectivity
 /// sends the stop request. Every live message is answered with an empty reply,
 /// so the phone can tell a delivered message from a lost one.
 ///
-/// On activation it reads only the setup selection from the application
-/// context. Catching up on a session already in progress is Task 12.3.3.
+/// Catch-up (Task 12.3.3): on activation and whenever the phone becomes
+/// reachable again, it hands over what the phone stored. Not on every stored
+/// update: while connected, the stored copy can arrive just before the live
+/// message, and catching up on it would treat a live Go as one already past.
+/// A stored update while connected passes on only the setup selection.
 ///
 /// `@unchecked Sendable`: `WCSession` is documented as thread-safe, and the one
 /// stored callback is written once, before activation.
@@ -31,14 +34,14 @@ nonisolated final class WatchPhoneLink: NSObject, WatchPhoneLinking, WCSessionDe
     // MARK: WCSessionDelegate
 
     func session(_ session: WCSession, activationDidCompleteWith activationState: WCSessionActivationState, error: Error?) {
-        if let data = session.receivedApplicationContext[WatchSyncKeys.setup] as? Data,
-           let message = WatchSyncCoder.decodePhoneToWatch(data) {
-            deliver(.message(message))
-        }
+        deliver(.catchUp(WatchCatchUp(applicationContext: session.receivedApplicationContext)))
         deliver(.reachability(session.isReachable))
     }
 
     func sessionReachabilityDidChange(_ session: WCSession) {
+        if session.isReachable {
+            deliver(.catchUp(WatchCatchUp(applicationContext: session.receivedApplicationContext)))
+        }
         deliver(.reachability(session.isReachable))
     }
 
@@ -52,9 +55,8 @@ nonisolated final class WatchPhoneLink: NSObject, WatchPhoneLinking, WCSessionDe
     }
 
     func session(_ session: WCSession, didReceiveApplicationContext applicationContext: [String: Any]) {
-        if let data = applicationContext[WatchSyncKeys.setup] as? Data,
-           let message = WatchSyncCoder.decodePhoneToWatch(data) {
-            deliver(.message(message))
+        if let setup = WatchCatchUp(applicationContext: applicationContext).setup {
+            deliver(.message(setup))
         }
     }
 

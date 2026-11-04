@@ -356,7 +356,8 @@ An Apple Watch companion that shows the session timer on the wrist, so the user 
 2. **Start is phone-only. Stop works from either device; the phone is authoritative.** A watch Stop ends the session exactly like an on-phone Stop. Duplicate or late stop requests are ignored. Stop is hidden on the watch while the phone is unreachable.
 3. **Haptic ownership is decided once, when the countdown starts.** If the watch is reachable at that moment, the watch plays the countdown ticks, Go and Stop, and the phone plays none of those haptics; otherwise the phone plays them. The choice is fixed for the whole session. Two clarifications:
    - "The phone plays none" means **haptics only**. The start tone, the stop tone, Step Feedback and the Metronome cue still play from the phone, as §7 requires.
-   - **Stop fallback:** if the watch owns haptics but is unreachable at Stop, the phone plays the Stop pulse, so a Stop is never silent to touch. When the watch's own timer reaches the end while disconnected, it also plays its Stop haptic locally, so the user may feel two — accepted.
+   - **Stop fallback:** if the watch owns haptics but is unreachable at Stop, the phone plays the Stop pulse, so a Stop is never silent to touch. When the watch's own timer reaches the end while disconnected, it shows Stopped and plays its Stop haptic locally, so the user may feel two — accepted.
+   - **Go fallback:** if the owning watch does not confirm the Go message in time, the phone plays the Go pulse. A watch that received it but confirmed late has already played its own, so the user may feel two Go buzzes — accepted, as intended behaviour.
    - The user's Start & Stop Haptics setting governs the watch too: off means no haptics on either device.
 4. **A session never depends on the watch.** Losing the watch mid-walk never cancels, pauses or invalidates the session.
 5. **Keep-alive via a watchOS extended runtime session, without HealthKit.** Apple's *physical therapy* session type runs in the background for up to an hour and needs no HealthKit; it is the recommended type (see Open Question 7a). HealthKit stays out of scope.
@@ -388,6 +389,8 @@ WatchConnectivity, phone to watch, with one message type back (the stop request)
 - **Stop request** (watch to phone): carries the session it refers to, so a late request for a finished session is ignored.
 
 The watch runs its own clock from T-0; it does not wait for a message per second.
+
+**Catch-up.** When the watch app opens, or the phone becomes reachable again, the watch reads what the phone last stored and rejoins: a countdown at the numeral showing now, a running walk re-synced to T-0, a finished walk on Stopped. Nothing that already happened is replayed — no missed numerals, no late Go, no Stop buzz for a walk that ended while the watch was away — but everything after it plays as usual. A stored session counts only until 5 minutes after its planned end; after that the watch shows Waiting.
 
 ### Haptics
 Candidates — **verify on device**:

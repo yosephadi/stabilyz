@@ -207,6 +207,23 @@ private func first<Value>(_ count: Int, of stream: AsyncStream<Value>) async -> 
         #expect(decoded(after).state == countdown)
     }
 
+    /// A watch reconnecting mid-walk needs the countdown's details as well as
+    /// T-0, so later session messages never erase it (Task 12.3.3).
+    @Test func theCountdownSurvivesTheMessagesAfterIt() throws {
+        let started = PhoneToWatchMessage.started(sessionID: sessionA, t0: Date(timeIntervalSince1970: 100.002))
+        let context = try record([countdown, started, .hapticsChanged(enabled: false), .stopped(sessionID: sessionA)])
+        let stored = (context.dictionary[WatchSyncKeys.countdown] as? Data).flatMap(WatchSyncCoder.decodePhoneToWatch)
+        #expect(stored == countdown)
+        #expect(decoded(context).state == .stopped(sessionID: sessionA))
+
+        let next = PhoneToWatchMessage.countdownStarted(
+            sessionID: sessionB, mode: .quick, durationSeconds: 120,
+            plannedGoAt: Date(timeIntervalSince1970: 500), hapticOwner: .phone, hapticsEnabled: true
+        )
+        let replaced = try record([countdown, started, next])
+        #expect((replaced.dictionary[WatchSyncKeys.countdown] as? Data).flatMap(WatchSyncCoder.decodePhoneToWatch) == next)
+    }
+
     @Test func aNewCountdownClearsTheEarlierHapticsChange() throws {
         let context = try record([.hapticsChanged(enabled: false), .stopped(sessionID: sessionB), countdown])
         #expect(decoded(context).state == countdown)

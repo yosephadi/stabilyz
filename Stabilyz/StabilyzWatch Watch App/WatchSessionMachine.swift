@@ -50,6 +50,8 @@ nonisolated enum WatchPhase: Equatable, Sendable {
 /// Something that happened to the watch.
 nonisolated enum WatchEvent: Equatable, Sendable {
     case received(PhoneToWatchMessage, at: Date)
+    /// What the phone stored while the watch was not listening.
+    case catchUp(WatchCatchUp, at: Date)
     case reachability(Bool, at: Date)
     /// The clock moved. Drives the numerals and timeouts.
     case tick(Date)
@@ -93,6 +95,9 @@ nonisolated struct WatchSessionMachine: Equatable, Sendable {
     /// How long after the planned Go the watch waits for `started` before
     /// moving to Running on its own, from the planned Go and with no Go haptic.
     static let missedStartedGrace: TimeInterval = 2
+    /// How long after its planned end a stored session still counts as
+    /// current. Older than this, catch-up leaves the watch on Waiting.
+    static let catchUpWindow: TimeInterval = 5 * 60
     /// How long Stop stays disabled after a tap with no answer from the phone.
     static let stopRetryInterval: TimeInterval = 3
 
@@ -106,6 +111,9 @@ nonisolated struct WatchSessionMachine: Equatable, Sendable {
     /// The numeral last announced, so each is announced once however often the
     /// clock ticks.
     private var announcedNumeral: Int?
+    /// Sessions this watch has seen end — stopped, cancelled, or run out
+    /// locally — so catch-up never brings one back.
+    private var endedSessions: Set<UUID> = []
 
     init() {}
 
@@ -122,6 +130,8 @@ nonisolated struct WatchSessionMachine: Equatable, Sendable {
         switch event {
         case .received(let message, let now):
             return receive(message, at: now)
+        case .catchUp(let stored, let now):
+            return catchUp(stored, at: now)
         case .reachability(let reachable, _):
             return reachabilityChanged(reachable)
         case .tick(let now):
@@ -172,20 +182,107 @@ nonisolated struct WatchSessionMachine: Equatable, Sendable {
 
         case .stopped(let id):
             guard let session = phase.session, session.id == id else { return [] }
-            phase = .stopped(sessionID: id)
-            stopRequestedAt = nil
+            end(session.id, in: .stopped(sessionID: id))
             return session.playsHaptics ? [.playHaptic(.stop)] : []
 
         case .cancelled(let id):
             guard let session = phase.session, session.id == id else { return [] }
-            phase = .waiting
-            stopRequestedAt = nil
+            end(session.id, in: .waiting)
             return session.playsHaptics ? [.playHaptic(.stop)] : []
 
         case .hapticsChanged(let enabled):
             update { $0.hapticsEnabled = enabled }
             return []
         }
+    }
+
+    // MARK: - Catch-up (Task 12.3.3)
+
+    /// Rebuilds the screen from what the phone stored.
+    ///
+    /// **No cue for anything that already happened**: no replayed numeral, no
+    /// late Go, no Stop buzz for a walk that ended while the watch was away.
+    /// What happens *after* catching up plays as usual — a countdown joined at
+    /// "2" still clicks 2 and 1 and plays Go.
+    ///
+    /// It never moves a session backwards, never revives one this watch saw
+    /// end, and ignores a session more than `catchUpWindow` past its planned
+    /// end.
+    private mutating func catchUp(_ stored: WatchCatchUp, at now: Date) -> [WatchEffect] {
+        if case .setupSelection(let mode, let seconds)? = stored.setup {
+            selection = WatchSelection(mode: mode, durationSeconds: seconds)
+        }
+
+        guard case .countdownStarted(let id, let mode, let seconds, let plannedGoAt, let owner, let enabled)? = stored.countdown,
+              !endedSessions.contains(id),
+              now.timeIntervalSince(plannedGoAt) <= Double(seconds) + Self.catchUpWindow else { return [] }
+
+        let known = phase.session?.id == id ? phase.session : nil
+        var session = known ?? WatchSession(
+            id: id,
+            selection: WatchSelection(mode: mode, durationSeconds: seconds),
+            plannedGoAt: plannedGoAt,
+            t0: nil,
+            hapticOwner: owner,
+            hapticsEnabled: enabled
+        )
+        if case .hapticsChanged(let enabled)? = stored.haptics { session.hapticsEnabled = enabled }
+
+        let state = stored.sessionState?.sessionID == id ? stored.sessionState : stored.countdown
+        switch state {
+        case .countdownStarted?:
+            guard known == nil else {
+                update { $0.hapticsEnabled = session.hapticsEnabled }
+                return []
+            }
+            selection = session.selection
+            phase = .countingDown(session)
+            stopRequestedAt = nil
+            // Only the numeral showing now is announced and felt; the ones the
+            // watch missed are not replayed.
+            announcedNumeral = nil
+            return tick(now)
+
+        case .started(_, let t0)?:
+            let wasCounting = if case .countingDown = phase { true } else { false }
+            session.t0 = t0
+            session.t0IsEstimated = false
+            let elapsed = now.timeIntervalSince(t0)
+            // The walk already ran out while the watch was away, and the phone
+            // is not there to say so: show it ended, without a buzz.
+            if elapsed >= Double(seconds), !isPhoneReachable {
+                end(id, in: .stopped(sessionID: id))
+                return []
+            }
+            if case .disconnected = phase, known != nil {
+                phase = .disconnected(session)
+            } else {
+                phase = isPhoneReachable || known == nil ? .running(session) : .disconnected(session)
+            }
+            // Go is still now if T-0 was under a moment ago: the stored copy
+            // simply beat the live one here.
+            guard wasCounting, known != nil, elapsed < WatchScreen.goHold else { return [] }
+            return [.announce(WatchCopy.go)] + (session.playsHaptics ? [.playHaptic(.start)] : [])
+
+        case .stopped?:
+            end(id, in: .stopped(sessionID: id))
+            return []
+
+        case .cancelled?:
+            if known != nil { phase = .waiting }
+            endedSessions.insert(id)
+            stopRequestedAt = nil
+            return []
+
+        default:
+            return []
+        }
+    }
+
+    private mutating func end(_ id: UUID, in phase: WatchPhase) {
+        self.phase = phase
+        endedSessions.insert(id)
+        stopRequestedAt = nil
     }
 
     // MARK: - Reachability
@@ -212,6 +309,16 @@ nonisolated struct WatchSessionMachine: Equatable, Sendable {
     private mutating func tick(_ now: Date) -> [WatchEffect] {
         if let requested = stopRequestedAt, now.timeIntervalSince(requested) >= Self.stopRetryInterval {
             stopRequestedAt = nil
+        }
+
+        // 00:00 with the phone out of reach: the phone stops the walk on its
+        // own clock, but cannot say so. Show it ended, and feel it if this
+        // watch owns the haptics — the phone plays its fallback pulse too,
+        // and the double buzz is accepted [PRD §8 decision 3].
+        if case .disconnected(let session) = phase, let t0 = session.t0,
+           now.timeIntervalSince(t0) >= Double(session.selection.durationSeconds) {
+            end(session.id, in: .stopped(sessionID: session.id))
+            return session.playsHaptics ? [.playHaptic(.stop)] : []
         }
 
         guard case .countingDown(var session) = phase else { return [] }

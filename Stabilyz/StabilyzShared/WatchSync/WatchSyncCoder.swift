@@ -27,6 +27,11 @@ nonisolated enum WatchSyncKeys {
     /// happened after the countdown started.
     static let haptics = "stabilyz.watchSync.haptics"
 
+    /// The application context's latest `countdownStarted`, kept when later
+    /// session messages replace `sessionState`: a watch that reconnects mid-walk
+    /// needs the mode, length and haptic owner as well as T-0.
+    static let countdown = "stabilyz.watchSync.countdown"
+
     /// The application context's latest setup-screen selection.
     static let setup = "stabilyz.watchSync.setup"
 }
