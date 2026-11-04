@@ -348,7 +348,8 @@ EPIC 12 — Watch Companion (Phase 3)  [PRD §8; docs/04 §4.18; decisions.md en
         survival through wrist-down and leaving the app, reachability at countdown
         start, watch/phone timer agreement, Go-cue latency (watch Go on `started`
         vs the phone's start tone, and the phone's late fallback Go), Live
-        Activity on watchOS 11.
+        Activity on watchOS 11, and the battery cost of the keep-alive idling on
+        Waiting for up to 1 h (to decide whether to end it after ~15 min idle).
       ↳ EXIT CONDITION: if `WKInterfaceDevice.play` does not fire reliably during a
         background extended runtime session, haptic ownership falls back to
         phone-only for every session (decisions.md entry 46).
