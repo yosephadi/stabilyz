@@ -18,10 +18,72 @@ enum WatchTheme {
     static let title = Font.title3.weight(.semibold)
     static let body = Font.body
     static let heading = Font.headline
-    static let numeral = Font.system(size: 64, weight: .bold, design: .rounded)
-    static let timer = Font.system(size: 40, weight: .semibold, design: .rounded).monospacedDigit()
 
-    static let stopHeight: CGFloat = 55
-    static let progressHeight: CGFloat = 6
+    // MARK: Big numbers
+    //
+    // The countdown numeral and the walk timer scale with Dynamic Type from
+    // these base sizes (the approved design), up to a cap, and shrink rather
+    // than clip on a small watch (`bigNumber`).
+
+    static let numeralBaseSize: CGFloat = 72
+    static let numeralMaxSize: CGFloat = 96
+    static let timerBaseSize: CGFloat = 52
+    static let timerMaxSize: CGFloat = 68
+    /// How far a big number may shrink to fit one line.
+    static let bigNumberMinimumScale: CGFloat = 0.5
+    /// The big numbers' size when a screen would otherwise have to scroll, so
+    /// the words around them stay in view.
+    static let compactNumberScale: CGFloat = 0.7
+
+    /// The Dynamic Type-scaled size, capped, then scaled for a compact layout.
+    static func numeral(size: CGFloat, scale: CGFloat = 1) -> Font {
+        .system(size: min(size, numeralMaxSize) * scale, weight: .bold, design: .rounded)
+    }
+
+    static func timer(size: CGFloat, scale: CGFloat = 1) -> Font {
+        .system(size: min(size, timerMaxSize) * scale, weight: .semibold, design: .rounded).monospacedDigit()
+    }
+
+    // MARK: Layout
+
+    /// The primary action capsule: Stop and Done [PRD §8: 55 pt Stop].
+    static let capsuleHeight: CGFloat = 55
     static let spacing: CGFloat = 8
+    /// The side margin every screen shares, so no text runs edge to edge.
+    static let screenMargin: CGFloat = 8
+    static let pressedOpacity: Double = 0.7
+    static let disabledOpacity: Double = 0.5
+}
+
+/// The solid navy capsule, shared by Stop and Done, so the two primary actions
+/// look like one control rather than one solid and one system-translucent.
+struct WatchPrimaryCapsuleStyle: ButtonStyle {
+    @Environment(\.isEnabled) private var isEnabled
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .font(WatchTheme.heading)
+            .foregroundStyle(WatchTheme.onPrimary)
+            .frame(maxWidth: .infinity, minHeight: WatchTheme.capsuleHeight)
+            .background(Capsule().fill(WatchTheme.primary))
+            .opacity(isEnabled ? (configuration.isPressed ? WatchTheme.pressedOpacity : 1) : WatchTheme.disabledOpacity)
+    }
+}
+
+extension ButtonStyle where Self == WatchPrimaryCapsuleStyle {
+    static var watchPrimaryCapsule: WatchPrimaryCapsuleStyle { WatchPrimaryCapsuleStyle() }
+}
+
+extension View {
+    /// One line, shrinking rather than clipping on a small watch or at a large
+    /// text size.
+    func bigNumber() -> some View {
+        lineLimit(1).minimumScaleFactor(WatchTheme.bigNumberMinimumScale)
+    }
+
+    /// Wraps onto as many lines as it needs instead of truncating. The screen
+    /// scrolls if they do not fit.
+    func wrapping() -> some View {
+        fixedSize(horizontal: false, vertical: true)
+    }
 }

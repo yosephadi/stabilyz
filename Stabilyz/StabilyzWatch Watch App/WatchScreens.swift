@@ -5,23 +5,43 @@ import SwiftUI
 struct WatchRootView: View {
     let model: WatchSessionModel
 
+    /// The big numbers' sizes, following Dynamic Type from the design's base
+    /// sizes. Capped in `WatchTheme`.
+    @ScaledMetric(relativeTo: .largeTitle) private var numeralSize = WatchTheme.numeralBaseSize
+    @ScaledMetric(relativeTo: .largeTitle) private var timerSize = WatchTheme.timerBaseSize
+
     var body: some View {
-        content
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .background(WatchTheme.background)
-            .foregroundStyle(WatchTheme.text)
+        // The first that fits: full size; then the big numbers smaller, so the
+        // words stay on screen; then full size again, scrolling. Nothing is
+        // ever truncated or clipped.
+        ViewThatFits(in: .vertical) {
+            screen(numberScale: 1)
+            screen(numberScale: WatchTheme.compactNumberScale)
+            ScrollView { screen(numberScale: 1) }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(WatchTheme.background)
+        .foregroundStyle(WatchTheme.text)
     }
 
-    @ViewBuilder private var content: some View {
+    private func screen(numberScale: CGFloat) -> some View {
+        content(numberScale: numberScale)
+            .multilineTextAlignment(.center)
+            .padding(.horizontal, WatchTheme.screenMargin)
+            .frame(maxWidth: .infinity)
+    }
+
+    @ViewBuilder private func content(numberScale: CGFloat) -> some View {
         switch model.screen {
         case .waiting(let selection, let selectionLabel):
             VStack(spacing: WatchTheme.spacing) {
                 Text(WatchCopy.waitingTitle)
                     .font(WatchTheme.title)
-                    .multilineTextAlignment(.center)
+                    .wrapping()
                 if let selection {
                     Text(selection)
                         .font(WatchTheme.body)
+                        .wrapping()
                         .foregroundStyle(WatchTheme.secondaryText)
                         .accessibilityLabel(selectionLabel ?? selection)
                 }
@@ -30,50 +50,51 @@ struct WatchRootView: View {
 
         case .countdown(let numeral):
             VStack(spacing: WatchTheme.spacing) {
-                Text(WatchCopy.countdownHeading).font(WatchTheme.heading)
+                Text(WatchCopy.countdownHeading)
+                    .font(WatchTheme.heading)
+                    .wrapping()
                 Text(numeral)
-                    .font(WatchTheme.numeral)
+                    .font(WatchTheme.numeral(size: numeralSize, scale: numberScale))
+                    .bigNumber()
                     .accessibilityLabel(numeral)
                 Text(WatchCopy.countdownFooter)
                     .font(WatchTheme.body)
+                    .wrapping()
                     .foregroundStyle(WatchTheme.secondaryText)
             }
 
         case .running(let timer, let stopEnabled):
             VStack(spacing: WatchTheme.spacing) {
-                TimerBlock(timer: timer)
-                Button(action: model.tapStop) {
-                    Text(WatchCopy.stop)
-                        .font(WatchTheme.heading)
-                        .foregroundStyle(WatchTheme.onPrimary)
-                        .frame(maxWidth: .infinity, minHeight: WatchTheme.stopHeight)
-                        .background(Capsule().fill(WatchTheme.primary))
-                }
-                .buttonStyle(.plain)
-                .disabled(!stopEnabled)
-                .opacity(stopEnabled ? 1 : 0.5)
-                .accessibilityLabel(WatchCopy.stop)
+                TimerBlock(timer: timer, size: timerSize, scale: numberScale)
+                Button(WatchCopy.stop, action: model.tapStop)
+                    .buttonStyle(.watchPrimaryCapsule)
+                    .disabled(!stopEnabled)
+                    .accessibilityLabel(WatchCopy.stop)
             }
 
         case .stopped:
             VStack(spacing: WatchTheme.spacing) {
-                Text(WatchCopy.stoppedTitle).font(WatchTheme.title)
+                Text(WatchCopy.stoppedTitle)
+                    .font(WatchTheme.title)
+                    .wrapping()
                 Text(WatchCopy.stoppedDetail)
                     .font(WatchTheme.body)
                     .foregroundStyle(WatchTheme.secondaryText)
-                    .multilineTextAlignment(.center)
+                    .wrapping()
                 Button(WatchCopy.done, action: model.tapDone)
-                    .tint(WatchTheme.primary)
+                    .buttonStyle(.watchPrimaryCapsule)
             }
 
         case .disconnected(let timer):
             VStack(spacing: WatchTheme.spacing) {
-                Text(WatchCopy.disconnectedTitle).font(WatchTheme.heading)
-                TimerBlock(timer: timer)
+                Text(WatchCopy.disconnectedTitle)
+                    .font(WatchTheme.heading)
+                    .wrapping()
+                TimerBlock(timer: timer, size: timerSize, scale: numberScale)
                 Text(WatchCopy.disconnectedDetail)
                     .font(WatchTheme.body)
                     .foregroundStyle(WatchTheme.secondaryText)
-                    .multilineTextAlignment(.center)
+                    .wrapping()
             }
         }
     }
@@ -82,11 +103,14 @@ struct WatchRootView: View {
 /// Elapsed time and the progress bar, shared by Running and Disconnected.
 private struct TimerBlock: View {
     let timer: WatchTimer
+    let size: CGFloat
+    let scale: CGFloat
 
     var body: some View {
         VStack(spacing: WatchTheme.spacing) {
             Text(timer.text)
-                .font(WatchTheme.timer)
+                .font(WatchTheme.timer(size: size, scale: scale))
+                .bigNumber()
                 .accessibilityLabel(timer.accessibilityLabel)
             ProgressView(value: timer.progress)
                 .tint(WatchTheme.primary)
