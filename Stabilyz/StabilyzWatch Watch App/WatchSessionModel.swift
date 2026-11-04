@@ -6,6 +6,8 @@ nonisolated enum WatchLinkEvent: Equatable, Sendable {
     case reachability(Bool)
     /// What the phone stored, on launch or when the phone comes back.
     case catchUp(WatchCatchUp)
+    /// The phone's stored copy changed while the watch was listening.
+    case storedUpdate(WatchCatchUp)
 }
 
 /// The watch's side of WatchConnectivity, behind a protocol so the model can be
@@ -71,6 +73,7 @@ final class WatchSessionModel {
         case .message(let message): apply(.received(message, at: now))
         case .reachability(let reachable): apply(.reachability(reachable, at: now))
         case .catchUp(let stored): apply(.catchUp(stored, at: now))
+        case .storedUpdate(let stored): apply(.storedUpdate(stored, at: now))
         }
     }
 

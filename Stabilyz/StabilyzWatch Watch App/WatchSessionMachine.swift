@@ -52,6 +52,9 @@ nonisolated enum WatchEvent: Equatable, Sendable {
     case received(PhoneToWatchMessage, at: Date)
     /// What the phone stored while the watch was not listening.
     case catchUp(WatchCatchUp, at: Date)
+    /// The phone's stored copy changed while the watch was listening. Applied
+    /// only if no live message catches the watch up within `storedDriftGrace`.
+    case storedUpdate(WatchCatchUp, at: Date)
     case reachability(Bool, at: Date)
     /// The clock moved. Drives the numerals and timeouts.
     case tick(Date)
@@ -100,6 +103,10 @@ nonisolated struct WatchSessionMachine: Equatable, Sendable {
     static let catchUpWindow: TimeInterval = 5 * 60
     /// How long Stop stays disabled after a tap with no answer from the phone.
     static let stopRetryInterval: TimeInterval = 3
+    /// How long the phone's stored copy may stay ahead of the watch while
+    /// connected before the watch catches up on it. A live message landing
+    /// within this wins; past it, the live one was lost.
+    static let storedDriftGrace: TimeInterval = 2
 
     private(set) var phase: WatchPhase = .waiting
     private(set) var selection: WatchSelection?
@@ -114,6 +121,13 @@ nonisolated struct WatchSessionMachine: Equatable, Sendable {
     /// Sessions this watch has seen end — stopped, cancelled, or run out
     /// locally — so catch-up never brings one back.
     private var endedSessions: Set<UUID> = []
+    /// A stored copy that is ahead of the watch, and since when it has been.
+    private var storedAhead: StoredAhead?
+
+    private struct StoredAhead: Equatable, Sendable {
+        var stored: WatchCatchUp
+        let since: Date
+    }
 
     init() {}
 
@@ -132,6 +146,8 @@ nonisolated struct WatchSessionMachine: Equatable, Sendable {
             return receive(message, at: now)
         case .catchUp(let stored, let now):
             return catchUp(stored, at: now)
+        case .storedUpdate(let stored, let now):
+            return storedUpdate(stored, at: now)
         case .reachability(let reachable, _):
             return reachabilityChanged(reachable)
         case .tick(let now):
@@ -209,13 +225,13 @@ nonisolated struct WatchSessionMachine: Equatable, Sendable {
     /// end, and ignores a session more than `catchUpWindow` past its planned
     /// end.
     private mutating func catchUp(_ stored: WatchCatchUp, at now: Date) -> [WatchEffect] {
+        storedAhead = nil
         if case .setupSelection(let mode, let seconds)? = stored.setup {
             selection = WatchSelection(mode: mode, durationSeconds: seconds)
         }
 
         guard case .countdownStarted(let id, let mode, let seconds, let plannedGoAt, let owner, let enabled)? = stored.countdown,
-              !endedSessions.contains(id),
-              now.timeIntervalSince(plannedGoAt) <= Double(seconds) + Self.catchUpWindow else { return [] }
+              isCurrent(stored, at: now) else { return [] }
 
         let known = phase.session?.id == id ? phase.session : nil
         var session = known ?? WatchSession(
@@ -279,6 +295,62 @@ nonisolated struct WatchSessionMachine: Equatable, Sendable {
         }
     }
 
+    /// Whether `stored` holds a session this watch has not seen end and that
+    /// is within `catchUpWindow` of its planned end.
+    private func isCurrent(_ stored: WatchCatchUp, at now: Date) -> Bool {
+        guard case .countdownStarted(let id, _, let seconds, let plannedGoAt, _, _)? = stored.countdown else { return false }
+        return !endedSessions.contains(id)
+            && now.timeIntervalSince(plannedGoAt) <= Double(seconds) + Self.catchUpWindow
+    }
+
+    // MARK: - Stored updates while listening
+
+    /// The phone's stored copy changed while the watch was listening.
+    ///
+    /// Normally the live message carries the same news, and may land just
+    /// after the stored copy — so catching up at once would treat a live Go
+    /// as one already past. Instead the watch notes that the stored copy is
+    /// ahead, and catches up on it only if it is still ahead after
+    /// `storedDriftGrace`: the live message was lost.
+    private mutating func storedUpdate(_ stored: WatchCatchUp, at now: Date) -> [WatchEffect] {
+        if case .setupSelection(let mode, let seconds)? = stored.setup {
+            selection = WatchSelection(mode: mode, durationSeconds: seconds)
+        }
+        guard isAhead(stored, at: now) else {
+            storedAhead = nil
+            return []
+        }
+        storedAhead = StoredAhead(stored: stored, since: storedAhead?.since ?? now)
+        return []
+    }
+
+    /// Whether `stored` is further along than the watch: a session it has not
+    /// joined, or a later step of the one it shows. Running from an estimated
+    /// T-0 counts as behind a stored `started`, so the clock re-syncs.
+    private func isAhead(_ stored: WatchCatchUp, at now: Date) -> Bool {
+        guard isCurrent(stored, at: now),
+              case .countdownStarted(let id, _, _, _, _, _)? = stored.countdown else { return false }
+        let state = stored.sessionState?.sessionID == id ? stored.sessionState : stored.countdown
+        let storedStep = switch state {
+        case .countdownStarted?: 1
+        case .started?: 2
+        case .stopped?, .cancelled?: 3
+        default: 0
+        }
+        let watchStep: Int
+        switch phase {
+        case .waiting, .stopped:
+            watchStep = 0
+        case .countingDown(let session):
+            guard session.id == id else { return false }
+            watchStep = 1
+        case .running(let session), .disconnected(let session):
+            guard session.id == id else { return false }
+            watchStep = session.t0IsEstimated ? 1 : 2
+        }
+        return storedStep > watchStep
+    }
+
     private mutating func end(_ id: UUID, in phase: WatchPhase) {
         self.phase = phase
         endedSessions.insert(id)
@@ -307,6 +379,16 @@ nonisolated struct WatchSessionMachine: Equatable, Sendable {
     // MARK: - Time
 
     private mutating func tick(_ now: Date) -> [WatchEffect] {
+        if let pending = storedAhead {
+            if !isAhead(pending.stored, at: now) {
+                storedAhead = nil
+            } else if now.timeIntervalSince(pending.since) >= Self.storedDriftGrace {
+                // The live message was lost. Catch up — with no cue for what
+                // is already past, as on launch.
+                return catchUp(pending.stored, at: now)
+            }
+        }
+
         if let requested = stopRequestedAt, now.timeIntervalSince(requested) >= Self.stopRetryInterval {
             stopRequestedAt = nil
         }

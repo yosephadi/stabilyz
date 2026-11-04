@@ -249,3 +249,152 @@ private func stored(
         }
     }
 }
+
+/// A live message lost while connected: the stored copy stays ahead, and the
+/// watch catches up on it after `storedDriftGrace`.
+@Suite struct WatchStoredDriftTests {
+    /// Ticks every 0.1 s from `start` through `end`, returning every effect.
+    private func ticks(_ machine: inout WatchSessionMachine, from start: TimeInterval, through end: TimeInterval) -> [WatchEffect] {
+        stride(from: start, through: end, by: 0.1).flatMap { machine.handle(.tick(at($0))) }
+    }
+
+    @Test func aLostStoppedShowsStoppedWithinTwoSeconds() {
+        var machine = WatchSessionMachine.running(owner: .watch)
+        machine.run([.storedUpdate(stored(.stopped(sessionID: sessionA)), at: at(30))])
+
+        #expect(ticks(&machine, from: 30.1, through: 31.8).isEmpty)
+        guard case .running = machine.phase else {
+            Issue.record("stopped before the grace ran out: \(machine.phase)")
+            return
+        }
+        // No cue: the stop already happened.
+        #expect(ticks(&machine, from: 32, through: 32).isEmpty)
+        #expect(machine.phase == .stopped(sessionID: sessionA))
+    }
+
+    /// The stored copy can land just before the live Go. The live one, within
+    /// the grace, wins and still buzzes; nothing plays a second time.
+    @Test func aStoredCopyJustBeforeTheLiveGoLetsTheLiveGoBuzz() {
+        var machine = WatchSessionMachine.counting(owner: .watch)
+        machine.run(stride(from: -5.0, through: -0.1, by: 0.1).map { .tick(at($0)) })
+
+        #expect(machine.run([.storedUpdate(stored(.started(sessionID: sessionA, t0: at(0.01))), at: at(0.02))]).isEmpty)
+        let go = machine.run([.received(.started(sessionID: sessionA, t0: at(0.01)), at: at(0.05))])
+        #expect(haptics(in: go) == [.start])
+        #expect(announcements(in: go) == ["Go"])
+
+        #expect(ticks(&machine, from: 0.1, through: 5).isEmpty)
+        #expect(machine.phase.session?.t0 == at(0.01))
+    }
+
+    @Test func aLiveStoppedWithinTheGraceWinsAndBuzzesOnce() {
+        var machine = WatchSessionMachine.running(owner: .watch)
+        machine.run([.storedUpdate(stored(.stopped(sessionID: sessionA)), at: at(30))])
+        let live = machine.run([.received(.stopped(sessionID: sessionA), at: at(31))])
+        #expect(haptics(in: live) == [.stop])
+        #expect(ticks(&machine, from: 31.1, through: 35).isEmpty)
+        #expect(machine.phase == .stopped(sessionID: sessionA))
+    }
+
+    /// A lost `started`: the watch re-syncs to the phone's T-0 without a late Go.
+    @Test func aLostStartedReSyncsT0WithoutALateGo() {
+        var machine = WatchSessionMachine.counting(owner: .watch)
+        _ = ticks(&machine, from: -5, through: -0.1)
+        machine.run([.storedUpdate(stored(.started(sessionID: sessionA, t0: at(0.03))), at: at(0.05))])
+        let effects = ticks(&machine, from: 0, through: 4)
+
+        #expect(!haptics(in: effects).contains(.start))
+        #expect(!announcements(in: effects).contains("Go"))
+        guard case .running(let session) = machine.phase else {
+            Issue.record("not running: \(machine.phase)")
+            return
+        }
+        #expect(session.t0 == at(0.03))
+        #expect(!session.t0IsEstimated)
+    }
+
+    /// A lost `countdownStarted`: joined at the numeral showing now, as on
+    /// launch.
+    @Test func aLostCountdownIsJoinedAtTheNumeralShowingNow() {
+        var machine = WatchSessionMachine()
+        machine.run([.reachability(true, at: at(-6)), .storedUpdate(stored(), at: at(-4.5))])
+        #expect(ticks(&machine, from: -4.4, through: -2.6).isEmpty)
+
+        let effects = machine.run([.tick(at(-2.5))])
+        guard case .countingDown = machine.phase else {
+            Issue.record("not counting: \(machine.phase)")
+            return
+        }
+        #expect(announcements(in: effects) == ["3"])
+    }
+
+    @Test func aStoredCopyThatIsNotAheadChangesNothing() {
+        var machine = WatchSessionMachine.running(owner: .watch)
+        let before = machine.phase
+        machine.run([
+            .storedUpdate(stored(), at: at(10)),
+            .storedUpdate(stored(.started(sessionID: sessionA, t0: goAt)), at: at(10.1)),
+        ])
+        #expect(ticks(&machine, from: 10.2, through: 15).isEmpty)
+        #expect(machine.phase == before)
+    }
+
+    @Test func aStoredCopyNeverRevivesASessionThatEnded() {
+        var machine = WatchSessionMachine.running(owner: .watch)
+        machine.run([.received(.stopped(sessionID: sessionA), at: at(30)), .doneTapped])
+        machine.run([.storedUpdate(stored(.started(sessionID: sessionA, t0: goAt)), at: at(31))])
+        #expect(ticks(&machine, from: 31.1, through: 35).isEmpty)
+        #expect(machine.phase == .waiting)
+    }
+
+    @Test func aStoredSetupSelectionAppliesAtOnce() {
+        var machine = WatchSessionMachine()
+        machine.run([.storedUpdate(WatchCatchUp(setup: .setupSelection(mode: .full, durationSeconds: 360)), at: at(0))])
+        #expect(machine.selection == WatchSelection(mode: .full, durationSeconds: 360))
+    }
+}
+
+/// The "Go under a second ago still plays" catch-up rule never plays Go a
+/// second time for a session the watch already played Go for.
+@Suite struct WatchNoSecondGoTests {
+    private func goCues(_ effects: [WatchEffect]) -> [WatchEffect] {
+        effects.filter { $0 == .playHaptic(.start) || $0 == .announce(WatchCopy.go) }
+    }
+
+    @Test func aLiveGoThenACatchUpWithinASecondPlaysNoSecondGo() {
+        var machine = WatchSessionMachine.running(owner: .watch)
+        #expect(goCues(machine.run([.catchUp(stored(.started(sessionID: sessionA, t0: goAt)), at: at(0.3))])).isEmpty)
+    }
+
+    @Test func aLiveGoThenAReconnectWithinASecondPlaysNoSecondGo() {
+        var machine = WatchSessionMachine.running(owner: .watch)
+        let effects = machine.run([
+            .reachability(false, at: at(0.2)),
+            .reachability(true, at: at(0.5)),
+            .catchUp(stored(.started(sessionID: sessionA, t0: goAt)), at: at(0.5)),
+        ])
+        #expect(goCues(effects).isEmpty)
+    }
+
+    @Test func aLiveGoThenAStoredUpdatePlaysNoSecondGo() {
+        var machine = WatchSessionMachine.running(owner: .watch)
+        var effects = machine.run([.storedUpdate(stored(.started(sessionID: sessionA, t0: goAt)), at: at(0.2))])
+        effects += stride(from: 0.3, through: 4, by: 0.1).flatMap { machine.handle(.tick(at($0))) }
+        #expect(goCues(effects).isEmpty)
+    }
+
+    /// The catch-up played Go; a second catch-up and the late live message
+    /// within the second add nothing.
+    @Test func aCatchUpGoIsNotFollowedByAnother() {
+        var machine = WatchSessionMachine.counting(owner: .watch)
+        let first = machine.run([.catchUp(stored(.started(sessionID: sessionA, t0: at(0.01))), at: at(0.2))])
+        #expect(goCues(first).count == 2)
+
+        let after = machine.run([
+            .catchUp(stored(.started(sessionID: sessionA, t0: at(0.01))), at: at(0.4)),
+            .received(.started(sessionID: sessionA, t0: at(0.01)), at: at(0.5)),
+            .storedUpdate(stored(.started(sessionID: sessionA, t0: at(0.01))), at: at(0.6)),
+        ])
+        #expect(goCues(after).isEmpty)
+    }
+}

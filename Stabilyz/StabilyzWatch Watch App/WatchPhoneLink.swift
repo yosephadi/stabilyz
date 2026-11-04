@@ -8,10 +8,10 @@ import WatchConnectivity
 /// so the phone can tell a delivered message from a lost one.
 ///
 /// Catch-up (Task 12.3.3): on activation and whenever the phone becomes
-/// reachable again, it hands over what the phone stored. Not on every stored
-/// update: while connected, the stored copy can arrive just before the live
-/// message, and catching up on it would treat a live Go as one already past.
-/// A stored update while connected passes on only the setup selection.
+/// reachable again, it hands over what the phone stored. A stored update
+/// while connected is handed over as `storedUpdate`: the stored copy can
+/// arrive just before the live message, so the machine applies it only if it
+/// is still ahead a moment later.
 ///
 /// `@unchecked Sendable`: `WCSession` is documented as thread-safe, and the one
 /// stored callback is written once, before activation.
@@ -55,9 +55,7 @@ nonisolated final class WatchPhoneLink: NSObject, WatchPhoneLinking, WCSessionDe
     }
 
     func session(_ session: WCSession, didReceiveApplicationContext applicationContext: [String: Any]) {
-        if let setup = WatchCatchUp(applicationContext: applicationContext).setup {
-            deliver(.message(setup))
-        }
+        deliver(.storedUpdate(WatchCatchUp(applicationContext: applicationContext)))
     }
 
     // MARK: Private
