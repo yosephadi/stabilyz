@@ -90,11 +90,13 @@ struct WatchRootView: View {
                 Text(WatchCopy.disconnectedTitle)
                     .font(WatchTheme.heading)
                     .wrapping()
-                TimerBlock(timer: timer, size: timerSize, scale: numberScale)
+                // The reassurance before the timer, so it is the part that
+                // stays in view on a small watch.
                 Text(WatchCopy.disconnectedDetail)
                     .font(WatchTheme.body)
                     .foregroundStyle(WatchTheme.secondaryText)
                     .wrapping()
+                TimerBlock(timer: timer, size: timerSize, scale: numberScale)
             }
         }
     }
