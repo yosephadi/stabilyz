@@ -952,3 +952,92 @@ func theStopPulseIsPlayedByTheOwnerOrThePhoneAsFallback(
     await ticker.releaseAll()
     await cancellingAgain.value
 }
+
+// MARK: - Stop from the watch (Task 12.3.2)
+
+/// Waits, bounded, until `condition` holds.
+@MainActor
+private func eventually(_ condition: () -> Bool) async {
+    for _ in 0..<400 where !condition() {
+        try? await Task.sleep(for: .milliseconds(5))
+    }
+}
+
+@MainActor
+@Test func aWatchStopForTheRunningSessionEndsTheWalkOnce() async throws {
+    let watch = MockWatchSessionService(reachability: .reachable)
+    let (coordinator, recorder, _, _, ticker, log) = makeCoordinator(watch: watch)
+    var stops = 0
+    coordinator.onWatchStop = { stops += 1 }
+    await countToGo(coordinator, ticker)
+    let id = try #require(coordinator.sessionID)
+
+    watch.deliverStopRequest(sessionID: id)
+    await eventually { stops == 1 }
+    // A repeat, before and after the walk has finished stopping.
+    watch.deliverStopRequest(sessionID: id)
+    await coordinator.sessionStopped(hapticsOn: true)
+    watch.deliverStopRequest(sessionID: id)
+    try? await Task.sleep(for: .milliseconds(50))
+
+    #expect(stops == 1)
+    #expect(log.entries.withLock { $0 }.contains("watch: stop requested from the watch"))
+    _ = try await recorder.stop()
+}
+
+@MainActor
+@Test func aWatchStopForAnotherSessionIsIgnored() async throws {
+    let watch = MockWatchSessionService(reachability: .reachable)
+    let (coordinator, recorder, _, _, ticker, _) = makeCoordinator(watch: watch)
+    var stops = 0
+    coordinator.onWatchStop = { stops += 1 }
+    await countToGo(coordinator, ticker)
+
+    watch.deliverStopRequest(sessionID: UUID())
+    // Requests are handled in order, so once this one lands, the one before
+    // it has been handled too.
+    watch.deliverStopRequest(sessionID: try #require(coordinator.sessionID))
+    await eventually { stops == 1 }
+
+    #expect(stops == 1, "only the matching request stopped the walk")
+    _ = try await recorder.stop()
+}
+
+@MainActor
+@Test func aWatchStopDuringTheCountdownIsIgnored() async throws {
+    let watch = MockWatchSessionService(reachability: .reachable)
+    let (coordinator, _, _, _, ticker, _) = makeCoordinator(watch: watch)
+    var stops = 0
+    coordinator.onWatchStop = { stops += 1 }
+
+    coordinator.start(mode: .quickTest, audioConfig: .none)
+    await ticker.waitUntilEntered(2)
+    watch.deliverStopRequest(sessionID: try #require(coordinator.sessionID))
+    try? await Task.sleep(for: .milliseconds(50))
+    #expect(stops == 0, "Stop is not a cancel; the watch has none during the countdown")
+
+    let cancelling = Task { await coordinator.cancel() }
+    await ticker.releaseAll()
+    await cancelling.value
+}
+
+/// [PRD §8 decision 4] Losing the watch mid-walk never cancels, pauses or
+/// invalidates the session, and is not logged as an interruption.
+@MainActor
+@Test func losingTheWatchMidWalkChangesNothing() async throws {
+    let watch = MockWatchSessionService(reachability: .reachable)
+    let (coordinator, recorder, _, _, ticker, log) = makeCoordinator(watch: watch)
+    await countToGo(coordinator, ticker)
+    let before = log.entries.withLock { $0 }
+
+    for reachability in [WatchReachability.installedNotReachable, .unavailable, .reachable, .installedNotReachable] {
+        watch.setReachability(reachability)
+        await Task.yield()
+    }
+    try? await Task.sleep(for: .milliseconds(50))
+
+    #expect(coordinator.state == .running)
+    #expect(log.entries.withLock { $0 } == before, "nothing logged for a watch coming and going")
+    let buffer = try await recorder.stop()
+    #expect(buffer.honoursAdmissionContract)
+}

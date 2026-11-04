@@ -112,6 +112,9 @@ struct SessionCoverView: View {
         .task {
             session.onStop = endWalk
             session.onHapticsChanged = { coordinator.hapticsSettingChanged($0) }
+            // A Stop tapped on the watch ends the walk exactly like one tapped
+            // here (Task 12.3.2).
+            coordinator.onWatchStop = { session.stop() }
             coordinator.start(mode: mode, audioConfig: audioConfig, hapticsEnabled: hapticsEnabled)
         }
         .onChange(of: coordinator.state) { _, state in

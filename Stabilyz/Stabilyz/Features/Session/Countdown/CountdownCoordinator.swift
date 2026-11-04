@@ -67,6 +67,18 @@ final class CountdownCoordinator {
     /// watch never holds the countdown up; kept so tests can wait for them.
     private var watchTasks: [Task<Void, Never>] = []
 
+    /// Called once when the watch asks to stop the running session
+    /// (Task 12.3.2). The cover points it at `ActiveSessionViewModel.stop()`,
+    /// the same entry point as the Stop button and the clock reaching 00:00.
+    var onWatchStop: (@MainActor () -> Void)?
+
+    /// Listens for the watch's stop requests from T-0 until the walk stops.
+    private var stopListener: Task<Void, Never>?
+
+    /// Set once the walk has stopped, from either device or the clock, so a
+    /// late or repeated request is dropped.
+    private var isSessionStopped = false
+
     /// What this countdown actually plays through: `haptics` when the user left
     /// Start & Stop Haptics on, a silent double when they turned it off.
     ///
@@ -134,6 +146,9 @@ final class CountdownCoordinator {
         self.hapticsEnabled = hapticsEnabled
         sessionID = UUID()
         hapticOwner = nil
+        isSessionStopped = false
+        stopListener?.cancel()
+        stopListener = nil
         countdownTask = Task { [weak self] in
             await self?.run(mode: mode, audioConfig: audioConfig)
         }
@@ -244,6 +259,7 @@ final class CountdownCoordinator {
             state = .running
             logService.log(.info, .session, "countdown reached T-0; session started")
             sendStarted(t0: anchor.wallClock)
+            listenForWatchStop()
         } catch {
             // The session never opened, so the primed sensors are still ours
             // to release.
@@ -338,6 +354,9 @@ final class CountdownCoordinator {
     /// when Start & Stop Haptics is off. The pulse comes first, so the user
     /// feels the end the moment it happens.
     func sessionStopped(hapticsOn: Bool) async {
+        isSessionStopped = true
+        stopListener?.cancel()
+        stopListener = nil
         self.hapticsEnabled = hapticsOn
         let owner = hapticOwner ?? .phone
         let reachability = await watchSession.currentReachability()
@@ -345,6 +364,35 @@ final class CountdownCoordinator {
             await haptics.playSessionStop()
         }
         sendToWatch { .stopped(sessionID: $0) }
+    }
+
+    /// Routes the watch's stop requests for this session to `onWatchStop`,
+    /// through `WatchStopFilter`.
+    private func listenForWatchStop() {
+        let requests = watchSession.stopRequests()
+        stopListener = Task { [weak self] in
+            for await request in requests {
+                guard let self else { return }
+                self.handleWatchStop(request)
+            }
+        }
+    }
+
+    private func handleWatchStop(_ request: WatchStopRequest) {
+        guard WatchStopFilter.accepts(
+            request,
+            currentSession: sessionID,
+            isRunning: state == .running,
+            alreadyStopped: isSessionStopped
+        ) else {
+            logService.log(.info, .session, "watch: stop request dropped")
+            return
+        }
+        // Marked here, not only in `sessionStopped`, so a second request that
+        // lands before the walk has finished stopping is dropped too.
+        isSessionStopped = true
+        logService.log(.info, .session, "watch: stop requested from the watch")
+        onWatchStop?()
     }
 
     /// The user changed Start & Stop Haptics mid-walk. It governs the watch

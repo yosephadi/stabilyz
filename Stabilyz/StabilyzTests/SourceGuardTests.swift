@@ -934,3 +934,39 @@ enum SourceTree {
         #expect(Self.violations(in: "// .caption is too small").isEmpty)
     }
 }
+
+// MARK: - The recording never sees the watch
+
+/// [PRD §8 decision 4] A session never depends on the watch: the recorder, the
+/// pipeline and the recording screen do not even know it exists, so losing it
+/// cannot cancel, invalidate or log a gap in a walk (Task 12.3.3).
+@Suite struct RecordingWatchIndependenceGuardTests {
+    static let watchSymbols = ["WatchSessionService", "WatchReachability", "WatchStopRequest", "watchSession", "WatchConnectivity"]
+    static let layers = ["Services/Recording", "Services/Processing", "Features/Session/Recording"]
+
+    static func mentions(in source: String) -> [String] {
+        let code = source.split(separator: "\n").map(String.init).filter {
+            !$0.trimmingCharacters(in: .whitespaces).hasPrefix("//")
+        }
+        return watchSymbols.filter { symbol in code.contains { $0.contains(symbol) } }
+    }
+
+    @Test func theRecordingPathNamesNothingAboutTheWatch() {
+        var scanned = 0
+        for layer in Self.layers {
+            for file in SourceTree.swiftFiles(in: layer) {
+                scanned += 1
+                guard let source = WatchTargetImportGuardTests.read(file) else { continue }
+                for symbol in Self.mentions(in: source) {
+                    Issue.record("\(file.path) names \(symbol) — the recording must not depend on the watch")
+                }
+            }
+        }
+        #expect(scanned > 0, "the scan found no files — the scan itself is broken")
+    }
+
+    @Test func theScanWouldCatchTheWatchLeakingIn() {
+        #expect(Self.mentions(in: "let link: WatchSessionService") == ["WatchSessionService"])
+        #expect(Self.mentions(in: "// the watchSession is not here").isEmpty)
+    }
+}
