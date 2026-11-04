@@ -227,7 +227,7 @@ Phone                                   Watch (if the user opened the app)
 
 ### Watch Companion (Phase 3, see §8)
 - **No paired watch, or the Stabilyz watch app isn't installed.** Nothing changes: no indicator, no nudge, the phone plays every haptic, exactly as in v1.
-- **Watch app installed but not open.** The setup screen starts a Live Activity nudging the user to open the watch app. No notification is posted and no new permission is requested. The Live Activity ends as soon as the watch becomes reachable, or when the session ends or the countdown is cancelled. The user can always start without opening the watch; the session is unaffected.
+- **Watch app installed but not open.** The setup screen starts a Live Activity nudging the user to open the watch app. No notification is posted and no new permission is requested. The Live Activity ends as soon as the watch becomes reachable, when the user leaves the setup screen (it returns when they come back), or when the session ends or the countdown is cancelled. The user can always start without opening the watch; the session is unaffected.
 - **Watch unreachable when the countdown starts.** The phone owns haptics for the whole session — ticks, Go and Stop — even if the watch connects later. The watch, if it connects mid-session, shows the timer and offers Stop but plays no haptics.
 - **Watch drops mid-walk** (out of range, Bluetooth off, watch app terminated). The session continues on the phone, unchanged: it is not cancelled, not paused, not invalidated, and gets no gap or interruption record — the watch is not a sensor. The watch shows Disconnected: its local timer keeps running from T-0, "Keep walking. Your walk is still recording.", no Stop button, no haptic.
 - **Watch reconnects mid-walk.** The watch re-syncs to the phone's state and T-0, returns to Running, and Stop reappears. If the session ended while the watch was away, the watch goes straight to Stopped.
@@ -336,7 +336,7 @@ Phone                                   Watch (if the user opened the app)
 - [ ] A cancelled countdown returns the watch to Waiting; if the watch owns haptics it plays the stop pulse. The watch shows no Cancel during the countdown.
 - [ ] The watch's timer starts from the phone's T-0, not from the moment a message arrived, and shows the same elapsed time as the phone to within one displayed second.
 - [ ] The setup screen shows one line, "Timer will show on your watch", when the watch app is reachable, and nothing when it isn't. It reads correctly in light and dark mode and has a VoiceOver label.
-- [ ] A Live Activity nudge appears while the watch app is installed but not reachable, before any session starts, and ends when the watch becomes reachable or the session ends or is cancelled. No notification is posted and no new permission is requested.
+- [ ] A Live Activity nudge appears on the setup screen while the watch app is installed but not reachable, before any session starts, and ends when the watch becomes reachable, the user leaves the setup screen, or the session ends or is cancelled. It returns when the user comes back to the setup screen. No notification is posted and no new permission is requested.
 - [ ] The watch app is opened by the user, never launched through a HealthKit workout. HealthKit is not used anywhere.
 - [ ] All five watch screens use 15 pt minimum text, a dark background and the navy primary; every element has a VoiceOver label, and each countdown numeral fires a VoiceOver announcement on the watch as on the phone.
 - [ ] The watch stays alive through screen-off and wrist-down for the whole walk, verified on a real Apple Watch.
@@ -364,7 +364,7 @@ An Apple Watch companion that shows the session timer on the wrist, so the user 
 5. **Keep-alive via a watchOS extended runtime session, without HealthKit.** Apple's *physical therapy* session type runs in the background for up to an hour and needs no HealthKit; it is the recommended type (see Open Question 7a). HealthKit stays out of scope.
 
 ### Launch
-The user opens the watch app manually. Before a session, while the watch app is installed but not reachable, the phone shows a **Live Activity** nudging the user to open it. The Live Activity ends as soon as the watch becomes reachable, or when the session ends or is cancelled. No notification is used, so no new permission is requested. There is no HealthKit workout launch. This must be verified on a real watch.
+The user opens the watch app manually. Before a session, while the watch app is installed but not reachable, the phone shows a **Live Activity** nudging the user to open it. The Live Activity ends as soon as the watch becomes reachable, when the user leaves the setup screen (it returns when they come back), or when the session ends or is cancelled. On iOS 18 and later it also appears in the watch's Smart Stack (watchOS 11); on iOS 17 it shows on the phone only. No notification is used, so no new permission is requested. There is no HealthKit workout launch. This must be verified on a real watch.
 
 ### Phone-side indicator
 On the setup screen, when the watch app is reachable, one line: **"Timer will show on your watch"** — which also tells the user haptics will come from the watch. When it isn't reachable, nothing is shown, and nothing alarming takes its place: using the phone alone is the v1 experience, not an error. Light and dark mode; VoiceOver label.
@@ -391,7 +391,7 @@ WatchConnectivity, phone to watch, with one message type back (the stop request)
 
 The watch runs its own clock from T-0; it does not wait for a message per second.
 
-**Catch-up.** When the watch app opens, or the phone becomes reachable again, the watch reads what the phone last stored and rejoins: a countdown at the numeral showing now, a running walk re-synced to T-0, a finished walk on Stopped. Nothing that already happened is replayed — no missed numerals, no late Go, no Stop buzz for a walk that ended while the watch was away — but everything after it plays as usual. A stored session counts only until 5 minutes after its planned end; after that the watch shows Waiting.
+**Catch-up.** When the watch app opens, or the phone becomes reachable again, the watch reads what the phone last stored and rejoins: a countdown at the numeral showing now, a running walk re-synced to T-0, a finished walk on Stopped. Nothing that already happened is replayed — no missed numerals, no late Go, no Stop buzz for a walk that ended while the watch was away — but everything after it plays as usual. A stored session counts only until 5 minutes after its planned end; after that the watch shows Waiting. While connected, the watch also catches up if what the phone stored stays ahead of it for 2 seconds — a live message was lost — with the same rules; a live message that arrives within the 2 seconds wins.
 
 ### Haptics
 Candidates — **verify on device**:
