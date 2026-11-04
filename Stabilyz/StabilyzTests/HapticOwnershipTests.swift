@@ -27,6 +27,16 @@ import Testing
         }
     }
 
+    @Test func thePhonePlaysTheStopFallbackOnlyWhenAReachableOwnerMissedStopped() {
+        typealias O = HapticOwnership
+        #expect(O.phonePlaysStopFallback(owner: .watch, reachabilityAtStop: .reachable, stoppedDelivery: .notDelivered, hapticsOn: true))
+        #expect(O.phonePlaysStopFallback(owner: .watch, reachabilityAtStop: .reachable, stoppedDelivery: .delivered, hapticsOn: true) == false)
+        // Unreachable at Stop: the phone already played it then.
+        #expect(O.phonePlaysStopFallback(owner: .watch, reachabilityAtStop: .installedNotReachable, stoppedDelivery: .notDelivered, hapticsOn: true) == false)
+        #expect(O.phonePlaysStopFallback(owner: .phone, reachabilityAtStop: .reachable, stoppedDelivery: .notDelivered, hapticsOn: true) == false)
+        #expect(O.phonePlaysStopFallback(owner: .watch, reachabilityAtStop: .reachable, stoppedDelivery: .notDelivered, hapticsOn: false) == false)
+    }
+
     @Test func thePhonePlaysGoOnlyWhenTheOwningWatchMissedIt() {
         typealias O = HapticOwnership
         #expect(O.phonePlaysGoFallback(owner: .watch, startedDelivery: .notDelivered, hapticsOn: true))

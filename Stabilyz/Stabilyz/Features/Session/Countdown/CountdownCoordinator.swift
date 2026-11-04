@@ -353,6 +353,10 @@ final class CountdownCoordinator {
     /// watch is not reachable at Stop — a Stop is never silent to touch. Off
     /// when Start & Stop Haptics is off. The pulse comes first, so the user
     /// feels the end the moment it happens.
+    ///
+    /// If the owning watch was reachable but does not confirm `stopped`
+    /// within the send's reply timeout, the phone plays the pulse then. The
+    /// watch may have buzzed anyway; the double buzz is accepted [PRD §8].
     func sessionStopped(hapticsOn: Bool) async {
         isSessionStopped = true
         stopListener?.cancel()
@@ -363,7 +367,21 @@ final class CountdownCoordinator {
         if HapticOwnership.phonePlaysStopPulse(owner: owner, reachabilityAtStop: reachability, hapticsOn: hapticsOn) {
             await haptics.playSessionStop()
         }
-        sendToWatch { .stopped(sessionID: $0) }
+        guard let id = sessionID, hapticOwner != nil else { return }
+        let watchSession = watchSession
+        let haptics = haptics
+        let logService = logService
+        let previous = watchTasks.last
+        watchTasks.append(Task {
+            await previous?.value
+            let delivery = await watchSession.send(.stopped(sessionID: id))
+            if HapticOwnership.phonePlaysStopFallback(
+                owner: owner, reachabilityAtStop: reachability, stoppedDelivery: delivery, hapticsOn: hapticsOn
+            ) {
+                logService.log(.info, .session, "watch: stop unconfirmed; the phone played the Stop pulse")
+                await haptics.playSessionStop()
+            }
+        })
     }
 
     /// Routes the watch's stop requests for this session to `onWatchStop`,

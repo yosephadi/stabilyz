@@ -918,6 +918,34 @@ func theStopPulseIsPlayedByTheOwnerOrThePhoneAsFallback(
     _ = try await recorder.stop()
 }
 
+/// A reachable owning watch that does not confirm `stopped`: the phone plays
+/// the Stop pulse, once. Confirmed in time, or haptics off: nothing.
+@MainActor
+@Test(arguments: [
+    // (stopped lost, haptics on, phone pulse)
+    (true, true, true),
+    (false, true, false),
+    (true, false, false),
+])
+func anUnconfirmedStopIsFeltOnThePhone(stoppedLost: Bool, hapticsOn: Bool, phonePulse: Bool) async throws {
+    let watch = MockWatchSessionService(reachability: .reachable)
+    let (coordinator, recorder, haptics, _, ticker, _) = makeCoordinator(watch: watch)
+    await countToGo(coordinator, ticker)
+    await coordinator.watchSyncSettled()
+    await haptics.reset()
+
+    if stoppedLost {
+        watch.loseMessages { if case .stopped = $0 { true } else { false } }
+    }
+    await coordinator.sessionStopped(hapticsOn: hapticsOn)
+    await coordinator.watchSyncSettled()
+
+    #expect(coordinator.hapticOwner == .watch)
+    #expect(await haptics.taps == (phonePulse ? [.sessionStop] : []))
+    #expect(watch.sentMessages.last == .stopped(sessionID: try #require(coordinator.sessionID)))
+    _ = try await recorder.stop()
+}
+
 @MainActor
 @Test func aMidWalkHapticsChangeIsSentToTheWatch() async throws {
     let watch = MockWatchSessionService(reachability: .reachable)

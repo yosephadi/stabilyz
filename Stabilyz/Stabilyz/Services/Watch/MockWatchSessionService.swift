@@ -8,6 +8,7 @@ final class MockWatchSessionService: WatchSessionService, Sendable {
     private let reachabilityEvents: WatchEventBroadcast<WatchReachability>
     private let stopEvents = WatchEventBroadcast<WatchStopRequest>(replaysLatest: false)
     private let sent = Locked<[PhoneToWatchMessage]>([])
+    private let lost = Locked<@Sendable (PhoneToWatchMessage) -> Bool>({ _ in false })
 
     init(reachability: WatchReachability = .reachable) {
         reachabilityEvents = WatchEventBroadcast(initial: reachability, replaysLatest: true)
@@ -19,6 +20,12 @@ final class MockWatchSessionService: WatchSessionService, Sendable {
 
     func setReachability(_ reachability: WatchReachability) {
         reachabilityEvents.publish(reachability)
+    }
+
+    /// Makes the matching messages go unconfirmed even while reachable, as a
+    /// message lost on a live link would.
+    func loseMessages(where isLost: @escaping @Sendable (PhoneToWatchMessage) -> Bool) {
+        lost.withLock { $0 = isLost }
     }
 
     func deliverStopRequest(sessionID: UUID) {
@@ -34,11 +41,12 @@ final class MockWatchSessionService: WatchSessionService, Sendable {
     }
 
     /// Records the message. Delivered exactly when the mock is `.reachable`,
-    /// as a live watch would confirm it.
+    /// as a live watch would confirm it, unless `loseMessages` matches it.
     @discardableResult
     func send(_ message: PhoneToWatchMessage) async -> WatchDelivery {
         sent.withLock { $0.append(message) }
-        return reachabilityEvents.latest == .reachable ? .delivered : .notDelivered
+        let isLost = lost.withLock { $0 }(message)
+        return reachabilityEvents.latest == .reachable && !isLost ? .delivered : .notDelivered
     }
 
     func stopRequests() -> AsyncStream<WatchStopRequest> {
