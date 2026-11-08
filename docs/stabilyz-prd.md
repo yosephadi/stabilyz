@@ -387,7 +387,7 @@ WatchConnectivity, phone to watch, with one message type back (the stop request)
 - **Countdown start** (when the numerals begin, after sensor priming): mode, advertised duration, the haptic owner, the Start & Stop Haptics setting, and the **planned Go time**.
 - **Started**: the actual **T-0** anchor. T-0 is stamped at the final tick, so it is not known when the countdown starts; the watch re-syncs its clock to this value. If it cannot be delivered while the watch owns haptics, the phone plays the Go pulse. If the watch has not received it 2 s after the planned Go time, it moves to Running from the planned Go time with no Go haptic, and re-syncs when it arrives.
 - **State changes**: stopped, cancelled, haptics setting changed.
-- **Stop request** (watch to phone): carries the session it refers to, so a late request for a finished session is ignored.
+- **Stop request** (watch to phone): carries the session it refers to, so a late request for a finished session is ignored. After a tap the watch's Stop is disabled until the phone answers; if it doesn't, Stop re-enables after 3 seconds, or as soon as the phone is reachable again, so the user can try again.
 
 The watch runs its own clock from T-0; it does not wait for a message per second.
 
