@@ -59,15 +59,13 @@ struct SessionListView: View {
 
     // MARK: - Mode
 
-    /// The node's Small segmented control: the stock size, so no height token.
     private var modePicker: some View {
-        Picker(SessionListViewModel.modePickerLabel, selection: modeBinding) {
-            ForEach(TestMode.allCases, id: \.self) { mode in
-                Text(mode.displayName).tag(mode)
-            }
-        }
-        .pickerStyle(.segmented)
-        .labelsHidden()
+        SegmentedChoice(
+            label: SessionListViewModel.modePickerLabel,
+            options: TestMode.allCases.map { .init(value: $0, label: $0.displayName) },
+            selection: modeBinding,
+            identifier: "history.mode"
+        )
     }
 
     private var modeBinding: Binding<TestMode> {

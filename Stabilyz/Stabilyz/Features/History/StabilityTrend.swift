@@ -193,7 +193,7 @@ struct StabilityTrend: Equatable {
     var lockedHeadline: String? {
         switch state {
         case .trend: nil
-        case .calibrating(let completed, let required): "\(completed) of \(required) calibration walks done"
+        case .calibrating(let completed, let required): BaselineProgressCopy.progress(walk: completed, required: required)
         case .awaitingFirstScore: "Calibration walks done"
         }
     }
@@ -207,10 +207,9 @@ struct StabilityTrend: Equatable {
             return nil
         case .calibrating(let completed, let required):
             let remaining = required - completed
-            let tests = remaining == 1 ? mode.displayName : "\(mode.displayName)s"
             return """
-                Complete \(SessionScorePresentation.spelledOut(remaining)) more valid \(tests) \
-                to set your personal baseline. Your trend starts with the \(mode.displayName) after that.
+                \(BaselineProgressCopy.remainingSentence(remaining)) \
+                Your trend starts with the \(mode.displayName) after that.
                 """
         case .awaitingFirstScore:
             return """

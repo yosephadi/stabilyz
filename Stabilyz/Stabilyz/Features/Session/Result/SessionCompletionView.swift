@@ -137,7 +137,7 @@ struct SessionCompletionView: View {
 
 #Preview("Unclear") {
     SessionCompletionView(
-        content: .unclear(mode: .fullTest),
+        content: .unclear(mode: .fullTest, reason: .insufficientValidWalking),
         viewResult: nil,
         backToWalk: {}
     )

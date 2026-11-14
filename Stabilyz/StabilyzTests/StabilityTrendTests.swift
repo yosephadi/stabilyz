@@ -125,13 +125,13 @@ private let britain = Locale(identifier: "en_GB")
 @Test func theCalibrationCardSaysWhatUnlocksTheTrend() {
     let quick = trend(.quickTest, Array(calibration().prefix(3)))
 
-    #expect(quick.lockedHeadline == "3 of 5 calibration walks done")
-    #expect(quick.lockedMessage == "Complete two more valid Quick Tests to set your personal baseline. Your trend starts with the Quick Test after that.")
+    #expect(quick.lockedHeadline == "Walk 3 of 5 toward your baseline")
+    #expect(quick.lockedMessage == "2 more walks to go before your personal baseline is set. Your trend starts with the Quick Test after that.")
 }
 
 @Test func theLastCalibrationWalkIsSingular() {
     let full = trend(.fullTest, Array(calibration(.fullTest).prefix(4)))
-    #expect(full.lockedMessage == "Complete one more valid Full Test to set your personal baseline. Your trend starts with the Full Test after that.")
+    #expect(full.lockedMessage == "1 more walk to go before your personal baseline is set. Your trend starts with the Full Test after that.")
 }
 
 @Test func afterCalibrationTheCardNeverPromisesTheNextWalk() {

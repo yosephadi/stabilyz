@@ -22,9 +22,15 @@ private final class SetupLog: LogService, @unchecked Sendable {
 
 private struct StubMotionService: MotionSensorService {
     var authorization: MotionAuthorizationStatus = .authorized
+    /// What the system prompt answers; nil means "whatever the status is".
+    var requestResult: MotionAuthorizationStatus?
+    var requests = Locked(0)
     var isAvailable: Bool { get async { true } }
     var authorizationStatus: MotionAuthorizationStatus { get async { authorization } }
-    func requestAuthorization() async -> MotionAuthorizationStatus { authorization }
+    func requestAuthorization() async -> MotionAuthorizationStatus {
+        requests.withLock { $0 += 1 }
+        return requestResult ?? authorization
+    }
     func start(policy: MotionAcquisitionPolicy) async throws -> AsyncStream<SensorSample> {
         AsyncStream { $0.finish() }
     }
@@ -90,16 +96,19 @@ private func makeModel(
     mode: TestMode = .quickTest,
     baseline: BaselineState = .notStarted,
     authorization: MotionAuthorizationStatus = .authorized,
+    requestResult: MotionAuthorizationStatus? = nil,
+    requests: Locked<Int> = Locked(0),
     onStart: @escaping @MainActor (TestMode, SessionAudioConfig, Bool) -> Void = { _, _, _ in },
     openSettings: @escaping @MainActor () -> Void = {},
     watchSession: WatchSessionService = SilentWatchSessionService()
 ) -> SessionSetupViewModel {
+    let motion = StubMotionService(authorization: authorization, requestResult: requestResult, requests: requests)
     let (sessions, baselines) = stores(for: baseline, mode: mode)
     let model = SessionSetupViewModel(
         mode: mode,
         sessions: sessions,
         baselines: baselines,
-        motionSensor: StubMotionService(authorization: authorization),
+        motionSensor: motion,
         logService: SetupLog(),
         watchSession: watchSession,
         openSettings: openSettings,
@@ -166,7 +175,7 @@ private func makeModel(
 @Test func theCalibratingStateCountsTowardFive() {
     for completed in 1...4 {
         let model = makeModel(baseline: .building(validCount: completed))
-        #expect(model.baselineHeadline == "\(completed) of 5 sessions complete")
+        #expect(model.baselineHeadline == "Walk \(completed) of 5 toward your baseline")
         #expect(model.baselineHeadlineIsMetric == false)
     }
 }
@@ -175,11 +184,11 @@ private func makeModel(
 @Test func theCalibratingCopyCountsDownTheRemainder() {
     let two = makeModel(baseline: .building(validCount: 2))
     #expect(two.baselineSupportingCopy
-        == "Complete 3 more valid Quick Tests to set your personal baseline.")
+        == "3 more walks to go before your personal baseline is set.")
 
     let full = makeModel(mode: .fullTest, baseline: .building(validCount: 1))
     #expect(full.baselineSupportingCopy
-        == "Complete 4 more valid Full Tests to set your personal baseline.")
+        == "4 more walks to go before your personal baseline is set.")
 }
 
 @MainActor
@@ -189,11 +198,11 @@ private func makeModel(
     // one. Deliberately not the spec's literal string.
     let quick = makeModel(baseline: .building(validCount: 4))
     #expect(quick.baselineSupportingCopy
-        == "Complete 1 more valid Quick Test to set your personal baseline.")
+        == "1 more walk to go before your personal baseline is set.")
 
     let full = makeModel(mode: .fullTest, baseline: .building(validCount: 4))
     #expect(full.baselineSupportingCopy
-        == "Complete 1 more valid Full Test to set your personal baseline.")
+        == "1 more walk to go before your personal baseline is set.")
 }
 
 @MainActor
@@ -390,6 +399,115 @@ private func makeModel(
     #expect(model.permission == .blocked(.permission(.motionRestricted)))
     #expect(model.isStartEnabled == false)
     #expect(model.permissionOffersSettings == false)
+}
+
+@MainActor
+@Test func undeterminedAuthorizationAsksFirstAndStartsOnlyWhenAuthorized() async {
+    let handed = Locked(0)
+    let requests = Locked(0)
+    let model = makeModel(authorization: .notDetermined, requestResult: .authorized, requests: requests) { _, _, _ in
+        handed.withLock { $0 += 1 }
+    }
+    await model.refreshPermission()
+    #expect(model.isAuthorizationUndetermined)
+
+    // Nothing starts until the prompt is answered.
+    #expect(handed.withLock { $0 } == 0)
+    await model.startAfterAuthorization()
+
+    #expect(requests.withLock { $0 } == 1)
+    #expect(handed.withLock { $0 } == 1)
+    #expect(model.permission == .clear)
+    #expect(model.isAuthorizationUndetermined == false)
+    #expect(model.isRequestingAuthorization == false)
+}
+
+@MainActor
+@Test func undeterminedThenDeniedShowsTheDeniedStateAndNeverStarts() async {
+    let handed = Locked(0)
+    let model = makeModel(authorization: .notDetermined, requestResult: .denied) { _, _, _ in
+        handed.withLock { $0 += 1 }
+    }
+    await model.refreshPermission()
+
+    await model.startAfterAuthorization()
+
+    #expect(handed.withLock { $0 } == 0)
+    #expect(model.permission == .blocked(.permission(.motionDenied)))
+    #expect(model.permissionOffersSettings)
+    #expect(model.isStartEnabled == false)
+}
+
+@MainActor
+@Test func undeterminedThenRestrictedShowsTheRestrictedState() async {
+    let model = makeModel(authorization: .notDetermined, requestResult: .restricted)
+    await model.refreshPermission()
+    await model.startAfterAuthorization()
+    #expect(model.permission == .blocked(.permission(.motionRestricted)))
+}
+
+@MainActor
+@Test func startWhileUndeterminedDefersTheHandOffUntilTheAnswer() async {
+    let handed = Locked(0)
+    let model = makeModel(authorization: .notDetermined, requestResult: .authorized) { _, _, _ in
+        handed.withLock { $0 += 1 }
+    }
+    await model.refreshPermission()
+
+    model.start()
+    // Not synchronous: the request is awaited first.
+    #expect(handed.withLock { $0 } == 0)
+    for _ in 0..<200 where handed.withLock({ $0 }) == 0 {
+        try? await Task.sleep(for: .milliseconds(10))
+    }
+    #expect(handed.withLock { $0 } == 1)
+}
+
+@MainActor
+@Test func alreadyAuthorizedStartsImmediatelyWithoutAsking() async {
+    let handed = Locked(0)
+    let requests = Locked(0)
+    let model = makeModel(authorization: .authorized, requests: requests) { _, _, _ in
+        handed.withLock { $0 += 1 }
+    }
+    await model.refreshPermission()
+    #expect(model.isAuthorizationUndetermined == false)
+
+    model.start()
+
+    #expect(handed.withLock { $0 } == 1)
+    #expect(requests.withLock { $0 } == 0)
+}
+
+@MainActor
+@Test func theWhyLineIsOnlyForAnUndeterminedAuthorization() async {
+    #expect(SessionSetupViewModel.authorizationWhyLine.localizedCaseInsensitiveContains("Motion & Fitness"))
+    let granted = makeModel(authorization: .authorized)
+    await granted.refreshPermission()
+    #expect(granted.isAuthorizationUndetermined == false)
+    let fresh = makeModel(authorization: .notDetermined)
+    await fresh.refreshPermission()
+    #expect(fresh.isAuthorizationUndetermined)
+}
+
+// MARK: - How to walk
+
+@MainActor
+@Test func thePreBaselineSetupSaysNoTargetPaceAndStraightLine() {
+    for state in [BaselineState.notStarted, .building(validCount: 2)] {
+        let model = makeModel(baseline: state)
+        #expect(model.framingLines == [
+            "Walk normally — there's no target pace",
+            "Walk in as straight a line as you can",
+        ])
+    }
+}
+
+@MainActor
+@Test func onceTheBaselineExistsOnlyTheStraightLineRemains() {
+    // A metronome is a pace, so "no target pace" would contradict it.
+    let model = makeModel(baseline: establishedBaseline)
+    #expect(model.framingLines == ["Walk in as straight a line as you can"])
 }
 
 @MainActor

@@ -19,9 +19,8 @@ final class HistoryFilterJourneyTests: XCTestCase {
         app.selectTab("Result", timeout: 15)
         app.navigationBars["Result"].waitToAppear()
 
-        let segments = app.segmentedControls.buttons
-        let quick = segments.element(boundBy: 0).waitToAppear()
-        let full = segments.element(boundBy: 1)
+        let quick = app.buttons["history.mode.0"].waitToAppear()
+        let full = app.buttons["history.mode.1"]
         XCTAssertEqual(quick.label, "Quick Test")
         XCTAssertEqual(full.label, "Full Test")
 

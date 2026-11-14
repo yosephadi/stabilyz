@@ -22,6 +22,7 @@ final class UnclearWalkJourneyTests: XCTestCase {
         let back = app.buttons["session.backToWalk"].waitToAppear(timeout: 60, "processing reached the completion gate")
         XCTAssertTrue(app.staticTexts["Walk Data Unclear"].exists, "the gate does not say the walk was unclear")
         app.element(labelContaining: "won't count toward your baseline").waitToAppear(timeout: 5, "the gate says the walk does not count")
+        app.element(labelContaining: "shorter than the 60 seconds of walking needed").waitToAppear(timeout: 5, "the gate names the real reason and the mode's floor")
         XCTAssertFalse(app.buttons["session.viewResult"].exists, "an unclear walk offers a result")
         XCTAssertFalse(app.scrollViews["score.screen"].exists, "an unclear walk shows a score screen")
 
@@ -33,7 +34,7 @@ final class UnclearWalkJourneyTests: XCTestCase {
         app.navigationBars["Result"].waitToAppear()
         let rows = app.buttons.matching(identifier: "history.row")
         rows.waitForCount(0, timeout: 5, "an unclear walk appears in History")
-        app.segmentedControls.buttons.element(boundBy: 1).tap()
+        app.buttons["history.mode.1"].tap()
         rows.waitForCount(0, timeout: 5, "an unclear walk appears in History")
     }
 }

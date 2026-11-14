@@ -111,22 +111,36 @@ private func fillRequiredFields(_ model: OnboardingViewModel, level: AmputationL
 }
 
 @MainActor
-@Test func theDisclaimerIsTheOnlyScreenThatExplainsItsBlock() async {
-    // [PRD §6] names one case: the disclaimer checkbox, where the gate is easy
-    // to miss. Everywhere else the wizard says nothing — a choice screen with
-    // nothing chosen is its own explanation, and a line under every question
-    // restating that is the helper text this flow deliberately does not have.
+@Test func onlyTheStepsThatReallyBlockExplainTheirBlock() async {
+    // The disclaimer and the two required questions block Next until answered,
+    // and say so; the optional questions never block and say nothing.
     for step in OnboardingStep.allCases {
         let model = makeModel(store: MemoryDraftStore(draft: OnboardingDraft(step: step)))
         await model.start()
 
-        if step == .disclaimer {
+        switch step {
+        case .disclaimer:
             #expect(model.canContinue == false)
             #expect(model.blockedExplanation == DisclaimerText.blockedExplanation)
-        } else {
-            #expect(model.blockedExplanation == nil, "\(step) carries helper text")
+        case .amputationLevel, .side:
+            #expect(model.canContinue == false)
+            #expect(model.blockedExplanation == "Choose an answer to continue")
+        case .timeSinceAmputation, .prosthesisType, .kLevel:
+            #expect(model.canContinue)
+            #expect(model.blockedExplanation == nil, "\(step) never blocks, so it says nothing")
         }
     }
+}
+
+@MainActor
+@Test func theChooseAnAnswerLineGoesOnceAnAnswerIsChosen() async {
+    let model = makeModel(store: MemoryDraftStore(draft: OnboardingDraft(step: .amputationLevel)))
+    await model.start()
+    #expect(model.blockedExplanation == "Choose an answer to continue")
+
+    model.select(level: .transtibial)
+    #expect(model.canContinue)
+    #expect(model.blockedExplanation == nil)
 }
 
 @MainActor
@@ -437,7 +451,7 @@ private func fillRequiredFields(_ model: OnboardingViewModel, level: AmputationL
 
     #expect(model.step == .side)
     #expect(model.canContinue == false, "the side must be answered again")
-    #expect(model.blockedExplanation == nil, "the side screen carries helper text")
+    #expect(model.blockedExplanation == "Choose an answer to continue")
 }
 
 @MainActor

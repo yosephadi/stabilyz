@@ -143,10 +143,11 @@ struct OnboardingView: View {
     private var footer: some View {
         VStack(spacing: Space.x2) {
             if let explanation = model.blockedExplanation {
-                // The disclaimer's gate is the only block that says anything
-                // [PRD §6]; a choice screen with nothing chosen explains itself
-                // by being a list of unchosen options.
+                // Only the steps that really block say anything: the
+                // disclaimer [PRD §6] and the two required questions. The same
+                // words are the button's VoiceOver hint below.
                 Text(explanation)
+                    .accessibilityHidden(true)
                     .font(StabilyzFont.smallRegular)
                     .foregroundStyle(StabilyzColor.ink600)
                     .multilineTextAlignment(.center)
@@ -172,6 +173,7 @@ struct OnboardingView: View {
             }
             .buttonStyle(.primaryCapsuleHero)
             .disabled(!model.canContinue)
+            .accessibilityHint(model.blockedExplanation ?? "")
             .accessibilityIdentifier("onboarding.next")
         }
         .padding(.horizontal, Space.screenMargin)

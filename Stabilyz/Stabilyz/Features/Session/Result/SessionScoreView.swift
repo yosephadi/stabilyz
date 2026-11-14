@@ -244,7 +244,7 @@ struct SessionScoreView: View {
                         .foregroundStyle(StabilyzColor.primary600)
                         .minimumScaleFactor(0.6)
                         .lineLimit(1)
-                    Text(count == 1 ? "walk recorded" : "walks recorded")
+                    Text(BaselineProgressCopy.ringCaption)
                         .font(StabilyzFont.bodyBold)
                         .foregroundStyle(StabilyzColor.ink600)
                 }
@@ -292,8 +292,7 @@ struct SessionScoreView: View {
             return "Stability score \(index), \(abs(delta)) points \(direction) your baseline."
         case .building(let count, let required, let provisional):
             guard let provisional else {
-                let walks = count == 1 ? "walk" : "walks"
-                return "No score for this walk. \(count) of \(required) \(walks) recorded."
+                return "No score for this walk. \(BaselineProgressCopy.progress(walk: count, required: required))."
             }
             // "Provisional" first: it is the qualifier on everything after it,
             // and a listener who stops early must not be left with the number.

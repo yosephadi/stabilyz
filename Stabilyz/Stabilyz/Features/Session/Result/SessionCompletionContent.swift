@@ -18,11 +18,14 @@ enum SessionCompletionContent: Equatable {
     case measured(mode: TestMode)
     /// The walk could not be measured. No score, and it counts toward nothing
     /// [PRD §5, §6, §7].
-    case unclear(mode: TestMode)
+    case unclear(mode: TestMode, reason: InvalidReason)
 
     static func content(for result: SessionCommitResult) -> SessionCompletionContent {
         let mode = result.session.mode
-        return result.session.isValid ? .measured(mode: mode) : .unclear(mode: mode)
+        // An invalid session always carries its reason; the fallback only
+        // keeps the mapping total.
+        guard let reason = result.session.outcome.invalidReason else { return .measured(mode: mode) }
+        return .unclear(mode: mode, reason: reason)
     }
 
     /// The centred glyph. SF Symbols only (§7), and both are filled circles so
@@ -42,19 +45,56 @@ enum SessionCompletionContent: Equatable {
         }
     }
 
-    /// Plain language, and for the unclear case plain about the consequence:
-    /// [PRD §5] requires the user be told the session does not count, not left
-    /// to infer it from a missing number.
-    var body: String {
+    /// Plain language, and for the unclear case plain about the cause, one
+    /// next step, and the consequence: [PRD §5] requires the user be told the
+    /// session does not count, not left to infer it from a missing number.
+    var body: String { body(policy: .v1) }
+
+    /// `policy` supplies the valid-walking floor the too-short copy quotes, so
+    /// the number is the mode's own and never typed here.
+    func body(policy: SessionPolicy) -> String {
         switch self {
         case .measured:
             "Your walking stability has been analyzed. Results are ready to view."
-        case .unclear:
-            """
-            Excessive movement or an interruption made this walk hard to \
-            measure. This session won't count toward your baseline.
-            """
+        case .unclear(let mode, let reason):
+            Self.unclearCopy(
+                for: reason,
+                floor: policy.minimumValidWalkingDuration(for: mode)
+            ) + " " + Self.doesNotCountSentence
         }
+    }
+
+    static let doesNotCountSentence = "This session won't count toward your baseline."
+
+    /// The cause and the one next step, for each reason the pipeline can give.
+    /// Never alarming, and never a pass/fail framing.
+    static func unclearCopy(for reason: InvalidReason, floor: Duration) -> String {
+        switch reason {
+        case .insufficientValidWalking:
+            "This walk was shorter than the \(spokenDuration(floor)) of walking needed. "
+                + "Try walking until the timer ends."
+        case .excessiveNoise:
+            "Extra movement from the phone made this walk hard to measure. "
+                + "Try again with the phone snug in your pocket."
+        case .unrecoverableInterruption:
+            "Something interrupted this walk, so it couldn't be measured. "
+                + "Try again and keep the app open until the timer ends."
+        case .sensorFailure:
+            "The phone stopped sending motion data during this walk. "
+                + "Try again, and check that Motion & Fitness is on in Settings."
+        }
+    }
+
+    /// "60 seconds", "2 minutes 15 seconds", "3 minutes".
+    static func spokenDuration(_ duration: Duration) -> String {
+        let total = Int(duration.components.seconds)
+        let minutes = total / 60
+        let seconds = total % 60
+        func unit(_ n: Int, _ word: String) -> String { "\(n) \(word)\(n == 1 ? "" : "s")" }
+        // Under two minutes reads best in seconds: Quick's floor is "60 seconds".
+        if total < 120 { return unit(total, "second") }
+        if seconds == 0 { return unit(minutes, "minute") }
+        return "\(unit(minutes, "minute")) \(unit(seconds, "second"))"
     }
 
     /// Whether arriving on this screen plays the one success haptic and the

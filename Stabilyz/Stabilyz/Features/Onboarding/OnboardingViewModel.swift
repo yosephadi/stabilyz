@@ -178,19 +178,25 @@ final class OnboardingViewModel {
     /// Why the button is unavailable, in the user's words. `nil` where there is
     /// nothing to say.
     ///
-    /// **The disclaimer only.** [PRD §6] names one case — "the checkbox failing
-    /// silently or the Continue button just not responding" — and it is that
-    /// screen, where the gate is a tick box the reader may not have noticed is
-    /// required. The level and side screens used to carry a line too; those
-    /// were ours, and on a screen that is nothing but a list of unchosen
-    /// options they restated the obvious under every question.
+    /// Only the steps that really block: the disclaimer (a tick box the reader
+    /// may not have noticed is required [PRD §6]) and the two required
+    /// questions, level and side, where the disabled Next otherwise gives no
+    /// reason (product decision 2026-11-15). The optional questions never
+    /// block, so they never say anything.
     ///
     /// The rule lives here rather than in the view so a screen cannot acquire
-    /// an explanation by someone adding one to a `case`.
+    /// an explanation by someone adding one to a `case`. The view shows it
+    /// under the button and exposes it as the button's VoiceOver hint.
     var blockedExplanation: String? {
-        guard !canContinue, draft.step == .disclaimer else { return nil }
-        return DisclaimerText.blockedExplanation
+        guard !canContinue else { return nil }
+        switch draft.step {
+        case .disclaimer: return DisclaimerText.blockedExplanation
+        case .amputationLevel, .side: return Self.chooseAnswerExplanation
+        case .timeSinceAmputation, .prosthesisType, .kLevel: return nil
+        }
     }
+
+    static let chooseAnswerExplanation = "Choose an answer to continue"
 
     // MARK: - Movement
 
