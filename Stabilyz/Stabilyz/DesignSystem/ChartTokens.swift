@@ -45,6 +45,9 @@ enum ChartMetrics {
     static let baselineDash: [CGFloat] = [4, 4]
     /// §6: a small filled circle per session.
     static let pointDiameter: CGFloat = 10
+    /// A Metronome Cue walk's diamond, a little larger so its corners read at
+    /// the circle's weight.
+    static let cuedMarkerDiameter: CGFloat = 14
 }
 
 extension Color {
