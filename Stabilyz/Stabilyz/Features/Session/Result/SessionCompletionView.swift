@@ -16,6 +16,12 @@ struct SessionCompletionView: View {
     let viewResult: (() -> Void)?
     let backToWalk: () -> Void
 
+    /// Flips once, after the screen has faded in, to play the checkmark's one
+    /// bounce. Never reset, so it cannot repeat.
+    @State private var hasAppeared = false
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
     /// The mark, title and explanation centred in the space above the action,
     /// and the action anchored at the bottom.
     ///
@@ -24,19 +30,41 @@ struct SessionCompletionView: View {
     /// sat under the status bar and the button rode up behind the copy instead
     /// of sitting at the bottom.
     var body: some View {
-        VStack(spacing: 0) {
-            Spacer(minLength: Space.x6)
+        Group {
+            if dynamicTypeSize.isAccessibilitySize {
+                // The message scrolls and the actions stay pinned, so neither
+                // is squeezed when the text outgrows the screen.
+                VStack(spacing: Space.x4) {
+                    ScrollView {
+                        message
+                            .padding(.top, Space.x6)
+                    }
+                    .scrollBounceBehavior(.basedOnSize)
 
-            message
+                    actions
+                }
+            } else {
+                VStack(spacing: 0) {
+                    Spacer(minLength: Space.x6)
 
-            Spacer(minLength: Space.x6)
+                    message
 
-            actions
+                    Spacer(minLength: Space.x6)
+
+                    actions
+                }
+            }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .padding(.horizontal, Space.screenMargin)
         .padding(.bottom, Controls.resultFooterBottomGap)
         .background(StabilyzColor.bgBase)
+        .task {
+            // After the hand-off's fade-out, so the mark moves when it can be
+            // seen.
+            try? await Task.sleep(for: .seconds(Motion.handoffOut))
+            hasAppeared = true
+        }
     }
 
     private var message: some View {
@@ -44,6 +72,14 @@ struct SessionCompletionView: View {
             Image(systemName: content.glyph)
                 .font(StabilyzFont.completionGlyph)
                 .foregroundStyle(glyphColor)
+                // One bounce on a measured walk, once, after Stop. Static under
+                // Reduce Motion and on the unclear walk, which is not a
+                // success. Nothing here repeats.
+                .symbolEffect(
+                    .bounce,
+                    options: .nonRepeating,
+                    value: content.celebratesCompletion && !reduceMotion && hasAppeared
+                )
                 // The title says what happened; the mark restates it.
                 .accessibilityHidden(true)
 

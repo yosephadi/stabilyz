@@ -80,7 +80,13 @@ enum StabilyzColor {
     ///
     /// Dark in both modes: it exists to push the screen behind it back, and a
     /// light scrim in dark mode would do the opposite.
-    static let countdownScrim = Color(hex: 0x000000).opacity(0.45)
+    ///
+    /// Heavier in light mode: the white numeral sits on whatever the page is,
+    /// and 45% black over a light page is only about 3.5:1. At 65% the numeral
+    /// clears 4.5:1 even over a pure-white card (about 7:1 over `bg-base`).
+    static let countdownScrim = Color(uiColor: UIColor { traits in
+        UIColor.black.withAlphaComponent(traits.userInterfaceStyle == .dark ? 0.45 : 0.65)
+    })
 
     /// The countdown numeral. White on the scrim in both modes.
     static let countdownNumeral = Color(hex: 0xFFFFFF)

@@ -57,6 +57,22 @@ enum SessionCompletionContent: Equatable {
         }
     }
 
+    /// Whether arriving on this screen plays the one success haptic and the
+    /// one-shot checkmark. Only a measured walk does; the unclear walk is not a
+    /// success and gets neither. Both happen after Stop, never during a walk.
+    var celebratesCompletion: Bool {
+        switch self {
+        case .measured: true
+        case .unclear: false
+        }
+    }
+
+    /// Whether the success haptic plays, given the user's Start & Stop Haptics
+    /// setting as it stands when the screen appears. Off means no haptic.
+    func playsSuccessHaptic(hapticsOn: Bool) -> Bool {
+        celebratesCompletion && hapticsOn
+    }
+
     /// Whether the screen offers the result at all.
     ///
     /// False for an unclear walk, which leaves exactly one way out. A disabled

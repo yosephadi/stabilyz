@@ -1069,3 +1069,26 @@ private func eventually(_ condition: () -> Bool) async {
     let buffer = try await recorder.stop()
     #expect(buffer.honoursAdmissionContract)
 }
+
+// MARK: - The completion success haptic
+
+@MainActor
+@Test func theSuccessHapticIsOneRequestAndRespectsTheHapticsSetting() async {
+    let (coordinator, _, haptics, _, _, _) = makeCoordinator()
+
+    await coordinator.completionSucceeded(hapticsOn: false)
+    #expect(await haptics.taps.isEmpty, "off means no haptic")
+
+    await coordinator.completionSucceeded(hapticsOn: true)
+    #expect(await haptics.taps == [.completionSuccess])
+}
+
+@MainActor
+@Test func startingACountdownPlaysNoSuccessHaptic() async {
+    let (coordinator, _, haptics, _, ticker, _) = makeCoordinator()
+    coordinator.start(mode: .quickTest, audioConfig: .none)
+    await ticker.waitUntilEntered(2)
+    await ticker.releaseAll()
+    await coordinator.cancel()
+    #expect(await haptics.count(of: .completionSuccess) == 0, "never during the countdown or a walk")
+}

@@ -15,12 +15,30 @@ import SwiftUI
 /// for a user with failing earphones is abandoning the walk.
 struct ActiveSessionView: View {
     @Bindable var model: ActiveSessionViewModel
+    /// True while the countdown is up and for the beat after it clears: the
+    /// clock and Stop are not drawn until the countdown's own controls have
+    /// gone, so Cancel is never over Stop and the timer never competes with
+    /// the numeral (the cover reveals them, in sequence, after T-0).
+    var isReadoutHidden = false
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     /// A depleting ring is motion for its own sake to a reader who has asked
     /// for less of it, so the animation is dropped and the value still steps
     /// once a second (§9).
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
+        Group {
+            if dynamicTypeSize.usesStackedRing {
+                stackedBody
+            } else {
+                regularBody
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(StabilyzColor.bgBase)
+    }
+
+    private var regularBody: some View {
         VStack(spacing: 0) {
             Spacer(minLength: Space.x6)
 
@@ -37,13 +55,51 @@ struct ActiveSessionView: View {
                 .padding(.horizontal, Space.screenMargin)
                 .padding(.bottom, Controls.coverFooterBottomGap)
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(StabilyzColor.bgBase)
+    }
+
+    /// At accessibility sizes the clock leaves the ring and sits under it, and
+    /// the middle scrolls so Stop stays pinned and reachable. Static: no
+    /// motion is added by the layout.
+    private var stackedBody: some View {
+        VStack(spacing: 0) {
+            ScrollView {
+                VStack(spacing: Space.x6) {
+                    timerRing
+                    cuesGroup
+                        .padding(.horizontal, Space.screenMargin)
+                }
+                .padding(.top, Space.x6)
+            }
+            .scrollBounceBehavior(.basedOnSize)
+
+            stopButton
+                .padding(.horizontal, Space.screenMargin)
+                .padding(.top, Space.x4)
+                .padding(.bottom, Controls.resultFooterBottomGap)
+        }
     }
 
     // MARK: - The ring
 
     private var timerRing: some View {
+        Group {
+            if dynamicTypeSize.usesStackedRing {
+                VStack(spacing: Space.x4) {
+                    ringDial
+                    clock
+                }
+            } else {
+                ringDial.overlay { clock }
+            }
+        }
+        // One element, one announcement — a ring and a clock saying the same
+        // thing twice is two stops to navigate past.
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(model.timerAccessibilityLabel)
+    }
+
+    /// The dial alone: track and depleting band.
+    private var ringDial: some View {
         ZStack {
             // The track the depleting band runs on, so the ring reads as a
             // dial that is emptying rather than an arc that is shrinking.
@@ -71,14 +127,9 @@ struct ActiveSessionView: View {
                     reduceMotion ? nil : .linear(duration: Motion.ringTick),
                     value: model.progress
                 )
-
-            clock
         }
         .frame(width: Controls.timerRingDiameter, height: Controls.timerRingDiameter)
-        // One element, one announcement — a ring and a clock saying the same
-        // thing twice is two stops to navigate past.
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel(model.timerAccessibilityLabel)
+        .anchorPreference(key: CountdownRingAnchorKey.self, value: .bounds) { $0 }
     }
 
     private var clock: some View {
@@ -89,12 +140,15 @@ struct ActiveSessionView: View {
                 // The digits are the one thing on screen that must not reflow
                 // as it counts down.
                 .monospacedDigit()
+                .lineLimit(1)
+                .minimumScaleFactor(Motion.countdownNumeralMinimumScale)
 
             Text(ActiveSessionViewModel.timerCaption)
                 .font(StabilyzFont.subheading2Regular)
                 .foregroundStyle(StabilyzColor.ink900)
         }
         .multilineTextAlignment(.center)
+        .opacity(isReadoutHidden ? 0 : 1)
     }
 
     // MARK: - Cues
@@ -166,6 +220,9 @@ struct ActiveSessionView: View {
                         .foregroundStyle(StabilyzColor.ink600)
                 }
             }
+            // Wrap, never truncate: at accessibility sizes "Start & Stop
+            // Haptics" takes two lines and the row grows to fit.
+            .fixedSize(horizontal: false, vertical: true)
         }
         .tint(StabilyzColor.primary600)
         .disabled(!isEnabled)
@@ -181,6 +238,11 @@ struct ActiveSessionView: View {
         Button(ActiveSessionViewModel.stopTitle) { model.stop() }
             .buttonStyle(.destructiveCapsuleHero)
             .disabled(model.isStopping)
+            .opacity(isReadoutHidden ? 0 : 1)
+            // An invisible Stop must not be tappable or reachable by VoiceOver:
+            // while the countdown is clearing, Cancel is the only control.
+            .allowsHitTesting(!isReadoutHidden)
+            .accessibilityHidden(isReadoutHidden)
             .accessibilityIdentifier("session.stop")
     }
 }

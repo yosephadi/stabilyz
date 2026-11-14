@@ -404,3 +404,38 @@ private func uiTextStyle(_ style: Font.TextStyle) -> UIFont.TextStyle? {
     #expect(Radius.control < Radius.card)
     #expect(Radius.control < Radius.sheet)
 }
+
+// MARK: - Countdown legibility, hand-offs and stacked rings
+
+@MainActor
+@Test func theCountdownNumeralClearsFourPointFiveOnTheScrimInBothModes() {
+    // White numeral over the scrim composited on the lightest thing the page
+    // can put under it (a white card), and on the page itself.
+    func composited(_ base: Color, dark: Bool) -> Color {
+        let scrim = components(StabilyzColor.countdownScrim, dark: dark)
+        let b = components(base, dark: dark)
+        let a = scrim.a
+        return Color(
+            red: Double(b.r * (1 - a)), green: Double(b.g * (1 - a)), blue: Double(b.b * (1 - a))
+        )
+    }
+    for dark in [false, true] {
+        for base in [StabilyzColor.bgBase, StabilyzColor.bgElevated] {
+            let ratio = contrastRatio(StabilyzColor.countdownNumeral, composited(base, dark: dark), dark: dark)
+            #expect(ratio >= 4.5, "dark: \(dark) ratio \(ratio)")
+        }
+    }
+}
+
+@Test func sessionHandoffsRunOutThenInAndStayShort() {
+    #expect(Motion.handoffOut > 0)
+    #expect(Motion.handoffIn > 0)
+    #expect(Motion.handoffOut + Motion.handoffIn <= Motion.rootCrossFade + 0.15)
+}
+
+@Test func ringsStackFromXXLargeUp() {
+    #expect(DynamicTypeSize.large.usesStackedRing == false)
+    #expect(DynamicTypeSize.xLarge.usesStackedRing == false)
+    #expect(DynamicTypeSize.xxLarge.usesStackedRing)
+    #expect(DynamicTypeSize.accessibility5.usesStackedRing)
+}

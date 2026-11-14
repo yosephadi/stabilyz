@@ -22,6 +22,9 @@ private final class HapticHardware {
     private let logService: LogService
 
     private var tickGenerator: UIImpactFeedbackGenerator?
+    /// The one-shot success notification on a measured walk's completion
+    /// screen. Created on demand, after Stop; never touched during a walk.
+    private var notificationGenerator: UINotificationFeedbackGenerator?
     /// Used only when the engine cannot run. A heavy transient is a poorer cue
     /// through clothing, but it is still a cue — degradation should cost
     /// strength, never the signal outright.
@@ -61,6 +64,12 @@ private final class HapticHardware {
         }
     }
 
+    func playSuccess() {
+        let generator = notificationGenerator ?? UINotificationFeedbackGenerator()
+        notificationGenerator = generator
+        generator.notificationOccurred(.success)
+    }
+
     /// Releases the hardware **without cutting a cue already playing**.
     ///
     /// Stop is played and torn down back to back, and a 500ms vibration that an
@@ -71,6 +80,7 @@ private final class HapticHardware {
     func release() {
         tickGenerator = nil
         fallbackGenerator = nil
+        notificationGenerator = nil
 
         guard let finishing = engine else { return }
         engine = nil
@@ -237,6 +247,11 @@ final class LiveHapticFeedbackService: HapticFeedbackService {
     func playCadenceTick() async { await play(.cadenceTick) }
     func playSessionStart() async { await play(.sessionStart) }
     func playSessionStop() async { await play(.sessionStop) }
+
+    func playCompletionSuccess() async {
+        guard supportsHaptics else { return }
+        await hardware.playSuccess()
+    }
 
     private func play(_ pattern: HapticPattern) async {
         guard supportsHaptics else { return }

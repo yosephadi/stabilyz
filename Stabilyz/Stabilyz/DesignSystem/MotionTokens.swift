@@ -65,4 +65,17 @@ enum Motion {
     /// How far the countdown numeral may shrink to fit. "Go!" is three glyphs
     /// where "5" is one, and shrinking beats truncating.
     static let countdownNumeralMinimumScale: CGFloat = 0.5
+
+    // MARK: - Session hand-offs
+
+    /// The outgoing content of a session hand-off fading out (countdown to
+    /// walk, walk to processing, processing to completion). Each hand-off is
+    /// sequential: this finishes before the incoming content starts.
+    static let handoffOut: TimeInterval = 0.2
+
+    /// The incoming content fading in, after `handoffOut`.
+    static let handoffIn: TimeInterval = 0.25
+
+    /// The scale a countdown numeral eases from as it clears.
+    static let countdownNumeralDismissScale: CGFloat = 1.1
 }

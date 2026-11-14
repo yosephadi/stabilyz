@@ -29,6 +29,7 @@ struct SessionScoreView: View {
 
     /// Expanded to start, as the node draws it (its chevron points up).
     @State private var showsDetails = true
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     var body: some View {
         ScrollView {
@@ -109,6 +110,32 @@ struct SessionScoreView: View {
     /// index is encodes itself in the numeral's colour instead (§2.4), because
     /// a ring redrawn per score would make the two screens read as unrelated.
     private var ring: some View {
+        Group {
+            if dynamicTypeSize.usesStackedRing {
+                // Accessibility sizes: the numeral and its labels leave the
+                // ring and sit under it, so nothing is clipped by the stroke
+                // or truncated. The numeral is the top Dynamic Type priority
+                // (§9).
+                VStack(spacing: Space.x4) {
+                    ringBand
+                    ringContents
+                        .multilineTextAlignment(.center)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            } else {
+                ringBand.overlay {
+                    ringContents
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal, Controls.scoreRingWidth + Space.x4)
+                }
+            }
+        }
+        .frame(maxWidth: .infinity)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(ringAnnouncement)
+    }
+
+    private var ringBand: some View {
         ZStack {
             if case .building(_, _, let provisional) = presentation.progress {
                 // The band is the score, and only the score. It used to fill by
@@ -119,14 +146,8 @@ struct SessionScoreView: View {
             } else {
                 Circle().strokeBorder(bandGradient, lineWidth: Controls.scoreRingWidth)
             }
-            ringContents
-                .multilineTextAlignment(.center)
-                .padding(.horizontal, Controls.scoreRingWidth + Space.x4)
         }
         .frame(width: Controls.scoreRingDiameter, height: Controls.scoreRingDiameter)
-        .frame(maxWidth: .infinity)
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel(ringAnnouncement)
     }
 
     private var bandGradient: LinearGradient {

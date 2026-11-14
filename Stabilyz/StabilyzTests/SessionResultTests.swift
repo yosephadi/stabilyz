@@ -742,3 +742,17 @@ private func stored(_ session: GaitSession, walk: Int, validCount: Int) -> Sessi
     #expect(model.signals.isEmpty)
     #expect(model.measurements.count == 3)
 }
+
+// MARK: - The success moment (after Stop only)
+
+@Test func onlyAMeasuredWalkCelebratesAndOnlyWithHapticsOn() {
+    let measured = SessionCompletionContent.measured(mode: .quickTest)
+    let unclear = SessionCompletionContent.unclear(mode: .quickTest)
+
+    #expect(measured.celebratesCompletion)
+    #expect(measured.playsSuccessHaptic(hapticsOn: true))
+    #expect(measured.playsSuccessHaptic(hapticsOn: false) == false, "Start & Stop Haptics off is off")
+
+    #expect(unclear.celebratesCompletion == false)
+    #expect(unclear.playsSuccessHaptic(hapticsOn: true) == false, "an unclear walk is not a success")
+}
