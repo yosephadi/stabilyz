@@ -275,7 +275,7 @@ private func fillRequiredFields(_ model: OnboardingViewModel, level: AmputationL
 
 @MainActor
 @Test func theOptionalStepsNeverBlockTheButton() async {
-    for step in [OnboardingStep.prosthesisType, .kLevel] {
+    for step in [OnboardingStep.timeSinceAmputation, .prosthesisType, .kLevel] {
         let model = makeModel(store: MemoryDraftStore(draft: OnboardingDraft(step: step)))
         await model.start()
 
@@ -332,7 +332,9 @@ private func fillRequiredFields(_ model: OnboardingViewModel, level: AmputationL
     await model.advance()
 
     #expect(model.step == .timeSinceAmputation)
-    #expect(model.canContinue == false, "the time screen accepted an answer nobody gave")
+    // Optional since 2026-11-14: an untouched screen is complete and records nothing.
+    #expect(model.canContinue)
+    #expect(model.draft.timeSinceAmputation == nil)
 
     model.select(timeSinceAmputation: .underSixMonths)
     #expect(model.canContinue)
@@ -779,13 +781,13 @@ private actor Handoff {
 /// Home, so the affordance must never appear there either.
 
 @MainActor
-@Test func onlyTheTwoOptionalScreensOfferSkip() async {
+@Test func onlyTheThreeOptionalScreensOfferSkip() async {
     for step in OnboardingStep.allCases {
         let model = makeModel(store: MemoryDraftStore(draft: OnboardingDraft(step: step)))
         await model.start()
 
         #expect(
-            model.canSkip == (step == .prosthesisType || step == .kLevel),
+            model.canSkip == (step == .timeSinceAmputation || step == .prosthesisType || step == .kLevel),
             "\(step) offers the wrong skip affordance"
         )
     }
@@ -821,7 +823,7 @@ private actor Handoff {
 @Test func skipDoesNothingOnARequiredScreen() async {
     // Belt and braces against a view that showed the button anyway: the model
     // refuses, rather than trusting the caller.
-    for step in [OnboardingStep.amputationLevel, .side, .timeSinceAmputation, .disclaimer] {
+    for step in [OnboardingStep.amputationLevel, .side, .disclaimer] {
         let model = makeModel(store: MemoryDraftStore(draft: OnboardingDraft(step: step)))
         await model.start()
 
@@ -856,6 +858,60 @@ private actor Handoff {
     let saved = try! #require(await profiles.saved)
     #expect(saved.prosthesisType == nil)
     #expect(saved.kLevel == nil)
+}
+
+@MainActor
+@Test func skippingTimeSinceAmputationClearsItAndMovesOn() async {
+    let model = makeModel(store: MemoryDraftStore(draft: OnboardingDraft(step: .timeSinceAmputation)))
+    await model.start()
+
+    model.select(timeSinceAmputation: .oneToTwoYears)
+    await model.skip()
+
+    #expect(model.draft.timeSinceAmputation == nil, "skip kept an answer the user abandoned")
+    #expect(model.step == .prosthesisType)
+}
+
+@MainActor
+@Test func skippingAllThreeOptionalFieldsCompletesWithNoTimeSinceAmputation() async {
+    let profiles = RecordingProfiles()
+    let model = makeModel(profiles: profiles)
+
+    model.select(level: .transfemoral)
+    await model.advance()
+    model.select(side: .right)
+    await model.advance()
+
+    #expect(model.step == .timeSinceAmputation)
+    await model.skip()
+    await model.skip()
+    await model.skip()
+
+    #expect(model.step == .disclaimer)
+    model.disclaimerAccepted = true
+    await model.advance()
+
+    let saved = try! #require(await profiles.saved)
+    #expect(saved.timeSinceAmputationMonths == nil)
+    #expect(saved.prosthesisType == nil)
+    #expect(saved.kLevel == nil)
+    #expect(saved.amputationLevel == .transfemoral)
+    #expect(saved.side == .right)
+}
+
+@MainActor
+@Test func nextWithoutAnAnswerOnTheTimeScreenAlsoCompletes() async {
+    let profiles = RecordingProfiles()
+    let model = makeModel(profiles: profiles)
+    model.select(level: .bilateral)
+    await model.advance()
+    #expect(model.step == .timeSinceAmputation)
+    await model.advance()
+    await model.advance()
+    await model.advance()
+    model.disclaimerAccepted = true
+    await model.advance()
+    #expect(await profiles.saved?.timeSinceAmputationMonths == nil)
 }
 
 // MARK: - Back from the first screen leaves the wizard (Task 8.1.7)

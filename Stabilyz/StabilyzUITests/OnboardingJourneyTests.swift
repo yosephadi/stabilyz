@@ -54,4 +54,32 @@ final class OnboardingJourneyTests: XCTestCase {
         app.buttons["walk.start"].waitToAppear(timeout: 15, "finishing onboarding lands on the Walk tab")
         XCTAssertTrue(app.tab("Walk").isSelected)
     }
+
+    @MainActor
+    func testTheTimeSinceAmputationQuestionCanBeSkippedLikeTheOtherTwoOptionalOnes() {
+        let app = launchStabilyz(.fresh)
+        app.buttons["welcome.getStarted"].waitToAppear(timeout: 15).tap()
+
+        let next = app.buttons["onboarding.next"]
+        app.staticTexts["What is your amputation level?"].waitToAppear()
+        app.buttons["Above the knee"].tap()
+        next.tap()
+        app.staticTexts["Which side?"].waitToAppear()
+        app.buttons["Right"].tap()
+        next.tap()
+
+        app.staticTexts["How long has it been since your amputation?"].waitToAppear()
+        XCTAssertTrue(next.isEnabled, "the optional time question blocked Next")
+        app.buttons["onboarding.skip"].tap()
+
+        app.staticTexts["What type of prosthesis do you use?"].waitToAppear()
+        app.buttons["onboarding.skip"].tap()
+        app.staticTexts["Do you know your K-level?"].waitToAppear()
+        app.buttons["onboarding.skip"].tap()
+
+        app.staticTexts["Before You Begin"].waitToAppear()
+        app.descendants(matching: .any)["onboarding.disclaimer.accept"].tap()
+        next.tap()
+        app.buttons["walk.start"].waitToAppear(timeout: 15, "all three optional answers skipped still reaches the Walk tab")
+    }
 }

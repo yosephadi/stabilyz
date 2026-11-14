@@ -52,7 +52,8 @@ struct ArchivedProfile: Codable, Equatable {
     let id: UUID
     let amputationLevel: AmputationLevel
     let side: AmputationSide
-    let timeSinceAmputationMonths: Int
+    /// Absent when skipped; archives written earlier always carry it.
+    let timeSinceAmputationMonths: Int?
     let prosthesisType: String?
     let kLevel: KLevel?
     let disclaimerAcceptedAt: Date

@@ -53,6 +53,7 @@ struct MainShellView: View {
     @State private var historyModel: SessionListViewModel
     /// The You tab. Held so a presented flow survives tab switches.
     @State private var settingsModel: SettingsViewModel
+    @State private var profileAnswers: ProfileAnswersViewModel
     /// The Walk tab's one-time backup prompt (Task 10.2.3).
     @State private var exportNudge: ExportNudgeViewModel
     /// Export My Data, from the prompt's "Back up now".
@@ -89,6 +90,10 @@ struct MainShellView: View {
             storeEvents: dependencies.storeEvents,
             logService: dependencies.logService,
             presetRestoreFile: Self.presetRestoreFile(for: dependencies)
+        ))
+        _profileAnswers = State(initialValue: ProfileAnswersViewModel(
+            profiles: dependencies.userProfileRepository,
+            logService: dependencies.logService
         ))
         _exportNudge = State(initialValue: ExportNudgeViewModel(
             store: dependencies.exportNudgeStore,
@@ -137,6 +142,7 @@ struct MainShellView: View {
         #if DEBUG
         SettingsView(
             model: settingsModel,
+            profileAnswers: profileAnswers,
             debugBenchmark: HardwareBenchmark(
                 keyDerivation: dependencies.keyDerivation,
                 logService: dependencies.logService,
@@ -146,7 +152,7 @@ struct MainShellView: View {
             )
         )
         #else
-        SettingsView(model: settingsModel)
+        SettingsView(model: settingsModel, profileAnswers: profileAnswers)
         #endif
     }
 
