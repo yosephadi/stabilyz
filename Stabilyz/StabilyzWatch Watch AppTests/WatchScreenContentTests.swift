@@ -85,3 +85,32 @@ import Testing
         #expect(WatchScreen(machine, at: at(61)) == .stopped)
     }
 }
+
+/// Non-text contrast (WCAG 1.4.11: 3:1) and the label's text contrast (4.5:1),
+/// computed from the `WatchTheme` values themselves.
+@Suite struct WatchContrastTests {
+    @Test func theProgressFillClearsThreeToOneOnItsTrack() {
+        #expect(WatchTheme.progressFillRGB.contrast(with: WatchTheme.progressTrackRGB) >= 3)
+    }
+
+    @Test func theProgressFillClearsThreeToOneOnBlack() {
+        #expect(WatchTheme.progressFillRGB.contrast(with: WatchTheme.backgroundRGB) >= 3)
+    }
+
+    @Test func theNavyCapsuleHasABoundaryThatClearsThreeToOneOnBlack() {
+        // The navy alone is under 3:1 on black, which is why the outline exists.
+        #expect(WatchTheme.primaryRGB.contrast(with: WatchTheme.backgroundRGB) < 3)
+        #expect(WatchTheme.capsuleOutlineRGB.contrast(with: WatchTheme.backgroundRGB) >= 3)
+        #expect(WatchTheme.capsuleOutlineWidth >= 1)
+    }
+
+    @Test func theWhiteLabelOnNavyKeepsFourPointFiveToOne() {
+        #expect(WatchTheme.onPrimaryRGB.contrast(with: WatchTheme.primaryRGB) >= 4.5)
+    }
+
+    @Test func theContrastMathMatchesTheKnownExtremes() {
+        let white = WatchRGB(hex: 0xFFFFFF), black = WatchRGB(hex: 0x000000)
+        #expect(abs(white.contrast(with: black) - 21) < 0.001)
+        #expect(abs(white.contrast(with: white) - 1) < 0.001)
+    }
+}
