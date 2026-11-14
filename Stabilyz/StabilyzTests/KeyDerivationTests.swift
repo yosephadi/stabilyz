@@ -139,7 +139,10 @@ private func utf8(_ string: String) -> [UInt8] { Array(string.utf8) }
     #expect(KeyDerivationPolicy.saltByteCount == 16)
     #expect(KeyDerivationPolicy.keyByteCount == 32)
     #expect((0.2...0.5).contains(KeyDerivationPolicy.targetDuration))
-    #expect(KeyDerivationPolicy.minimumIterations == 300_000)
+    // OWASP PBKDF2-HMAC-SHA256 recommendation (2026-11-14); builds before it wrote 300,000.
+    #expect(KeyDerivationPolicy.minimumIterations == 600_000)
+    #expect(KeyDerivationPolicy.legacyMinimumIterations == 300_000)
+    #expect(KeyDerivationPolicy.legacyMinimumIterations < KeyDerivationPolicy.minimumIterations)
 }
 
 // MARK: - Passphrase bytes
