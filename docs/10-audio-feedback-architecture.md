@@ -15,7 +15,7 @@
 ## 10.3 Requirements Mapping
 
 - **Enable/disable:** per-session opt-in captured in `SessionAudioConfig`; Step Feedback **off by default**; first-ever session in a mode shows "walk normally — no target pace" framing instead of defaulting the toggle on [PRD §5, §7, OQ-4].
-- **Availability gating:** Metronome offered only when that mode's baseline exists — driven by `BaselineState` in Session Setup [PRD §5, §7].
+- **Availability gating:** Metronome offered only when that mode's baseline exists — driven by `BaselineState` in Session Setup [PRD §5, §7]. A session recorded with the Metronome on is kept and scored but shown as a distinct trend marker and left out of the trend line (decisions.md entry 49). Step Feedback is unchanged: available from session 1 and counted toward the baseline; that it does not alter gait is an unverified assumption.
 - **Confidence gating:** only detector-confident steps fire a sound — raw spikes must never create an accidental rhythm [PRD §6, OQ-4]. Confidence threshold in versioned config [OPEN value].
 - **Debounce/refractory:** a refractory window after each tick prevents double/triple beeps from one footfall [PRD §6, §7]. Typical step interval ≈ 0.5–0.7 s ⇒ refractory ≈ 300 ms, tunable [REC; value OPEN].
 - **Latency:** sound-to-footfall must feel connected [PRD §7] ⇒ preloaded buffers, hardware-adjacent playback, no main-thread hops on the tick path [REC].

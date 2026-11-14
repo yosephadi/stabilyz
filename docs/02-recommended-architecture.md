@@ -7,7 +7,7 @@
 - **UI:** SwiftUI views, thin, rendering-only.
 - **Feature/state:** one `@Observable` view model per feature, holding view state and intent methods only.
 - **Domain:** pure Swift models, baseline logic, session lifecycle rules, scoring *interfaces*.
-- **Algorithms:** a separate, Apple-framework-free (except Accelerate) pipeline module for DSP, feature extraction, metrics, and composite scoring — pure, synchronous, versioned, unit-testable without mocks.
+- **Algorithms:** a separate, Apple-framework-free (except Accelerate, which is allowed there but not currently used) pipeline module for DSP, feature extraction, metrics, and composite scoring — pure, synchronous, versioned, unit-testable without mocks.
 - **Services:** protocol-wrapped adapters over Core Motion, CMPedometer, AVFoundation, SwiftData, CryptoKit/CommonCrypto, file system.
 - **Subsystems as actors:** `SessionRecorder` (sensor lifecycle), `SessionProcessor` (batch analysis), `SecureArchiveService` (export/import).
 

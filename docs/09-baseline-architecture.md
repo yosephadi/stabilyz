@@ -33,7 +33,7 @@ notStarted ──valid session #1──► building(1) ──…──► buildi
 ## 9.6 Validity & Versioning
 
 - A baseline is valid iff derived from ≥5 valid same-mode sessions and its `algorithmVersion` matches the algorithm used to produce the sessions' metrics.
-- **[OPEN] algorithm-version mismatch handling** (future app updates changing the algorithm): v1 ships a single algorithm version so the case cannot arise; the data model stamps versions now so the future policy (re-baseline prompt, coexistence, migration) is a product decision, not a schema migration. Do not silently resolve.
+- **[OPEN] algorithm-version mismatch handling** (future app updates changing the algorithm): the data model stamps versions so the policy (re-baseline prompt, coexistence, migration) is a product decision, not a schema migration. Do not silently resolve. What is known as of `1.2.0-provisional` (decisions.md entry 48): raw samples are not persisted, so old sessions cannot be recomputed under a new version. A baseline frozen under 1.1.0 never yields a relative score for 1.2.0 sessions (`CompositeScorer` returns `algorithmVersionMismatch`). A user with 1–4 valid 1.1.0 sessions never forms a baseline: `BaselineCalculationService` throws `mixedAlgorithmVersions` and the commit is refused. Whether to offer a re-baseline/reset path is an **open product decision**. The app has not been released, so only development data is affected.
 
 ## 9.7 Anti-Mixing Enforcement (summary of guarantees)
 

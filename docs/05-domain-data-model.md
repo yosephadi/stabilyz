@@ -9,7 +9,7 @@ Three model strata, deliberately **not** duplicated where a single type serves a
 |---|---|
 | Purpose | Distinguishes the two modes everywhere; segregation key [PRD OQ-5] |
 | Cases | `quickTest`, `fullTest` |
-| Properties | `advertisedDuration` (120 s / 360 s) [PRD §5]; `minimumValidWalkingDuration` (90 s / 240 s) [PRD OQ-3 — v1 product-quality thresholds, tunable]; display name |
+| Properties | `advertisedDuration` (90 s / 180 s) [PRD §5]; `minimumValidWalkingDuration` (60 s / 135 s) [PRD OQ-3 — provisional product thresholds, not research-validated, tunable; decisions.md entry 47]; display name |
 | Persistence | Persisted as raw value on session & baseline entities |
 | Note | Thresholds live in a versioned `SessionPolicy` config so they can be tuned without schema changes [REC] |
 
@@ -19,9 +19,9 @@ Three model strata, deliberately **not** duplicated where a single type serves a
 | `id` | UUID | yes | |
 | `amputationLevel` | enum `transtibial/transfemoral/bilateral` | yes | [PRD §5] |
 | `side` | enum `left/right/both` | yes | Validation: `bilateral ⇒ both`; `unilateral ⇒ left/right` [PRD AC; consistency rule REC] |
-| `timeSinceAmputation` | duration value (months) [REC — input format OPEN] | yes | |
-| `prosthesisType` | free text | no | optional field [PRD AC] |
-| `kLevel` | enum `k0…k4` | no | optional field [PRD AC] |
+| `timeSinceAmputation` | duration value (months) [REC — input format OPEN] | no | skippable like the other two optionals; editable later in Settings [decisions.md entry 53] |
+| `prosthesisType` | free text | no | optional field [PRD AC]; editable later in Settings |
+| `kLevel` | enum `k0…k4` | no | optional field [PRD AC]; editable later in Settings |
 | `disclaimerAcceptedAt` | Date | yes (before Home) | hard gate [PRD §7] |
 | `createdAt` | Date | yes | |
 | Lifecycle | Created at onboarding completion; immutable except future edits (out of scope v1) | | |

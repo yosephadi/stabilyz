@@ -2,7 +2,7 @@
 
 ## 1.1 Purpose
 
-Stabilyz is a **local-only, offline, single-user iOS app** that lets a lower-limb prosthetic user run self-directed walking tests (2-minute Quick Test / 6-minute Full Test) using iPhone motion sensors, and receive a **relative stability index against their own per-mode baseline** (baseline = 100). The product's core value is converting subjective gait perception into an objective number. [PRD §1, §4]
+Stabilyz is a **local-only, offline, single-user iOS app** that lets a lower-limb prosthetic user run self-directed walking tests (1:30 Quick Test / 3:00 Full Test; provisional lengths, decisions.md entry 47) using iPhone motion sensors, and receive a **relative stability index against their own per-mode baseline** (baseline = 100). The product's core value is converting subjective gait perception into an objective number. [PRD §1, §4]
 
 ## 1.2 Primary & Secondary Users
 

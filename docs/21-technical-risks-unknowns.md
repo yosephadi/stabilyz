@@ -2,7 +2,7 @@
 
 ## 21.1 Known Requirements (locked by PRD — engineering must not alter)
 
-Two test modes with 90 s / 240 s valid-walking minimums · per-mode 5-valid-session baselines, frozen in v1 · autocorrelation Ad1/Ad2 universal for all amputation types · multi-signal composite with SD floor · asymmetry secondary/unilateral-only/never fabricated · relative index not percentage · noisy sessions never scored/counted/exported · mode segregation everywhere · Step Feedback (off-by-default, confidence-gated, debounced, no tempo) vs. Metronome (post-baseline, baseline cadence) · encrypted export with PBKDF2/unique-salt/AES-GCM/self-describing metadata · restore-not-merge · **atomic restore** · no custom crypto · no backend/accounts/cloud · disclaimer hard gate · onboarding resume · permission degradation · TestFlight iOS 17+.
+Two test modes (1:30 / 3:00) with 60 s / 135 s valid-walking minimums · per-mode 5-valid-session baselines, frozen in v1 · autocorrelation Ad1/Ad2 universal for all amputation types · multi-signal composite with SD floor · asymmetry secondary/unilateral-only/never fabricated · relative index not percentage · noisy sessions never scored/counted/exported · mode segregation everywhere · Step Feedback (off-by-default, confidence-gated, debounced, no tempo) vs. Metronome (post-baseline, baseline cadence) · encrypted export with PBKDF2/unique-salt/AES-GCM/self-describing metadata · restore-not-merge · **atomic restore** · no custom crypto · no backend/accounts/cloud · disclaimer hard gate · onboarding resume · permission degradation · TestFlight iOS 17+.
 
 **Watch Companion (Phase 3) [PRD §8]:** phone is the only sensor and source of truth · no score on the watch · Start phone-only, Stop from either device with the phone authoritative and duplicate/late stops ignored · Stop hidden while the phone is unreachable · haptic owner fixed at countdown start (haptics only; audio unaffected), with the phone Stop-pulse fallback and the accepted double buzz at 00:00 · losing the watch never cancels or invalidates a session · no HealthKit · Live Activity nudge only, no notification or new permission · zero third-party dependencies.
 
@@ -27,24 +27,25 @@ Sensor sampling rate (rec: 100 Hz) · orientation/axis derivation for ML/VT axes
 10. **Encouraging-summary copy rules** (PRD: generated from real same-mode comparisons; templates unspecified).
 11. **Export-nudge cadence** beyond "after baseline is first established" ("periodically" unspecified).
    - **CLOSED (2026-09-15, product decision, Task 10.2.3):** one non-intrusive **milestone card on the Walk tab**, shown once **any** mode's baseline is first established. Dismissing it, or completing an export from any screen, retires it for good — no periodic re-prompt in v1. Both facts are device state in `UserDefaults`, never store data. `ExportNudgePolicy`; decisions.md entry 43.
-12. **Algorithm-version mismatch policy for future app updates** (§9.6).
-13. **Watch extended runtime session type** [PRD OQ-7a] — *physical therapy* recommended (background, 1 h, no HealthKit); *self care* is the fallback. App Review must accept the type for a walk test; verify on a real watch.
+12. **Algorithm-version mismatch policy for future app updates** (§9.6). `[OPEN]`. Now concrete at `1.2.0-provisional`: raw samples are not persisted, so old sessions cannot be recomputed; a 1.1.0 baseline never scores a 1.2.0 session (`algorithmVersionMismatch`), and 1–4 valid 1.1.0 sessions never form a baseline (`mixedAlgorithmVersions`). A re-baseline/reset path is an open product decision; the app is unreleased, so only development data is affected (decisions.md entry 48).
+13. **Watch extended runtime session type** [PRD OQ-7a] — *physical therapy* kept (background, 1 h, no HealthKit), with the rehab/gait-assessment purpose stated in the App Review notes; *self care* is the fallback. Verify on a real watch and at review (decisions.md entry 54).
 14. **Live Activity behaviour on the watch** [PRD OQ-7b] — Smart Stack needs iOS 18 / watchOS 11; iOS 17 phones get the nudge on the phone only. Tap-to-open the watch app unverified.
 15. **Final watch haptic patterns** [PRD OQ-7c] — `.click` / `.start` / `.stop` are candidates; Go must be perceptibly distinct from the ticks.
+16. **Algorithm 1.2.0 placeholders** — `manualStopTailTrim` = 3 s (decisions.md entry 51), `maximumLagFractionOfWindow` = 0.5 (entry 48), and the g-scale pre-baseline trunk anchors (ML 0.25 / 0.05, VT 0.40 / 0.10; entry 50) are all `[OPEN]` and pending device validation (Phase 12).
 
 ## 21.4 Risks
 
 | Risk | Severity | Mitigation |
 |---|---|---|
-| Algorithm validity on real prosthetic gait (validated for unilateral transfemoral via Tura; not bilateral; composite unvalidated) | High | Versioned algorithm; early device data collection; PRD explicitly accepts non-validated v1 [PRD §2]; documented research gap [OQ-1] |
+| Algorithm validity on real prosthetic gait (validated for unilateral transfemoral via Tura et al. 2010 (plantar-pressure validation, J NeuroEng Rehabil 7:4) and Tura et al. 2012 (stride counts, 9:11), n=10 men with a C-leg; not bilateral; composite unvalidated) | High | Versioned algorithm; early device data collection; PRD explicitly accepts non-validated v1 [PRD §2]; documented research gap [OQ-1] |
 | Walking-segment/step detection false positives creating accidental audio rhythm | High | Confidence gating + refractory + integration tests on fixtures |
 | Backgrounding policy gaps on real devices | Medium-High | Gap-detection architecture; device test matrix; PRD-sanctioned instruction-first approach |
 | SwiftData maturity (container rebuild after restore, migration tooling) | Medium | Transactional restore + store snapshot; narrow schema; export archive as portability hedge |
 | Mostly-turn sessions producing misleading scores (no turn detection in v1) | Medium | PRD-sanctioned user instruction; quality threshold may flag; documented limitation |
 | PBKDF2 UX (export/import delay) | Low-Medium | Calibrated iterations; progress UI |
 | iOS 17.0 `@Observable`/SwiftData early-adopter bugs | Low-Medium | Pin to latest 17.x toolchain; regression suite |
-| Watch haptics may not fire while the watch app runs in a background extended runtime session | Medium-High | Real-watch QA (Task 12.6.1). Exit condition: if unreliable, haptic ownership falls back to phone-only for every session (decisions.md 46) |
-| App Review rejects *physical therapy* as the session type for a walk test | Medium | *Self care* fallback (10 min covers a 6-min walk, but ends on a Digital Crown press); PRD OQ-7a |
+| Watch haptics may not fire while the watch app runs in a background extended runtime session | Medium-High | Real-watch QA (Task 12.6.1). Apple's `WKInterfaceDevice.play(_:)` page says background haptics need a workout session, while the extended-runtime article says sessions can play haptics: unverified, and phone-only haptics is the expected fallback. Exit condition: if unreliable, haptic ownership falls back to phone-only for every session (decisions.md 46, 54) |
+| App Review rejects *physical therapy* as the session type for a walk test | Medium | *Self care* fallback (10 min covers a 3-min walk, but ends on a Digital Crown press); PRD OQ-7a |
 | Phone/watch wall-clock skew makes the wrist timer disagree with the phone | Low-Medium | Watch re-syncs to the real T-0 at Go; display only, never in measurement; QA checks agreement to within one displayed second |
 | WatchConnectivity latency or loss on a Stop request | Low-Medium | Phone Stop always works; Stop hidden while unreachable; first-stop-wins makes retries harmless |
 | Watch users more likely to lock a pocketed phone, widening the existing lock/background gap (docs/07 §7.7 ⚠️) | Medium | Not caused by the watch; tracked with the existing open item, validated in the same device campaign |
