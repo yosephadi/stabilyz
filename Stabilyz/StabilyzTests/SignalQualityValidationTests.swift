@@ -93,7 +93,7 @@ private func seconds(_ duration: Duration) -> Double {
 
 @Test func oneHundredSecondsPassesQuickTestAndFailsFullTest() {
     // The same walk, judged against each mode's own requirement.
-    let phases: [Phase] = [.walk(seconds: 105)]
+    let phases: [Phase] = [.walk(seconds: 90)]
 
     let quick = report(mode: .quickTest, phases)
     let full = report(mode: .fullTest, phases)
@@ -103,20 +103,20 @@ private func seconds(_ duration: Duration) -> Double {
 
     #expect(full.isValid == false)
     #expect(full.invalidReason == .insufficientValidWalking)
-    #expect(full.requiredWalkingDuration == .seconds(240))
+    #expect(full.requiredWalkingDuration == .seconds(135))
 }
 
 @Test func aFullLengthClockWithTooLittleWalkingStillFails() {
     // [PRD OQ-3] the clock ran the whole time, but most of it was standing.
     let result = report(mode: .quickTest, [
-        .walk(seconds: 40),
-        .still(seconds: 80)
+        .walk(seconds: 25),
+        .still(seconds: 65)
     ])
 
     #expect(result.invalidReason == .insufficientValidWalking)
-    #expect(seconds(result.excludedDuration) > 70)
+    #expect(seconds(result.excludedDuration) > 55)
     // The report says how short it fell, so the screen can explain it.
-    #expect(seconds(result.walkingShortfall) > 45)
+    #expect(seconds(result.walkingShortfall) > 30)
 }
 
 @Test func aSessionSpentStandingFailsAndSaysNoWalkingWasFound() {
@@ -197,7 +197,7 @@ private func seconds(_ duration: Duration) -> Double {
 
     #expect(result.invalidReason == .insufficientValidWalking)
     #expect(result.exceededNoiseLimit)
-    #expect(seconds(result.walkingShortfall) > 55)
+    #expect(seconds(result.walkingShortfall) > 25)
 }
 
 @Test func theThreeOutcomesAreDistinguishable() {
@@ -225,7 +225,7 @@ private func seconds(_ duration: Duration) -> Double {
 
     // Walking against the requirement.
     #expect(result.mode == .fullTest)
-    #expect(result.requiredWalkingDuration == .seconds(240))
+    #expect(result.requiredWalkingDuration == .seconds(135))
     #expect(result.validWalkingDuration > .zero)
     #expect(result.walkingShortfall > .zero)
 

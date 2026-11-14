@@ -13,9 +13,11 @@ struct WindowFeatures: Sendable, Equatable {
 
     /// Intervals between consecutive detected footfalls, in seconds.
     let stepTimes: [Double]
-    /// Step regularity — autocorrelation at the step lag, normalised.
+    /// Step regularity — unbiased autocorrelation at the step lag, normalised
+    /// by lag 0 (Moe-Nilssen & Helbostad 2004; Tura et al. 2012 eq. 1).
     let ad1: Double
-    /// Stride regularity — autocorrelation at the stride lag, normalised.
+    /// Stride regularity — unbiased autocorrelation at the stride lag,
+    /// normalised by lag 0 (same estimator as `ad1`).
     let ad2: Double
     /// The lag Ad1 was read at, in seconds. Recorded so a swapped anchor is
     /// visible rather than silently producing plausible-looking numbers.
@@ -191,14 +193,31 @@ enum FeatureExtraction {
         let strideLag = stepLag * 2
         guard strideLag < vertical.count else { return nil }
 
-        let correlation = biasedAutocorrelation(vertical, maximumLag: min(strideLag * 2, vertical.count - 1))
-        guard let zeroLag = correlation.first, zeroLag > 0 else { return nil }
+        // The largest lag Ad2 can be read at must leave a usable overlap: the
+        // unbiased estimator below divides by `N − m`, and as m approaches N
+        // that is a handful of samples and a noisy estimate.
+        let strideSpread = max(1, Int((Double(strideLag) * policy.lagSearchTolerance).rounded()))
+        guard Double(strideLag + strideSpread) <= Double(vertical.count) * policy.maximumLagFractionOfWindow else {
+            return nil
+        }
+
+        // Two estimators of the same autocorrelation, on purpose:
+        // - `unbiased` (divided by N − |m|) for the anchored Ad1/Ad2 reads —
+        //   the estimator Moe-Nilssen & Helbostad (2004) and Tura et al. (2012,
+        //   eq. 1) specify, under which a perfectly periodic signal scores 1
+        //   whatever the window length or period.
+        // - `biased` (divided by N) for the half-stride peak-splitting search,
+        //   whose position and prominence floor (entry 41) were tuned on it and
+        //   which this change does not touch.
+        let biased = biasedAutocorrelation(vertical, maximumLag: min(strideLag * 2, vertical.count - 1))
+        guard let zeroLag = biased.first, zeroLag > 0 else { return nil }
+        let correlation = unbiased(fromBiased: biased, signalLength: vertical.count)
 
         let ad1 = peakValue(in: correlation, around: stepLag, tolerance: policy.lagSearchTolerance)
         let ad2 = peakValue(in: correlation, around: strideLag, tolerance: policy.lagSearchTolerance)
 
         let halfStride = halfStridePeakLags(
-            correlation: correlation,
+            correlation: biased,
             strideLag: ad2.lag,
             zeroLag: zeroLag,
             configuration: configuration
@@ -333,12 +352,14 @@ enum FeatureExtraction {
 
     // MARK: - Autocorrelation
 
-    /// Biased autocorrelation — divided by the full length, not the overlap.
+    /// Biased autocorrelation — divided by the full length N, not the overlap.
     ///
-    /// docs/decisions.md entry 10: the unbiased estimator leaves a periodic
-    /// signal's fundamental and its harmonics tied, so a subharmonic can win.
-    /// Here the anchoring makes that less critical, but the same estimator is
-    /// used throughout so Ad1 and Ad2 are on one consistent scale.
+    /// Used for the half-stride peak-splitting search (`halfStridePeakLags`),
+    /// and as the basis of the unbiased estimate below. docs/decisions.md
+    /// entry 10: the unbiased estimator leaves a periodic signal's fundamental
+    /// and its harmonics tied, so a *free* peak search over it can let a
+    /// subharmonic win. No free search is made here — every read is anchored at
+    /// the footfall-derived lag — so the unbiased estimator is safe for Ad1/Ad2.
     static func biasedAutocorrelation(_ signal: [Double], maximumLag: Int) -> [Double] {
         guard !signal.isEmpty, maximumLag >= 0 else { return [] }
         let mean = signal.reduce(0, +) / Double(signal.count)
@@ -351,6 +372,31 @@ enum FeatureExtraction {
                 sum += centred[index] * centred[index + lag]
             }
             return sum / length
+        }
+    }
+
+    /// Unbiased autocorrelation: the lag-m sum divided by the overlap `N − |m|`
+    /// instead of N, as in Moe-Nilssen & Helbostad (2004) and Tura et al.
+    /// (2012, eq. 1). Normalised by the lag-0 value (where N − 0 = N, so it is
+    /// unchanged) this gives 1.0 for a perfectly periodic signal at any lag that
+    /// is a whole number of periods, independent of window length — the biased
+    /// estimator gave (N − m) / N.
+    ///
+    /// Callers must keep the lag well below N (see
+    /// `FeatureExtractionPolicy.maximumLagFractionOfWindow`): the estimate
+    /// uses ever fewer samples as the lag grows.
+    static func unbiasedAutocorrelation(_ signal: [Double], maximumLag: Int) -> [Double] {
+        unbiased(
+            fromBiased: biasedAutocorrelation(signal, maximumLag: maximumLag),
+            signalLength: signal.count
+        )
+    }
+
+    /// Rescales a biased estimate (÷ N) to the unbiased one (÷ (N − m)).
+    static func unbiased(fromBiased biased: [Double], signalLength: Int) -> [Double] {
+        biased.enumerated().map { lag, value in
+            let overlap = signalLength - lag
+            return overlap > 0 ? value * Double(signalLength) / Double(overlap) : 0
         }
     }
 

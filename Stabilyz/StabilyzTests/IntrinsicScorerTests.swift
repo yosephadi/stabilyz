@@ -127,12 +127,32 @@ private func configuration(
 @Test func aSteadierWalkNeverScoresLowerThanAShakierOne() {
     // The one monotonicity that has to survive any re-anchoring: better on
     // every input may not read as worse.
-    let shakier = walk(stepReg: 0.55, strideReg: 0.50, cv: 0.09, trunkML: 2.0, trunkVT: 3.2)
-    let steadier = walk(stepReg: 0.85, strideReg: 0.82, cv: 0.03, trunkML: 0.8, trunkVT: 1.4)
+    let shakier = walk(stepReg: 0.55, strideReg: 0.50, cv: 0.09, trunkML: 0.20, trunkVT: 0.35)
+    let steadier = walk(stepReg: 0.85, strideReg: 0.82, cv: 0.03, trunkML: 0.08, trunkVT: 0.15)
 
     let low = try? #require(score(shakier)?.value)
     let high = try? #require(score(steadier)?.value)
     #expect((high ?? 0) > (low ?? 0))
+}
+
+@Test func theTrunkAnchorsAreOnTheScaleOfTheSignalInG() {
+    // The proxy is RMS of userAcceleration in g; steady golden walks read about
+    // ML 0.13 and VT 0.23-0.30. On the old m/s²-scale anchors (ML 0.5-2.5,
+    // VT 1.0-4.0) every such reading clamped at "good" and the term could not
+    // tell a steady walk from a shaky one.
+    let ml = try! #require(config.intrinsic.references[.trunkMotionML])
+    let vt = try! #require(config.intrinsic.references[.trunkMotionVT])
+
+    for reading in [0.13] {
+        let quality = try! #require(ml.quality(of: reading))
+        #expect(quality > 0 && quality < 1, "ML \(reading) saturated at \(quality)")
+    }
+    for reading in [0.23, 0.30] {
+        let quality = try! #require(vt.quality(of: reading))
+        #expect(quality > 0 && quality < 1, "VT \(reading) saturated at \(quality)")
+    }
+    // And the scale is wide enough to separate walks: a shakier trunk scores lower.
+    #expect(try! #require(ml.quality(of: 0.20)) < (try! #require(ml.quality(of: 0.10))))
 }
 
 @Test func aLowerVariabilityReadsAsBetterOnItsOwn() {

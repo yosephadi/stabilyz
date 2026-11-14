@@ -44,13 +44,14 @@ enum UITestingLaunch {
     /// that restores it, and nowhere outside debug builds.
     static let realBackupPassphrase = "correct horse battery"
 
-    /// 110 seconds of walking. The countdown's first 5 seconds of samples are
-    /// turned away at T-0, leaving 105 — past the Quick Test's 90-second floor
-    /// and short of its 120-second clock, so the walk never ends on its own
-    /// before the journey taps Stop.
-    static let walkSeconds: Double = 110
+    /// 80 seconds of walking. The countdown's first 5 seconds of samples are
+    /// turned away at T-0, leaving 75 — past the Quick Test's 60-second floor
+    /// even after the 3 s lead-in and the 3 s manual-Stop tail trim, and short
+    /// of its 90-second clock, so the walk never ends on its own before the
+    /// journey taps Stop.
+    static let walkSeconds: Double = 80
 
-    /// 30 seconds: 25 admitted after the countdown, far under the 90-second
+    /// 30 seconds: 25 admitted after the countdown, far under the 60-second
     /// floor, so the walk is refused as insufficient walking — deterministically.
     static let unclearWalkSeconds: Double = 30
 
@@ -196,7 +197,7 @@ struct UITestingStorePreparation: RestoreRecovering {
 
     private static func walk(_ mode: TestMode, daysAgo: Double, valid: Bool) -> GaitSession {
         let startedAt = Date().addingTimeInterval(-daysAgo * 86_400)
-        let endedAt = startedAt.addingTimeInterval(120)
+        let endedAt = startedAt.addingTimeInterval(Double(mode.advertisedDuration.components.seconds))
         let version = AlgorithmConfiguration.v1.version
         guard valid else {
             return .invalid(
@@ -209,7 +210,7 @@ struct UITestingStorePreparation: RestoreRecovering {
         return .valid(
             id: UUID(), mode: mode,
             startedAt: startedAt, endedAt: endedAt,
-            advertisedClockElapsed: mode.advertisedDuration, validWalkingDuration: .seconds(100),
+            advertisedClockElapsed: mode.advertisedDuration, validWalkingDuration: mode == .quickTest ? .seconds(75) : .seconds(160),
             metrics: GaitMetrics(
                 stepRegularity: 0.82, strideRegularity: 0.78, cadenceMean: 104, stepTimeCV: 0.041,
                 trunkMotionML: 1.12, trunkMotionVT: 2.3, validStrideCount: 90, windowCount: 10

@@ -6,11 +6,11 @@
     "highFrequencyPowerRatio" : 0.04182639313359523,
     "invalidReason" : "insufficientValidWalking",
     "valid" : false,
-    "validWalkingSeconds" : 100
+    "validWalkingSeconds" : 97
   },
   "mode" : "fullTest",
   "name" : "hundred-second-walk-full",
-  "notes" : "The identical walk judged as a Full Test. Fails: 240 s required.",
+  "notes" : "The identical walk judged as a Full Test. Fails: 135 s required.",
   "profile" : "unilateral",
   "signal" : {
     "firstAmplitude" : 1,

@@ -754,7 +754,7 @@ private func countToGo(_ coordinator: CountdownCoordinator, _ ticker: GatedTicke
     }
     #expect(sentID == id)
     #expect(mode == .quick)
-    #expect(seconds == 120)
+    #expect(seconds == 90)
     #expect(owner == .watch)
     #expect(enabled)
     // Three one-second ticks in this policy, so Go is planned three seconds

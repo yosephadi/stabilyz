@@ -22,6 +22,7 @@ private func configuration(leadInMilliseconds: Int) -> AlgorithmConfiguration {
         gravityEstimationCutoffHz: base.preprocessing.gravityEstimationCutoffHz,
         minimumSegmentDuration: base.preprocessing.minimumSegmentDuration,
         leadInTrim: .milliseconds(leadInMilliseconds),
+        manualStopTailTrim: base.preprocessing.manualStopTailTrim,
         filterEdgePaddingCycles: base.preprocessing.filterEdgePaddingCycles,
         zeroPhaseFiltering: base.preprocessing.zeroPhaseFiltering
     )

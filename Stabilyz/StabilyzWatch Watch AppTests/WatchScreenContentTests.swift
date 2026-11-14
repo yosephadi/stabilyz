@@ -21,11 +21,11 @@ import Testing
         var machine = WatchSessionMachine()
         #expect(WatchScreen(machine, at: at(0)) == .waiting(selection: nil, selectionLabel: nil))
 
-        machine.run([.received(.setupSelection(mode: .quick, durationSeconds: 120), at: at(0))])
-        #expect(WatchScreen(machine, at: at(0)) == .waiting(selection: "Quick Test · 2 min", selectionLabel: "Quick Test, 2 minutes"))
+        machine.run([.received(.setupSelection(mode: .quick, durationSeconds: 90), at: at(0))])
+        #expect(WatchScreen(machine, at: at(0)) == .waiting(selection: "Quick Test · 1:30", selectionLabel: "Quick Test, 1 minute 30 seconds"))
 
-        machine.run([.received(.setupSelection(mode: .full, durationSeconds: 360), at: at(0))])
-        #expect(WatchScreen(machine, at: at(0)) == .waiting(selection: "Full Test · 6 min", selectionLabel: "Full Test, 6 minutes"))
+        machine.run([.received(.setupSelection(mode: .full, durationSeconds: 180), at: at(0))])
+        #expect(WatchScreen(machine, at: at(0)) == .waiting(selection: "Full Test · 3:00", selectionLabel: "Full Test, 3 minutes"))
     }
 
     @Test func theCountdownShowsTheNumeralThenGo() {
@@ -46,21 +46,21 @@ import Testing
         }
         #expect(timer.text == "01:05")
         #expect(timer.accessibilityLabel == "1 minute 5 seconds elapsed")
-        #expect(abs(timer.progress - 65.0 / 120.0) < 0.000_1)
+        #expect(abs(timer.progress - 65.0 / 90.0) < 0.000_1)
         #expect(stopEnabled)
     }
 
     @Test func progressStopsAtTheAdvertisedLength() {
-        let timer = WatchTimer(t0: goAt, durationSeconds: 120, now: at(500))
+        let timer = WatchTimer(t0: goAt, durationSeconds: 90, now: at(500))
         #expect(timer.progress == 1)
-        #expect(WatchTimer(t0: goAt, durationSeconds: 120, now: at(-3)).text == "00:00")
+        #expect(WatchTimer(t0: goAt, durationSeconds: 90, now: at(-3)).text == "00:00")
     }
 
     @Test func stopIsDisabledWhileARequestIsPending() {
         var machine = WatchSessionMachine.running()
         machine.run([.stopTapped(at: at(10))])
         #expect(WatchScreen(machine, at: at(10.5)) == .running(
-            WatchTimer(t0: goAt, durationSeconds: 120, now: at(10.5)),
+            WatchTimer(t0: goAt, durationSeconds: 90, now: at(10.5)),
             stopEnabled: false
         ))
     }
@@ -69,7 +69,7 @@ import Testing
         var machine = WatchSessionMachine.running()
         machine.run([.reachability(false, at: at(30))])
         let screen = WatchScreen(machine, at: at(90))
-        #expect(screen == .disconnected(WatchTimer(t0: goAt, durationSeconds: 120, now: at(90))))
+        #expect(screen == .disconnected(WatchTimer(t0: goAt, durationSeconds: 90, now: at(90))))
         #expect(screen.showsStop == false)
     }
 
