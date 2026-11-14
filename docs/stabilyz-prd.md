@@ -83,7 +83,7 @@ Stabilyz is an iOS app that lets a prosthetic limb user run short, self-directed
       │
       ▼
 [Audio feedback selector] ── depends on whether this mode's baseline exists yet:
-  • Before baseline exists (sessions 1-5): "Walk normally — there's no target pace" framing shown; optional **Step Feedback** toggle, off by default (a brief sound on confidently-detected steps, never a tempo)
+  • Before baseline exists (sessions 1-5): "Walk normally — there's no target pace" framing shown (the line goes once the mode's baseline exists; "Walk in as straight a line as you can" is shown for every walk); optional **Step Feedback** toggle, off by default (a brief sound on confidently-detected steps, never a tempo)
   • After baseline exists (session 6+): optional **Metronome cue** toggle, paced to this mode's baseline cadence
   • Watch indicator (Phase 3, see §8): if the Stabilyz watch app is reachable, one line —
     "Timer will show on your watch" — telling the user the timer and haptics will come
@@ -91,6 +91,10 @@ Stabilyz is an iOS app that lets a prosthetic limb user run short, self-directed
       │
       ▼
 [Start Test] ── tapping Start Test does not begin recording; it begins a countdown
+  • If Motion & Fitness access is still undetermined, the system prompt is raised here, on the tap,
+    before sensor priming and the countdown (so it does not land while the phone is being stowed);
+    a one-line reason is shown above Start only while the answer is undetermined. Denied or
+    restricted shows the existing blocked state (see §6)
       │
       ▼
 [Countdown — 5 seconds by default (provisional, tunable; see Open Question 6)]
@@ -118,17 +122,21 @@ Stabilyz is an iOS app that lets a prosthetic limb user run short, self-directed
       │
       ▼
 [Stop] ── instant, no countdown — single haptic pulse + Stop confirmation tone
+  • Approved addition (product owner, 2026-11-15; decisions.md entry 59): on a **valid** completion
+    only, the completion screen plays ONE success notification haptic after Stop, on the phone only,
+    and only when Start & Stop Haptics is on, with a one-shot checkmark bounce (static under Reduce
+    Motion). An invalid walk gets neither. No cue of any kind was added between Go and Stop.
       │
       ▼
 [Processing] ── brief, on-device only, no network call
       │
-      ├── (data too noisy, or session ended short of that mode's minimum) ──► [Noisy Session Screen] ── plain-language explanation, no score shown, session marked invalid, does not count toward that mode's baseline
+      ├── (data too noisy, or session ended short of that mode's minimum) ──► [Noisy Session Screen] ── plain-language explanation specific to the reason (too short, too much phone movement, an interruption, or the phone stopping sending motion data) with one next step, no score shown, session marked invalid, "This session won't count toward your baseline."
       │
       └── (data valid)
               │
               ▼
       [Score Screen]
-        • If < 5 valid sessions exist *in this mode*: "Building your Quick Test baseline — Session X of 5" (or Full Test, matching whichever mode was run), no relative index yet. Sessions 1-5 instead show a **provisional 0-100 score** on its own labelled scale, derived from fixed placeholder reference values (poor/good anchors for step regularity, stride regularity, step-time variability and the two trunk-motion axes) that are **unvalidated** ([OPEN] — they exist so early sessions carry some number, and are clearly labelled provisional, never framed as a baseline-relative result); raw metrics optionally shown as "reference only". The relative index starts once the 5-session baseline exists
+        • If < 5 valid sessions exist *in this mode*: "Building your Quick Test baseline" with progress worded "Walk N of 5 toward your baseline" and "N more walks to go" (or Full Test, matching whichever mode was run; wording as built 2026-11-15, one source for every screen), no relative index yet. Sessions 1-5 instead show a **provisional 0-100 score** on its own labelled scale, derived from fixed placeholder reference values (poor/good anchors for step regularity, stride regularity, step-time variability and the two trunk-motion axes) that are **unvalidated** ([OPEN] — they exist so early sessions carry some number, and are clearly labelled provisional, never framed as a baseline-relative result); raw metrics optionally shown as "reference only". The relative index starts once the 5-session baseline exists
         • If ≥ 5 valid sessions exist *in this mode*: score shown as a **relative index against that mode's baseline** (e.g. baseline = 100, this session = 112) rather than a percentage claim like "12% more stable" — the composite hasn't been calibrated to support that kind of real-world percentage interpretation in v1 — + one-line encouraging summary + tap-to-expand the underlying signals (gait consistency, step-time/cadence variability, trunk-motion proxy, plus limb-specific timing asymmetry when available for unilateral users)
               │
               ▼
@@ -193,13 +201,13 @@ Phone                                   Watch (if the user opened the app)
 - **User never ticks the disclaimer checkbox.** This is an intentional hard gate — there's no skip path to Home. The screen should make clear why they can't proceed, rather than the checkbox failing silently or the Continue button just not responding.
 
 ### Session recording
-- **Motion & Fitness permission denied.** The Start button must degrade gracefully — explain why the app can't record, don't let the user tap Start into a silent failure.
+- **Motion & Fitness permission denied.** The Start button must degrade gracefully — explain why the app can't record, don't let the user tap Start into a silent failure. When authorization is still undetermined, the app asks when the user taps Start, before priming and the countdown; denied or restricted shows this blocked state. The one-line reason ("Stabilyz needs Motion & Fitness access to measure your walking. We'll ask when you tap Start.") shows above Start only while undetermined.
 - **Phone call or notification interrupts a session mid-recording.** Recording should either pause/resume cleanly or the session should be flagged as noisy — it must not silently produce a corrupted "clean" score.
 - **User stops a session early, or doesn't accumulate enough valid walking data, relative to their chosen mode.** Resolved (see Open Question 3): the advertised test length (1:30 for Quick Test, 3:00 for Full Test) is not the same threshold as the *valid walking data* required to produce a score — Quick Test requires 60 seconds of valid walking data, Full Test requires 2:15 (135 seconds), and invalid segments (pauses and other non-walking motion) don't count toward that requirement even if the clock ran the full advertised length. Setup is handled differently now: the start countdown (see Open Question 6) ends before recording begins, so phone-stowing is outside the session entirely rather than recorded and then filtered. Non-walking segments **after** zero — the first few steps of getting going, a pause at a crosswalk — must still be detected and excluded. Anything short of the relevant threshold, or otherwise failing data-quality checks, routes to the noisy/insufficient-data path and does not attempt a score.
 - **App is backgrounded or the phone locks during a session.** iOS can suspend motion updates in the background — this needs explicit handling (either prevent backgrounding during a session with a clear message, or confirm CMMotionManager background recording is configured correctly).
 - **App is backgrounded, the phone locks, or a call arrives mid-countdown.** Backgrounding or an interruption cancels the countdown rather than letting it elapse into a recording the user isn't positioned for — no session is created, and nothing is marked invalid, since nothing was recorded. This is distinct from an interruption *during* recording, which has its own pause/flag handling above. Screen-off is **not** cancellation: a user deliberately locking the phone as they pocket it is the countdown working as intended, so idle auto-lock must not end the countdown or the session.
 - **User cancels mid-countdown.** The countdown screen needs an explicit, reachable Cancel. It returns to the setup screen with the mode and cue selections intact, creates no session record, and affects no baseline count. A user who instead lets it start and immediately taps Stop lands on the existing insufficient-data path — both are acceptable outcomes, and neither produces a scored session.
-- **Haptics unavailable, disabled, or not perceivable by the user.** The countdown's haptic ticks are a convenience for a phone already stowed, not the mechanism — the on-screen numerals always run, so a device with System Haptics switched off, hardware without a Taptic Engine, or a user who simply can't feel them loses nothing they need. It degrades silently: no error, no blocked Start. (As built, the tick honours the System Haptics setting, while the phone's Go and Stop are sustained vibrations that play regardless of it; the app's own Start & Stop Haptics setting still governs them, and where the haptic engine cannot run they fall back to a heavy tap.) This is unrelated to the Bluetooth-audio edge case below — haptics are on-device and are never routed through an audio device.
+- **Haptics unavailable, disabled, or not perceivable by the user.** The countdown's haptic ticks are a convenience for a phone already stowed, not the mechanism — the on-screen numerals always run, so a device with System Haptics switched off, hardware without a Taptic Engine, or a user who simply can't feel them loses nothing they need. It degrades silently: no error, no blocked Start. (As built, the tick honours the System Haptics setting, while the phone's Go and Stop are sustained vibrations that play regardless of it; the app's own Start & Stop Haptics setting still governs them, and where the haptic engine cannot run they fall back to a heavy tap.) This is unrelated to the Bluetooth-audio edge case below — haptics are on-device and are never routed through an audio device. (One further haptic, approved 2026-11-15: the single success notification on a valid completion screen, after Stop, on the phone, only with Start & Stop Haptics on — decisions.md entry 59. Nothing plays between Go and Stop.)
 - **User stands still mid-session** (answers the door, waits at a crosswalk). This isn't necessarily "noisy" data, but static periods shouldn't be scored as if they were walking — the algorithm needs to detect and exclude non-walking segments, or the session needs to flag it.
 - **Session recorded in a small space with lots of turning.** Turn-detection is explicitly out of v1 scope, so a session that's mostly turns could produce a misleadingly bad score. Worth a short instruction to the user ("walk in as straight a line as you can") rather than a technical fix in v1.
 - **Low battery / thermal throttling during recording.** Should not crash the session; at minimum, fail gracefully into the noisy-data path.
@@ -250,6 +258,7 @@ Phone                                   Watch (if the user opened the app)
 - [ ] The disclaimer text remains accessible after onboarding (e.g. Settings/About), even though the required checkbox itself is only presented once, during onboarding.
 - [ ] Onboarding presents one field (or tightly grouped field-set) per screen with a visible progress indicator.
 - [ ] "Why we ask" microcopy appears on the amputation level and side screens.
+- [ ] A disabled Next says why on the steps that really block: "Choose an answer to continue" on the amputation level and side steps, the disclaimer line on the disclaimer step; the same words are the button's VoiceOver hint. The optional steps never block and say nothing.
 - [ ] A user can complete onboarding with only required fields filled; optional fields (time since amputation, device type, K-level) can be skipped without blocking progress, and all three can be edited later in Settings.
 - [ ] Onboarding progress persists across an app relaunch mid-flow, including on the final disclaimer screen if the app is quit before the box is ticked.
 - [ ] Bilateral amputation is a selectable, fully supported option (not a dead end in the algorithm downstream).
@@ -270,8 +279,16 @@ Phone                                   Watch (if the user opened the app)
 - [ ] Tapping Stop ends recording immediately — **no countdown** — and plays a single haptic pulse plus a distinct, different stop tone. The asymmetry with Start is deliberate: the delay at Start buys the user time to get situated, which has no equivalent at Stop, where they have already finished walking.
 - [ ] A session that doesn't accumulate the required amount of **valid walking data** for its selected mode — 60 seconds for Quick Test, 2:15 (135 seconds) for Full Test — is routed to the noisy/insufficient-data path and never scored, even if the full advertised session length (1:30 / 3:00) elapsed on the clock. Pauses and other non-walking segments don't count toward this requirement. The start countdown removes phone-stowing from the recording entirely, but non-walking segments after zero must still be detected and excluded.
 - [ ] When a session ends by a manual Stop (on the phone or the watch), the final 3 seconds of signal are dropped before analysis (a provisional placeholder, tunable). A session that ends on the timer keeps its tail. The end reason is **derived, not stored**: if the recorded clock reached the mode's advertised length it is a timer end, otherwise it is a manual Stop from the phone or the watch. The valid-walking floor above is evaluated **after** the trim. The 3 s is an `[OPEN]` placeholder (`manualStopTailTrim`; decisions.md entry 51). Rationale: Tura et al. 2012 report a negative effect of the last strides before stopping on regularity.
-- [ ] If Motion & Fitness permission is not granted, the Start button explains why recording can't proceed instead of failing silently.
+- [ ] If Motion & Fitness permission is not granted, the Start button explains why recording can't proceed instead of failing silently. If it is undetermined, tapping Start requests it before priming and the countdown, and the countdown begins only once it is answered.
+- [ ] The setup screen shows "Walk normally — there's no target pace" before that mode's baseline exists, and "Walk in as straight a line as you can" always.
+- [ ] While the countdown is up, the clock and Stop are hidden, and the hidden Stop is neither tappable nor reachable by VoiceOver; they appear after the countdown clears. The white countdown numeral reaches at least 4.5:1 on its scrim in light and dark mode. Under Reduce Motion the countdown overlay uses opacity only and hand-offs swap instantly.
+- [ ] On a valid completion only, one success notification haptic plays after Stop, on the phone, only when Start & Stop Haptics is on; the checkmark bounces once (static under Reduce Motion). Nothing is added between Go and Stop. An invalid walk gets neither.
+- [ ] The unclear-walk message states the specific reason with one next step; when the reason is too short, the figure comes from the session policy (60 seconds Quick Test, 2 minutes 15 seconds Full Test); it ends "This session won't count toward your baseline."
+- [ ] Baseline progress is worded one way everywhere: "Walk N of 5 toward your baseline" and "N more walks to go".
+- [ ] At Dynamic Type xxLarge and above the score numeral and labels and the recording clock sit below their rings; capsule button labels wrap rather than truncate (55 pt is a minimum height); screens with a pinned primary action scroll their content at accessibility sizes. Two-option choices use a control whose labels scale (44 pt minimum, checkmark plus fill for the selected option).
 - [ ] A session with excessive noise (define threshold) is flagged automatically and shown the plain-language noisy-data screen — no score is displayed for a flagged session.
+
+> **Not verified (2026-11-15).** The success haptic and the checkmark bounce were not felt or seen on a device; the undetermined-permission state was not captured in the simulator; VoiceOver was reviewed in code only.
 
 ### Scoring & baseline
 - [ ] For a valid session, **gait consistency** — step regularity (Ad1) and stride regularity (Ad2), via autocorrelation of the trunk acceleration signal — is computed identically for every user regardless of amputation type (unilateral or bilateral), alongside step-time/cadence variability and an acceleration-based trunk-motion proxy (defined as a specific computation — e.g. RMS or variance of mediolateral and vertical acceleration during steady-state walking — not just labeled "balance"); all are stored, tagged with the session's mode.
@@ -373,15 +390,15 @@ The user opens the watch app manually. Before a session, while the watch app is 
 On the setup screen, when the watch app is reachable, one line: **"Timer will show on your watch"** — which also tells the user haptics will come from the watch. When it isn't reachable, nothing is shown, and nothing alarming takes its place: using the phone alone is the v1 experience, not an error. Light and dark mode; VoiceOver label.
 
 ### Watch screens
-Dark background, navy primary, 15 pt minimum text, VoiceOver labels on every element.
+Dark background, navy primary, 15 pt minimum text, VoiceOver labels on every element. Non-text contrast is 3:1 or better: the progress fill on its track is 4.88:1, and the navy capsule carries a 1 pt outline (4.57:1 on black; white on navy 8.26:1), tested in `WatchContrastTests`. The progress bar fills continuously with the timer and never pulses. The Countdown keeps "Phone in pocket" with the numeral at the largest text sizes.
 
 | Screen | Content |
 |---|---|
 | **Waiting** | "Start on your iPhone", selected mode and length |
 | **Countdown** | "Get ready" heading, 5→1 then "Go", "Phone in pocket"; a VoiceOver announcement per numeral; no Cancel, no Stop |
 | **Running** | Elapsed timer, progress bar, 55 pt Stop capsule |
-| **Stopped** | "Walk finished", "See your result on iPhone", Done (returns to Waiting) |
-| **Disconnected** | "Phone not reachable"; the local timer keeps running; "Keep walking. Your walk is still recording."; no Stop; no haptic |
+| **Stopped** | "Walk finished", Done (returns to Waiting), then "See your result on iPhone" — in that order, so Done is on the first screen at large text |
+| **Disconnected** | The local timer (which keeps running) and progress bar first, then "Phone not reachable" and "Keep walking. Your walk is still recording."; no Stop; no haptic |
 
 ### Sync
 WatchConnectivity, phone to watch, with one message type back (the stop request). Every message is **versioned and Codable**.

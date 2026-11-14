@@ -2933,3 +2933,82 @@ Nothing else moved. The estimator and the unchanged peak-splitting search are
 described in entry 48.
 
 ---
+
+## 58. Session flow and setup polish for large text and Reduce Motion
+
+**Date:** 2026-11-15 · **Task:** post-review UI polish (documents commits `d82cf36`, `de5d721`, `747ee53`) · **Status:** Decided; landed
+
+What landed, and where it is now described (design-system.md §2.6, §5, §9, §10;
+PRD §5, §6, §7, §8; docs/04, 07, 11):
+
+- **Buttons and rings.** The 55 pt hero height is a minimum; labels wrap to two
+  lines instead of truncating; screens with a pinned primary action scroll
+  their content at accessibility sizes. From Dynamic Type xxLarge
+  (`DynamicTypeSize.usesStackedRing`) the score numeral and labels and the
+  recording clock sit below their ring; recording toggle labels wrap.
+- **Countdown.** Scrim 0.65 black in light mode, 0.45 in dark
+  (`StabilyzColor.countdownScrim`), with a tested 4.5:1 requirement for the white
+  numeral. The numeral is centred in the timer ring. The clock and Stop are
+  hidden until the countdown clears; the hidden Stop is not tappable or
+  reachable by VoiceOver. Under Reduce Motion the overlay is opacity only.
+- **Hand-offs** (countdown to walk, walk to processing, processing to completion
+  to score) fade out (`Motion.handoffOut`, 0.2 s) and then in
+  (`Motion.handoffIn`, 0.25 s); instant under Reduce Motion. Recording start and
+  the Go haptic and tone timing are unchanged.
+- **Motion & Fitness** is requested when the user taps Start, before priming and
+  the countdown, while authorization is undetermined. Denied or restricted shows
+  the existing blocked state. A one-line reason shows above Start only while
+  undetermined.
+- **Copy.** Unclear-walk copy is reason-specific with one next step each; the
+  too-short figure comes from `SessionPolicy` (60 seconds Quick, 2 minutes 15
+  seconds Full) and the message keeps "This session won't count toward your
+  baseline." Baseline progress has one source (`BaselineProgressCopy`): "Walk N
+  of 5 toward your baseline" and "N more walks to go", the 5 from
+  `Baseline.requiredValidSessionCount`; Clinician Summary's own lines were left
+  as they were. Setup shows "Walk normally — there's no target pace" before the
+  mode's baseline exists and "Walk in as straight a line as you can" always.
+  A disabled Next shows "Choose an answer to continue" on the amputation level
+  and side steps (also its VoiceOver hint).
+- **`SegmentedChoice`** is the app's two-option control (Walk, Result, Clinician
+  Summary): text styles, vertical stack at accessibility sizes, 44 pt minimum,
+  selected state shown by a checkmark and fill plus the selected trait. The system
+  `.segmented` picker is not used because its labels do not scale and break the
+  15 pt floor.
+- **Watch.** Disconnected shows timer, bar, then the message; Stopped shows title,
+  Done, then detail; a tighter text step keeps "Phone in pocket" with the
+  countdown numeral. The progress fill (#8FB4D6) on its track (#3A3F47) is
+  4.88:1; the navy #1B4F8C capsule gets a 1 pt #3F78B5 outline (4.57:1 on black);
+  white on navy is 8.26:1; asserted in `WatchContrastTests`. The bar fills
+  continuously with no pulsing.
+
+**Not verified.** The success haptic (entry 59) and the checkmark bounce were
+not felt or seen on a device. The undetermined-permission state was not captured
+in the simulator. VoiceOver was reviewed in code only, not run. The Welcome
+screen, which also drops its illustration and scrolls at accessibility sizes,
+carries the same caveat.
+
+---
+
+## 59. A single success haptic on a valid completion (PRD addition)
+
+**Date:** 2026-11-15 · **Task:** post-review UI polish (documents commit `d82cf36`) · **Status:** Decided; approved by the product owner on 2026-11-15
+
+PRD §5 and §6 list haptics for the countdown ticks, Go and Stop only. This adds
+one: on a **valid** completion, the completion screen plays one success
+notification haptic after Stop (`HapticFeedbackService.playCompletionSuccess()`,
+a `UINotificationFeedbackGenerator` `.success`), and the checkmark bounces once
+(static under Reduce Motion, hidden from VoiceOver).
+
+- Phone only; no watch haptic is added.
+- Only when Start & Stop Haptics is on. Off means no haptic.
+- A valid (measured) walk only; the unclear walk gets neither the haptic nor the
+  bounce.
+- One request per completion screen, timed to the screen becoming visible (after
+  the 0.2 s fade-out; immediately under Reduce Motion).
+- **No cue of any kind was added between Go and Stop.** Measurement sessions are
+  unchanged.
+
+Gating is covered by `SessionResultTests` and `CountdownCoordinatorTests`. **Not
+verified:** the haptic was not felt, nor the bounce seen, on a device.
+
+---
