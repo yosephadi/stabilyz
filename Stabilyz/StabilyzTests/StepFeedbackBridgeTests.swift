@@ -291,7 +291,7 @@ private func ticks(
 
 // MARK: - Suspended audio drops rather than queues (7.1.2's decision holds)
 
-@Test func ticksRequestedWhileTheServiceIsSuspendedAreDroppedNotQueued() async {
+@Test(.requiresRealAudioEngine) func ticksRequestedWhileTheServiceIsSuspendedAreDroppedNotQueued() async {
     let service = EngineAudioFeedbackService(logService: BridgeLog())
     await service.prepare()
     guard await service.isRunning else {
