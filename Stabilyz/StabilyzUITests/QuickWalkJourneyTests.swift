@@ -22,7 +22,7 @@ final class QuickWalkJourneyTests: XCTestCase {
         let stop = app.buttons["session.stop"].waitToAppear(timeout: 20, "the countdown reaches the walk")
         app.buttons["countdown.cancel"].waitToDisappear(timeout: 10)
 
-        stop.tap()
+        stop.waitToBeHittable(timeout: 10, "Stop is revealed once the countdown clears").tap()
 
         // Processing routes to the gate; a scoreable walk offers its result.
         let viewResult = app.buttons["session.viewResult"]

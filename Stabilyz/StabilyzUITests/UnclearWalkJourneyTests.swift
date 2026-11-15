@@ -16,7 +16,7 @@ final class UnclearWalkJourneyTests: XCTestCase {
         start.tap()
         let stop = app.buttons["session.stop"].waitToAppear(timeout: 20, "the countdown reaches the walk")
         app.buttons["countdown.cancel"].waitToDisappear(timeout: 10)
-        stop.tap()
+        stop.waitToBeHittable(timeout: 10, "Stop is revealed once the countdown clears").tap()
 
         // The unclear gate: one way out, and no result to view.
         let back = app.buttons["session.backToWalk"].waitToAppear(timeout: 60, "processing reached the completion gate")
