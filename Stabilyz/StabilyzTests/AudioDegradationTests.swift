@@ -56,7 +56,7 @@ private struct DegradationClock: Clock {
 
 // MARK: - The state machine
 
-@Test func anInterruptionSuspendsPlayback() async {
+@Test(.requiresRealAudioEngine) func anInterruptionSuspendsPlayback() async {
     let service = makeService()
     await service.prepare()
     guard await service.isRunning else { await service.teardown(); return }
@@ -67,7 +67,7 @@ private struct DegradationClock: Clock {
     await service.teardown()
 }
 
-@Test func theEndOfAnInterruptionResumesOrDegrades() async {
+@Test(.requiresRealAudioEngine) func theEndOfAnInterruptionResumesOrDegrades() async {
     let log = DegradationLog()
     let service = makeService(log: log)
     await service.prepare()
@@ -84,7 +84,7 @@ private struct DegradationClock: Clock {
     await service.teardown()
 }
 
-@Test func aRouteChangeIsSurvivedAndTheSessionContinues() async {
+@Test(.requiresRealAudioEngine) func aRouteChangeIsSurvivedAndTheSessionContinues() async {
     // AirPods dying mid-session: iOS reroutes, the engine may need rebuilding,
     // and either way the walk carries on.
     let log = DegradationLog()
@@ -98,7 +98,7 @@ private struct DegradationClock: Clock {
     await service.teardown()
 }
 
-@Test func repeatedEventsAreIdempotent() async {
+@Test(.requiresRealAudioEngine) func repeatedEventsAreIdempotent() async {
     let service = makeService()
     await service.prepare()
 
@@ -111,7 +111,7 @@ private struct DegradationClock: Clock {
     await service.teardown()
 }
 
-@Test func aDegradedEventIsNotAmplifiedIntoFurtherDegradation() async {
+@Test(.requiresRealAudioEngine) func aDegradedEventIsNotAmplifiedIntoFurtherDegradation() async {
     let service = makeService()
     await service.prepare()
     await service.handle(.degraded)
@@ -120,7 +120,7 @@ private struct DegradationClock: Clock {
 
 // MARK: - Drop, don't queue — across an interruption
 
-@Test func tonesRequestedDuringAnInterruptionAreNeverReplayed() async {
+@Test(.requiresRealAudioEngine) func tonesRequestedDuringAnInterruptionAreNeverReplayed() async {
     // 7.1.1's decision, carried across the interruption boundary: a tick that
     // arrives after the interruption ends is worse than no tick.
     let service = makeService()
@@ -142,7 +142,7 @@ private struct DegradationClock: Clock {
     await service.teardown()
 }
 
-@Test func playingResumesNormallyAfterAnInterruption() async {
+@Test(.requiresRealAudioEngine) func playingResumesNormallyAfterAnInterruption() async {
     let service = makeService()
     await service.prepare()
     guard await service.isRunning else { await service.teardown(); return }
@@ -158,7 +158,7 @@ private struct DegradationClock: Clock {
     await service.teardown()
 }
 
-@Test func aDegradedServiceStaysSilentButStaysUsable() async {
+@Test(.requiresRealAudioEngine) func aDegradedServiceStaysSilentButStaysUsable() async {
     let service = makeService()
     await service.prepare()
 
@@ -293,7 +293,7 @@ private struct DegradationClock: Clock {
 
 // MARK: - Silent to the user, logged for diagnostics
 
-@Test func degradationIsLoggedRatherThanSurfaced() async {
+@Test(.requiresRealAudioEngine) func degradationIsLoggedRatherThanSurfaced() async {
     // [PRD §6] no alert, no error screen — but a diagnosable trail.
     let log = DegradationLog()
     let service = makeService(log: log)
