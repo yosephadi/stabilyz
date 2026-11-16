@@ -135,8 +135,8 @@ final class OnboardingViewModel {
         persist()
     }
 
-    /// Which band the amputation falls into. One of five, and until one is
-    /// picked the screen has no answer.
+    /// Which band the amputation falls into. One of five; until one is picked
+    /// the screen has no answer, which is complete (it is skippable).
     func select(timeSinceAmputation band: TimeSinceAmputation) {
         draft.timeSinceAmputation = band
         persist()
@@ -166,15 +166,11 @@ final class OnboardingViewModel {
     var canContinue: Bool {
         switch draft.step {
         case .amputationLevel: draft.amputationLevel != nil
-        // Required [PRD §5], and a band has no default. The wheel this replaced
-        // was always showing *something*, so "untouched" and "zero months" were
-        // indistinguishable; five ranges with none selected is an honestly
-        // unanswered screen, and asking for one tap is better than recording an
-        // answer the user never gave.
         case .side: draft.side != nil
-        case .timeSinceAmputation: draft.timeSinceAmputation != nil
-        // Both optional [PRD AC]: neither can block completion.
-        case .prosthesisType, .kLevel: true
+        // Optional (product decision 2026-11-14): all three can be left
+        // unanswered and none can block completion. A band has no default, so
+        // an untouched screen is honestly unanswered and records nothing.
+        case .timeSinceAmputation, .prosthesisType, .kLevel: true
         case .disclaimer: disclaimerAccepted
         }
     }
@@ -182,19 +178,25 @@ final class OnboardingViewModel {
     /// Why the button is unavailable, in the user's words. `nil` where there is
     /// nothing to say.
     ///
-    /// **The disclaimer only.** [PRD §6] names one case — "the checkbox failing
-    /// silently or the Continue button just not responding" — and it is that
-    /// screen, where the gate is a tick box the reader may not have noticed is
-    /// required. The level and side screens used to carry a line too; those
-    /// were ours, and on a screen that is nothing but a list of unchosen
-    /// options they restated the obvious under every question.
+    /// Only the steps that really block: the disclaimer (a tick box the reader
+    /// may not have noticed is required [PRD §6]) and the two required
+    /// questions, level and side, where the disabled Next otherwise gives no
+    /// reason (product decision 2026-11-15). The optional questions never
+    /// block, so they never say anything.
     ///
     /// The rule lives here rather than in the view so a screen cannot acquire
-    /// an explanation by someone adding one to a `case`.
+    /// an explanation by someone adding one to a `case`. The view shows it
+    /// under the button and exposes it as the button's VoiceOver hint.
     var blockedExplanation: String? {
-        guard !canContinue, draft.step == .disclaimer else { return nil }
-        return DisclaimerText.blockedExplanation
+        guard !canContinue else { return nil }
+        switch draft.step {
+        case .disclaimer: return DisclaimerText.blockedExplanation
+        case .amputationLevel, .side: return Self.chooseAnswerExplanation
+        case .timeSinceAmputation, .prosthesisType, .kLevel: return nil
+        }
     }
+
+    static let chooseAnswerExplanation = "Choose an answer to continue"
 
     // MARK: - Movement
 
@@ -213,11 +215,12 @@ final class OnboardingViewModel {
 
     /// Whether this screen offers "Skip".
     ///
-    /// The two optional fields and nothing else [PRD §6 edge case: "user skips
-    /// both optional fields"; §7 AC: they can be left blank without blocking
-    /// progress]. Level, side and time are required, and the disclaimer is the
-    /// one hard gate in the app [PRD §7 AC — there is no skip path to Home], so
-    /// none of them may show it.
+    /// The three optional fields and nothing else [PRD §6 edge case, §7 AC:
+    /// they can be left blank without blocking progress; time since amputation
+    /// joined them by the 2026-11-14 product decision]. Level and side are
+    /// required (they gate step-time asymmetry), and the disclaimer is the one
+    /// hard gate in the app [PRD §7 AC — there is no skip path to Home], so
+    /// none of those may show it.
     var canSkip: Bool { draft.step.isOptionalField }
 
     /// Leaves an optional field blank and moves on.
@@ -229,9 +232,10 @@ final class OnboardingViewModel {
         guard canSkip else { return }
 
         switch draft.step {
+        case .timeSinceAmputation: draft.timeSinceAmputation = nil
         case .prosthesisType: draft.prosthesisType = nil
         case .kLevel: draft.kLevel = nil
-        case .amputationLevel, .side, .timeSinceAmputation, .disclaimer: return
+        case .amputationLevel, .side, .disclaimer: return
         }
         persist()
         await advance()
@@ -274,8 +278,7 @@ final class OnboardingViewModel {
     private func complete() async {
         guard disclaimerAccepted else { return }
         guard let level = draft.amputationLevel,
-              let side = draft.side,
-              let timeSinceAmputation = draft.timeSinceAmputation
+              let side = draft.side
         else { return }
 
         saveFailure = nil
@@ -288,8 +291,8 @@ final class OnboardingViewModel {
                 side: side,
                 // The band's lower bound: the one number in the range that is
                 // true of everyone who picked it, and distinct enough that the
-                // band is recoverable from it.
-                timeSinceAmputationMonths: timeSinceAmputation.lowerBoundMonths,
+                // band is recoverable from it. nil when the question was skipped.
+                timeSinceAmputationMonths: draft.timeSinceAmputation?.lowerBoundMonths,
                 prosthesisType: draft.prosthesisType?.rawValue,
                 kLevel: draft.kLevel,
                 disclaimerAcceptedAt: now,

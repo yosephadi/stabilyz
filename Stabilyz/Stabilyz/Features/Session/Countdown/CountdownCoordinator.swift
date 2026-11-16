@@ -346,6 +346,14 @@ final class CountdownCoordinator {
         })
     }
 
+    /// The one success haptic on a measured walk's completion screen — after
+    /// Stop, never before. Played on the phone only, through the same service
+    /// as the other session cues, and only when Start & Stop Haptics is on.
+    func completionSucceeded(hapticsOn: Bool) async {
+        guard hapticsOn else { return }
+        await haptics.playCompletionSuccess()
+    }
+
     /// The walk ended: plays the Stop pulse if the phone should, and tells the
     /// watch.
     ///

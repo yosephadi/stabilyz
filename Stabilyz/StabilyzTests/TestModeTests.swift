@@ -4,9 +4,9 @@ import Testing
 // MARK: - TestMode
 
 @Test func advertisedDurationsMatchTheTwoClinicalWalkTests() {
-    // [PRD §5] 2-minute Quick Test, 6-minute Full Test.
-    #expect(TestMode.quickTest.advertisedDuration == .seconds(120))
-    #expect(TestMode.fullTest.advertisedDuration == .seconds(360))
+    // [PRD §5, OQ-3] provisional 90 s Quick Test, 180 s Full Test.
+    #expect(TestMode.quickTest.advertisedDuration == .seconds(90))
+    #expect(TestMode.fullTest.advertisedDuration == .seconds(180))
 }
 
 @Test func displayNamesMatchThePRDCopy() {
@@ -25,10 +25,10 @@ import Testing
 
 // MARK: - SessionPolicy
 
-@Test func v1MinimumsAreNinetySecondsAndFourMinutes() {
-    // [PRD OQ-3] ~90 seconds Quick Test, ~4 minutes Full Test.
-    #expect(SessionPolicy.v1.minimumValidWalkingDuration(for: .quickTest) == .seconds(90))
-    #expect(SessionPolicy.v1.minimumValidWalkingDuration(for: .fullTest) == .seconds(240))
+@Test func v1MinimumsAreOneMinuteAndTwoFifteen() {
+    // [PRD OQ-3] provisional: 60 s Quick Test, 135 s (2:15) Full Test.
+    #expect(SessionPolicy.v1.minimumValidWalkingDuration(for: .quickTest) == .seconds(60))
+    #expect(SessionPolicy.v1.minimumValidWalkingDuration(for: .fullTest) == .seconds(135))
     #expect(SessionPolicy.v1.version == 1)
 }
 
@@ -46,11 +46,11 @@ import Testing
     // (docs/22 Phase 12), so a new policy version must not require a model change.
     let tuned = SessionPolicy(
         version: 2,
-        quickTestMinimumValidWalking: .seconds(100),
-        fullTestMinimumValidWalking: .seconds(250)
+        quickTestMinimumValidWalking: .seconds(70),
+        fullTestMinimumValidWalking: .seconds(150)
     )
 
-    #expect(tuned.minimumValidWalkingDuration(for: .quickTest) == .seconds(100))
+    #expect(tuned.minimumValidWalkingDuration(for: .quickTest) == .seconds(70))
     #expect(tuned != SessionPolicy.v1)
-    #expect(TestMode.quickTest.advertisedDuration == .seconds(120))
+    #expect(TestMode.quickTest.advertisedDuration == .seconds(90))
 }

@@ -58,7 +58,7 @@ final class ActiveSessionViewModel {
 
     // MARK: - The clock
 
-    /// The advertised length — 2 minutes or 6 minutes [PRD §5].
+    /// The advertised length — 1:30 or 3:00 [PRD §5].
     ///
     /// Deliberately not the valid-walking minimum: the ring shows the walk the
     /// user was asked for, while whether the session is scoreable is decided
@@ -79,12 +79,12 @@ final class ActiveSessionViewModel {
         return min(max(remaining.seconds / totalSeconds, 0), 1)
     }
 
-    /// `mm:ss`, zero-padded — "02:00", "06:00", "00:09".
+    /// `mm:ss`, zero-padded — "01:30", "03:00", "00:09".
     var timerText: String { Self.clockText(remaining) }
 
     static let timerCaption = "Time remaining"
 
-    /// Spoken rather than read: "2 minutes 0 seconds remaining" beats
+    /// Spoken rather than read: "1 minute 30 seconds remaining" beats
     /// VoiceOver spelling out a colon-separated string.
     var timerAccessibilityLabel: String {
         let seconds = Int(remaining.seconds.rounded())
@@ -157,7 +157,7 @@ final class ActiveSessionViewModel {
 
     /// Ends the walk when the advertised length runs out.
     ///
-    /// The user asked for two minutes, so two minutes is what the app takes —
+    /// The user asked for a fixed length, so that length is what the app takes —
     /// leaving them walking past a clock reading `00:00`, waiting to be told
     /// they may stop, would be the app failing to finish what it started. It
     /// goes through `stop()`, so the natural end and the tapped one are the

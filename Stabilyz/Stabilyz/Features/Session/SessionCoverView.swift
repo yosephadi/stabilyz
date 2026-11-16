@@ -42,7 +42,13 @@ struct SessionCoverView: View {
     /// which of the two the user is looking at.
     @State private var isShowingScore = false
     @State private var phase: SessionFlowPhase = .countdown
+    /// False until the countdown's own controls (scrim, numeral, Cancel) have
+    /// fully cleared. The clock and Stop are drawn only after that, so the
+    /// hand-off is sequential — Cancel is never over Stop — and the recorder is
+    /// not involved: recording starts at T-0 regardless.
+    @State private var isWalkRevealed = false
     @Environment(\.scenePhase) private var scenePhase
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     init(
         mode: TestMode,
@@ -94,22 +100,22 @@ struct SessionCoverView: View {
             switch phase {
             case .countdown, .recording:
                 walk
+                    .transition(handoff)
             case .processing:
                 ProcessingView(mode: mode)
-                    .transition(.opacity)
+                    .transition(handoff)
             case .finished(let result):
                 completion(for: result)
-                    .transition(.opacity)
             case .failed:
                 // The error belongs beside the Start button that will try
                 // again, so the cover closes and the setup screen reports it
                 // (docs/15 §15.1).
                 ProcessingView(mode: mode)
-                    .transition(.opacity)
+                    .transition(handoff)
             }
         }
-        .animation(.easeOut(duration: Motion.countdownDismiss), value: phase)
-        .animation(.easeOut(duration: Motion.countdownDismiss), value: isShowingScore)
+        .animation(handoffAnimation, value: phase)
+        .animation(handoffAnimation, value: isShowingScore)
         // No swipe-to-dismiss while the walk or its analysis is in flight
         // [PRD §5]: a recorded session the user can never see is worse than a
         // few seconds of waiting.
@@ -141,6 +147,37 @@ struct SessionCoverView: View {
             // destinations processing routes to, and the cover closes only when
             // the user leaves one of them [PRD §5].
             if case .failed = phase { dismiss() }
+            if case .finished(let result) = phase { celebrate(result) }
+        }
+    }
+
+    // MARK: - Hand-offs
+
+    /// Old content out, then new content in — never both at once, so Cancel is
+    /// not drawn over Stop and "Processing your data" is not drawn over the
+    /// completion title. Reduce Motion swaps instantly.
+    private var handoff: AnyTransition {
+        guard !reduceMotion else { return .identity }
+        return .asymmetric(
+            insertion: .opacity.animation(.easeOut(duration: Motion.handoffIn).delay(Motion.handoffOut)),
+            removal: .opacity.animation(.easeIn(duration: Motion.handoffOut))
+        )
+    }
+
+    private var handoffAnimation: Animation? {
+        reduceMotion ? nil : .easeOut(duration: Motion.handoffOut)
+    }
+
+    /// The success moment: one notification haptic on a measured walk, after
+    /// Stop, timed to the screen becoming visible. Never for an unclear walk.
+    private func celebrate(_ result: SessionCommitResult) {
+        let content = SessionCompletionContent.content(for: result)
+        guard content.playsSuccessHaptic(hapticsOn: session.isHapticsOn) else { return }
+        Task {
+            if !reduceMotion {
+                try? await Task.sleep(for: .seconds(Motion.handoffOut))
+            }
+            await coordinator.completionSucceeded(hapticsOn: session.isHapticsOn)
         }
     }
 
@@ -161,12 +198,14 @@ struct SessionCoverView: View {
                 ),
                 done: dismiss
             )
+            .transition(handoff)
         } else {
             SessionCompletionView(
                 content: content,
                 viewResult: content.offersResult ? { isShowingScore = true } : nil,
                 backToWalk: dismiss
             )
+            .transition(handoff)
         }
     }
 
@@ -177,20 +216,36 @@ struct SessionCoverView: View {
     }
 
     /// The walk, with the countdown over it until T-0.
+    ///
+    /// The numeral is a separate layer above the scrim, placed at the timer
+    /// ring's centre from the ring's own anchor; the clock and Stop stay
+    /// hidden until the overlay has cleared.
     private var walk: some View {
         ZStack {
-            ActiveSessionView(model: session)
+            ActiveSessionView(model: session, isReadoutHidden: !isWalkRevealed)
                 // Nothing to read behind a countdown; VoiceOver should be on
                 // the numerals until the walk actually starts.
                 .accessibilityHidden(overlay.isVisible)
 
-            if let text = overlay.text {
-                CountdownOverlayView(
-                    numeral: text,
-                    isNumeral: overlay.isNumeral,
-                    cancel: cancelCountdown
-                )
-                .transition(.opacity.combined(with: .scale(scale: 1.1)))
+            if overlay.isVisible {
+                CountdownOverlayView(cancel: cancelCountdown)
+                    .transition(.opacity)
+            }
+        }
+        .overlayPreferenceValue(CountdownRingAnchorKey.self) { anchor in
+            GeometryReader { proxy in
+                if let anchor, let text = overlay.text {
+                    let ring = proxy[anchor]
+                    CountdownNumeralView(numeral: text, isNumeral: overlay.isNumeral)
+                        .position(x: ring.midX, y: ring.midY)
+                        // Opacity only under Reduce Motion; otherwise the
+                        // numeral also eases down from slightly larger.
+                        .transition(
+                            reduceMotion
+                                ? .opacity
+                                : .opacity.combined(with: .scale(scale: Motion.countdownNumeralDismissScale))
+                        )
+                }
             }
         }
         .animation(.easeOut(duration: Motion.countdownDismiss), value: overlay)
@@ -262,14 +317,23 @@ struct SessionCoverView: View {
 
     /// T-0: hold "Go!", start draining the recorder's events, then clear.
     private func reachedT0() {
-        guard let events = coordinator.recordingEvents else { return }
+        guard let events = coordinator.recordingEvents else {
+            isWalkRevealed = true
+            return
+        }
 
         isHoldingGo = true
         Task {
             // The walk is already recording; this only governs how long the
-            // word stays up.
+            // word stays up, and when the clock and Stop appear after it.
             try? await Task.sleep(for: .seconds(Motion.countdownGoHold))
             isHoldingGo = false
+            // Sequential: the overlay finishes clearing, then the walk's own
+            // controls appear.
+            try? await Task.sleep(for: .seconds(Motion.countdownDismiss))
+            withAnimation(reduceMotion ? nil : .easeOut(duration: Motion.handoffIn)) {
+                isWalkRevealed = true
+            }
         }
         Task { await session.observe(events) }
     }

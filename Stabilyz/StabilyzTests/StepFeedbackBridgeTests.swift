@@ -291,7 +291,7 @@ private func ticks(
 
 // MARK: - Suspended audio drops rather than queues (7.1.2's decision holds)
 
-@Test func ticksRequestedWhileTheServiceIsSuspendedAreDroppedNotQueued() async {
+@Test(.requiresRealAudioEngine) func ticksRequestedWhileTheServiceIsSuspendedAreDroppedNotQueued() async {
     let service = EngineAudioFeedbackService(logService: BridgeLog())
     await service.prepare()
     guard await service.isRunning else {
@@ -326,7 +326,7 @@ private func ticks(
 
 // MARK: - The sample path is never blocked (4.3.1's design stands)
 
-@Test func aStalledAudioConsumerNeverDelaysRecording() async throws {
+@Test(.wallClockSensitive) func aStalledAudioConsumerNeverDelaysRecording() async throws {
     // Newest-value buffering on the step stream means a slow audio layer drops
     // ticks rather than backing up into ingestion (docs/10 §10.4).
     let clock = BridgeClock()

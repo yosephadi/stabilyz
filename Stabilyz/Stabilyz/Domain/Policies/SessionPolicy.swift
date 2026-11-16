@@ -18,7 +18,7 @@ struct SessionPolicy: Sendable, Equatable {
     }
 
     /// Valid walking data a session must accumulate to be scoreable
-    /// [PRD OQ-3: ~90 seconds for Quick Test, ~4 minutes for Full Test].
+    /// [PRD OQ-3: 60 seconds (1:00) for Quick Test, 135 seconds (2:15) for Full Test].
     ///
     /// Pauses and other non-walking segments do not count toward this, even
     /// when the advertised length elapsed on the clock. Pre-walk setup is not
@@ -33,15 +33,17 @@ struct SessionPolicy: Sendable, Equatable {
         }
     }
 
-    /// The v1 thresholds.
+    /// The thresholds. (`v1` is the policy identifier, kept so stored `version`
+    /// values still resolve; the floors below were revised 2026-11-14.)
     ///
     /// [PRD OQ-3] frames these explicitly as **v1 product-quality thresholds,
     /// not research-validated clinical minima** — the literature supports the
-    /// 2-/6-minute test lengths, not these floors. They are provisional and are
+    /// 2-/6-minute clinical walk tests, not these floors or the shorter
+    /// advertised lengths (90 s / 180 s). They are provisional and are
     /// to be tuned against real-world session data (docs/22 Phase 12).
     static let v1 = SessionPolicy(
         version: 1,
-        quickTestMinimumValidWalking: .seconds(90),
-        fullTestMinimumValidWalking: .seconds(240)
+        quickTestMinimumValidWalking: .seconds(60),
+        fullTestMinimumValidWalking: .seconds(135)
     )
 }

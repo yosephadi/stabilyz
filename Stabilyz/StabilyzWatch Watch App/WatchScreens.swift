@@ -11,13 +11,16 @@ struct WatchRootView: View {
     @ScaledMetric(relativeTo: .largeTitle) private var timerSize = WatchTheme.timerBaseSize
 
     var body: some View {
-        // The first that fits: full size; then the big numbers smaller, so the
-        // words stay on screen; then full size again, scrolling. Nothing is
-        // ever truncated or clipped.
+        // The first that fits: full size; then the big numbers smaller, then
+        // smaller again, so the words stay on screen; then scrolling. Each
+        // state also puts its essential element first (the timer, the numeral
+        // with "Phone in pocket", Done), so it is on the first screen even
+        // where the rest scrolls. Nothing is ever truncated or clipped.
         ViewThatFits(in: .vertical) {
             screen(numberScale: 1)
             screen(numberScale: WatchTheme.compactNumberScale)
-            ScrollView { screen(numberScale: 1) }
+            screen(numberScale: WatchTheme.tightNumberScale)
+            ScrollView { screen(numberScale: WatchTheme.tightNumberScale) }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(WatchTheme.background)
@@ -77,26 +80,28 @@ struct WatchRootView: View {
                 Text(WatchCopy.stoppedTitle)
                     .font(WatchTheme.title)
                     .wrapping()
+                // Done before the detail, so it is on the first screen at the
+                // largest text size on the smallest watch.
+                Button(WatchCopy.done, action: model.tapDone)
+                    .buttonStyle(.watchPrimaryCapsule)
                 Text(WatchCopy.stoppedDetail)
                     .font(WatchTheme.body)
                     .foregroundStyle(WatchTheme.secondaryText)
                     .wrapping()
-                Button(WatchCopy.done, action: model.tapDone)
-                    .buttonStyle(.watchPrimaryCapsule)
             }
 
         case .disconnected(let timer):
             VStack(spacing: WatchTheme.spacing) {
+                // The timer first: it is what the walker is looking for, and
+                // the message follows it.
+                TimerBlock(timer: timer, size: timerSize, scale: numberScale)
                 Text(WatchCopy.disconnectedTitle)
                     .font(WatchTheme.heading)
                     .wrapping()
-                // The reassurance before the timer, so it is the part that
-                // stays in view on a small watch.
                 Text(WatchCopy.disconnectedDetail)
                     .font(WatchTheme.body)
                     .foregroundStyle(WatchTheme.secondaryText)
                     .wrapping()
-                TimerBlock(timer: timer, size: timerSize, scale: numberScale)
             }
         }
     }
@@ -114,10 +119,29 @@ private struct TimerBlock: View {
                 .font(WatchTheme.timer(size: size, scale: scale))
                 .bigNumber()
                 .accessibilityLabel(timer.accessibilityLabel)
-            ProgressView(value: timer.progress)
-                .tint(WatchTheme.primary)
+            ProgressBar(progress: timer.progress)
+                .accessibilityElement()
                 .accessibilityLabel("Progress")
                 .accessibilityValue("\(Int((timer.progress * 100).rounded())) percent")
         }
+    }
+}
+
+/// The walk's progress: a light fill on a lighter-than-black track, 3:1 or
+/// better between the two (`WatchTheme`). It only ever grows with the timer —
+/// no pulsing, and no animation of its own.
+private struct ProgressBar: View {
+    let progress: Double
+
+    var body: some View {
+        GeometryReader { proxy in
+            ZStack(alignment: .leading) {
+                Capsule().fill(WatchTheme.track)
+                Capsule()
+                    .fill(WatchTheme.progressFill)
+                    .frame(width: proxy.size.width * min(max(progress, 0), 1))
+            }
+        }
+        .frame(height: WatchTheme.progressBarHeight)
     }
 }

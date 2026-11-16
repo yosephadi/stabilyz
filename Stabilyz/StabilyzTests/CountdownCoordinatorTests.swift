@@ -57,7 +57,30 @@ private actor GatedTicker: CountdownTicker {
             credits -= 1
             return
         }
-        await withCheckedContinuation { parked.append($0) }
+        // Cancellation does not resume the parked tick — the test still
+        // releases it — but it is recorded, so a test can wait until a cancel
+        // has provably reached the parked countdown before letting it move.
+        await withTaskCancellationHandler {
+            await withCheckedContinuation { parked.append($0) }
+        } onCancel: {
+            Task { await self.noteCancellation() }
+        }
+    }
+
+    private var cancellationsSeen = 0
+    private func noteCancellation() { cancellationsSeen += 1 }
+
+    /// Waits until a cancellation has reached a countdown parked on a tick.
+    ///
+    /// `async let x = coordinator.cancel()` only *schedules* the cancel. If the
+    /// test released the tick first, the countdown could run on to Go before the
+    /// cancel landed, and "cancel at T-1" would quietly become "cancel after
+    /// Go" — which is what failed once on CI. Bounded, like `waitUntilEntered`.
+    func waitUntilCancellationArrives() async {
+        for _ in 0..<400 {
+            if cancellationsSeen > 0 { return }
+            try? await Task.sleep(for: .milliseconds(5))
+        }
     }
 
     /// Lets one tick through.
@@ -393,6 +416,7 @@ private func makeCoordinator(
     #expect(coordinator.state == .counting(secondsRemaining: 1))
 
     async let cancelled: Void = coordinator.cancel()
+    await ticker.waitUntilCancellationArrives()
     await ticker.releaseAll()
     await cancelled
 
@@ -418,6 +442,7 @@ private func makeCoordinator(
     await ticker.waitUntilEntered(2)
 
     async let cancelled: Void = coordinator.cancel()
+    await ticker.waitUntilCancellationArrives()
     await ticker.releaseAll()
     await cancelled
 
@@ -466,6 +491,7 @@ private func makeCoordinator(
     coordinator.start(mode: .quickTest, audioConfig: .none)
     await ticker.waitUntilEntered(1)
     async let cancelled: Void = coordinator.cancel()
+    await ticker.waitUntilCancellationArrives()
     await ticker.releaseAll()
     await cancelled
 
@@ -576,6 +602,7 @@ private func makeCoordinator(
     ))
 
     async let cancelled: Void = coordinator.cancel()
+    await ticker.waitUntilCancellationArrives()
     await ticker.releaseAll()
     await cancelled
 
@@ -685,6 +712,7 @@ private func makeCoordinator(
     await ticker.waitUntilEntered(2)
 
     async let cancelled: Void = coordinator.cancel()
+    await ticker.waitUntilCancellationArrives()
     await ticker.releaseAll()
     await cancelled
 
@@ -704,6 +732,7 @@ private func makeCoordinator(
     coordinator.start(mode: .quickTest, audioConfig: .none, hapticsEnabled: false)
     await ticker.waitUntilEntered(1)
     async let cancelled: Void = coordinator.cancel()
+    await ticker.waitUntilCancellationArrives()
     await ticker.releaseAll()
     await cancelled
     coordinator.reset()
@@ -754,7 +783,7 @@ private func countToGo(_ coordinator: CountdownCoordinator, _ ticker: GatedTicke
     }
     #expect(sentID == id)
     #expect(mode == .quick)
-    #expect(seconds == 120)
+    #expect(seconds == 90)
     #expect(owner == .watch)
     #expect(enabled)
     // Three one-second ticks in this policy, so Go is planned three seconds
@@ -1068,4 +1097,27 @@ private func eventually(_ condition: () -> Bool) async {
     #expect(log.entries.withLock { $0 } == before, "nothing logged for a watch coming and going")
     let buffer = try await recorder.stop()
     #expect(buffer.honoursAdmissionContract)
+}
+
+// MARK: - The completion success haptic
+
+@MainActor
+@Test func theSuccessHapticIsOneRequestAndRespectsTheHapticsSetting() async {
+    let (coordinator, _, haptics, _, _, _) = makeCoordinator()
+
+    await coordinator.completionSucceeded(hapticsOn: false)
+    #expect(await haptics.taps.isEmpty, "off means no haptic")
+
+    await coordinator.completionSucceeded(hapticsOn: true)
+    #expect(await haptics.taps == [.completionSuccess])
+}
+
+@MainActor
+@Test func startingACountdownPlaysNoSuccessHaptic() async {
+    let (coordinator, _, haptics, _, ticker, _) = makeCoordinator()
+    coordinator.start(mode: .quickTest, audioConfig: .none)
+    await ticker.waitUntilEntered(2)
+    await ticker.releaseAll()
+    await coordinator.cancel()
+    #expect(await haptics.count(of: .completionSuccess) == 0, "never during the countdown or a walk")
 }

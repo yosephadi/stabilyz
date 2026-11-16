@@ -13,7 +13,12 @@ enum TestMode: String, Sendable, CaseIterable, Codable {
     case fullTest
 
     /// The advertised test length shown to the user and run on the clock
-    /// [PRD §5: 2-minute Quick Test, 6-minute Full Test].
+    /// [PRD §5, OQ-3: Quick Test 90 s (1:30), Full Test 180 s (3:00)].
+    ///
+    /// **Provisional product lengths, not research-validated.** The 2MWT/6MWT
+    /// clinical tests the modes are modelled on run 2 and 6 minutes; these
+    /// shorter lengths were set by the product owner (2026-11-14) and are to be
+    /// tuned against real-world session data.
     ///
     /// Deliberately **not** the same thing as the valid-walking requirement in
     /// `SessionPolicy`: a session can run the full advertised length and still
@@ -21,8 +26,8 @@ enum TestMode: String, Sendable, CaseIterable, Codable {
     /// non-walking motion [PRD OQ-3].
     var advertisedDuration: Duration {
         switch self {
-        case .quickTest: .seconds(120)
-        case .fullTest: .seconds(360)
+        case .quickTest: .seconds(90)
+        case .fullTest: .seconds(180)
         }
     }
 

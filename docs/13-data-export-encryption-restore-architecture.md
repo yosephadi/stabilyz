@@ -34,7 +34,7 @@ Stabilyz Export File (.stabilyz [REC extension])
 
 1. User sets + confirms passphrase in the Export wizard; the **unrecoverable-passphrase warning is shown before generation [PRD]**.
 2. Passphrase canonicalized (leading/trailing whitespace trimmed, then Unicode NFC — §13.3), converted to bytes, held only in memory for the operation [PRD: never written to disk; no recovery].
-3. **KDF [PRD]:** PBKDF2-HMAC-SHA256 via CommonCrypto `CCKeyDerivationPBKDF` (Apple's vetted implementation; CryptoKit does not provide PBKDF2), **unique 16-byte random salt per export [PRD]** (SecRandomCopyBytes), iteration count calibrated on-device (~200–500 ms; starting point ~300k [REC], stored in header so old exports stay decryptable).
+3. **KDF [PRD]:** PBKDF2-HMAC-SHA256 via CommonCrypto `CCKeyDerivationPBKDF` (Apple's vetted implementation; CryptoKit does not provide PBKDF2), **unique 16-byte random salt per export [PRD]** (SecRandomCopyBytes), iteration count calibrated on-device (~200–500 ms), with a **floor of 600,000** (OWASP Password Storage Cheat Sheet; raised from 300,000 on 2026-11-14, decisions.md entry 55), stored in the header so older archives written with lower counts stay decryptable and import still accepts them.
 4. **AEAD [PRD]:** AES-256-GCM via CryptoKit, random 12-byte nonce, seal the serialized payload.
 5. Write **ciphertext only** to a temp file (no plaintext temp file ever exists [REC — serialize in memory]), present via the **system share sheet [PRD]** (destination is the user's choice; explicit user action only, never automatic), then delete the temp file.
 6. **No custom cryptographic primitives anywhere [PRD]** — CryptoKit + CommonCrypto only.

@@ -5,7 +5,7 @@ import Foundation
 ///
 /// A policy rather than a constant at the call site, for the same reason
 /// `SessionPolicy` is: the value is **provisional and tunable** — the same
-/// category as the ~90 sec / ~4 min valid-walking floors — and versioning it
+/// category as the 60 s / 2:15 valid-walking floors — and versioning it
 /// means a change is a change to one declared thing rather than a number
 /// someone edits in a view.
 ///

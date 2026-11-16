@@ -82,7 +82,7 @@ private func makeService(log: AudioLog = AudioLog()) -> EngineAudioFeedbackServi
 
 // MARK: - Engine lifecycle (state is verifiable; audible output is not)
 
-@Test func prepareIsIdempotent() async {
+@Test(.requiresRealAudioEngine) func prepareIsIdempotent() async {
     let service = makeService()
     await service.prepare()
     let first = await service.isRunning
@@ -93,7 +93,7 @@ private func makeService(log: AudioLog = AudioLog()) -> EngineAudioFeedbackServi
     await service.teardown()
 }
 
-@Test func everyToneCallIsSafeBeforePrepare() async {
+@Test(.requiresRealAudioEngine) func everyToneCallIsSafeBeforePrepare() async {
     // Audio must never fail a session (docs/10 §10.4), including when it was
     // never started.
     let service = makeService()
@@ -107,7 +107,7 @@ private func makeService(log: AudioLog = AudioLog()) -> EngineAudioFeedbackServi
     #expect(await service.isRunning == false)
 }
 
-@Test func everyToneCallIsSafeAfterTeardown() async {
+@Test(.requiresRealAudioEngine) func everyToneCallIsSafeAfterTeardown() async {
     let service = makeService()
     await service.prepare()
     await service.teardown()
@@ -119,7 +119,7 @@ private func makeService(log: AudioLog = AudioLog()) -> EngineAudioFeedbackServi
     #expect(await service.isRunning == false)
 }
 
-@Test func suspendStopsPlaybackAndResumeRestoresIt() async {
+@Test(.requiresRealAudioEngine) func suspendStopsPlaybackAndResumeRestoresIt() async {
     let service = makeService()
     await service.prepare()
 
@@ -138,7 +138,7 @@ private func makeService(log: AudioLog = AudioLog()) -> EngineAudioFeedbackServi
     await service.teardown()
 }
 
-@Test func suspendAndResumeAreIdempotent() async {
+@Test(.requiresRealAudioEngine) func suspendAndResumeAreIdempotent() async {
     let service = makeService()
     await service.prepare()
 
@@ -150,7 +150,7 @@ private func makeService(log: AudioLog = AudioLog()) -> EngineAudioFeedbackServi
     await service.teardown()
 }
 
-@Test func tonesRequestedWhileSuspendedAreDropped() async {
+@Test(.requiresRealAudioEngine) func tonesRequestedWhileSuspendedAreDropped() async {
     // A tick queued during an interruption and fired afterwards would be worse
     // than no tick at all.
     let service = makeService()
@@ -164,7 +164,7 @@ private func makeService(log: AudioLog = AudioLog()) -> EngineAudioFeedbackServi
     await service.teardown()
 }
 
-@Test func teardownIsSafeWithoutPrepare() async {
+@Test(.requiresRealAudioEngine) func teardownIsSafeWithoutPrepare() async {
     let service = makeService()
     await service.teardown()
     await service.teardown()
@@ -172,7 +172,7 @@ private func makeService(log: AudioLog = AudioLog()) -> EngineAudioFeedbackServi
 
 // MARK: - Degradation is logged, never thrown
 
-@Test func failureToStartDegradesSilently() async {
+@Test(.requiresRealAudioEngine) func failureToStartDegradesSilently() async {
     // Whatever the host provides, prepare() must return normally and leave the
     // service usable — a walk is measured perfectly well in silence.
     let log = AudioLog()
@@ -221,7 +221,7 @@ private func makeService(log: AudioLog = AudioLog()) -> EngineAudioFeedbackServi
     #expect(offenders.isEmpty, "AVAudioSession is touched outside its owner: \(offenders)")
 }
 
-@Test func theProtocolStillAcceptsTheSilentFallback() async {
+@Test(.requiresRealAudioEngine) func theProtocolStillAcceptsTheSilentFallback() async {
     // SilentAudioFeedbackService remains the degraded implementation and the
     // preview double (docs/12 §12.2).
     let silent: AudioFeedbackService = SilentAudioFeedbackService()

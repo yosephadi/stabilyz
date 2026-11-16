@@ -111,11 +111,40 @@ Only the light values come from Figma. The node has no dark mode, so the
 dark halves borrow §2.2's neutrals rather than invent a palette the
 document does not contain.
 
+### 2.6 Countdown and watch tokens
+
+| Token | Value | Use |
+|---|---|---|
+| `countdown-scrim` | black at **0.65** (light) / **0.45** (dark) | The dim over the walk screen while the countdown runs (`StabilyzColor.countdownScrim`) |
+| `countdown-numeral` | `#FFFFFF` | The countdown numeral, both modes |
+
+The scrim is dark in both modes: it pushes the screen behind it back, and a
+light scrim in dark mode would do the opposite. It is heavier in light mode
+because the white numeral sits on whatever the page is, and 45% black over a
+light page is only about 3.5:1. A test (`DesignSystemTests`) requires the
+numeral to reach **at least 4.5:1** on the scrim composited over `bg-base` and
+over `bg-elevated` (the lightest thing the page can put under it), in both
+modes.
+
+The watch has its own small palette in `WatchTheme`, held as numbers so a test
+can compute contrast. Non-text contrast needs 3:1 (WCAG 1.4.11):
+
+| Pair | Ratio | Notes |
+|---|---|---|
+| Progress fill `#8FB4D6` on track `#3A3F47` | 4.88:1 | The fill is `primary-300`, as in the phone's dark mode |
+| Progress fill `#8FB4D6` on black | 9.67:1 | |
+| Navy capsule `#1B4F8C` on black | 2.54:1 | Below 3:1 on its own, hence the outline |
+| Capsule outline `#3F78B5` (1 pt) on black | 4.57:1 | Drawn around the navy capsule |
+| White label on navy `#1B4F8C` | 8.26:1 | Text, needs 4.5:1 |
+
+`WatchContrastTests` asserts the thresholds (3:1 for the non-text pairs, 4.5:1
+for the label); the exact ratios above are computed from the hex values.
+
 ---
 
 ## 3. Typography
 
-**SF Pro**, non-italic, Regular / Medium / Bold only, 15pt minimum per HIG.
+**SF Pro**, non-italic, Regular / Medium / Bold only, 15pt minimum — **the project's own rule**, not an Apple one: the HIG minimum text size is 11 pt on iOS and 12 pt on watchOS ([Typography](https://developer.apple.com/design/human-interface-guidelines/typography)). **Open issue:** on watchOS at the xSmall Dynamic Type size, Body and Headline render at 14 pt, below this floor.
 
 | Style | Size | Weight | Use |
 |---|---|---|---|
@@ -190,7 +219,7 @@ an iOS button".
   8pt overhang on each side is what makes the card read as a surface the
   copy sits on top of, rather than as another paragraph in the same
   column.
-- Minimum tap target: 44×44pt (HIG), non-negotiable given the user base
+- Minimum tap target: 44×44pt (the HIG's default control size; its minimum is 28×28pt), non-negotiable given the user base
   skews toward less tech-savvy, older users.
 - Corner radius: `8px` for buttons/inputs, `26px` for cards, `24px` for
   sheets/modals. No sharp corners anywhere. The card's 26px is iOS 26's
@@ -211,6 +240,8 @@ an iOS button".
 | `segmented-control-height` | 50pt | The large segmented control (Test Mode) |
 | `timer-ring-diameter` | 254pt | The session timer ring (node 130:2722) |
 | `timer-ring-width` | 17.5pt | Its band; the SVG runs radius 109.55→127 |
+| `timer-ring-inner-diameter` | 219pt | The clear space inside the band (`timer-ring-diameter` − 2 × `timer-ring-width`); the widest the countdown numeral may be |
+| `segmented-option-min-height` | 44pt | Every `SegmentedChoice` option (`Metrics.minimumTapTarget`) |
 | `cover-footer-bottom-gap` | 95pt | Primary button to safe area, full-screen cover |
 | `tab-footer-bottom-gap` | 34pt | Primary button to the tab bar |
 | `section-header-height` | 39pt | A grouped-list section header block |
@@ -230,6 +261,10 @@ on a device without a home indicator.
 bottom anchored, so the 5pt comes off the top and the capsule keeps the
 position on the page the node gives it; at 60 with a 17pt label it read
 as a slab rather than a control.
+
+Both heights are **minimums**, not fixed sizes: at accessibility text
+sizes a label wraps to as many lines as it needs and the capsule grows with
+it (§5 Buttons).
 
 Both primary heights are full width (`maxWidth: .infinity`) in a `Capsule`.
 Both sit above the 44pt tap-target floor rather than being derived from
@@ -256,8 +291,8 @@ work.
 - `NavigationStack` throughout, system **Large Title** style for screen
   titles — this already renders at 34pt Bold, so it maps directly onto
   the Heading style in §3 with zero custom type work.
-- `TabView` with SF Symbols for the top-level destinations (Home,
-  History, Settings) — a native iOS tab bar rather than a custom
+- `TabView` with SF Symbols for the top-level destinations (Walk,
+  Result, You — as built in `MainShellView`; there is no Home tab) — a native iOS tab bar rather than a custom
   dashboard-button layout. Selected tab tinted `primary-600`.
 
 ### Buttons
@@ -292,6 +327,14 @@ work.
   stretches the control while its hit area stays wrapped around the
   label — a ~30pt target on a 354pt button, and the failure this user
   base would hit hardest. Every caller gets that for free.
+
+  **The height is a minimum.** `button-height-hero` (55pt) and
+  `button-height` (50pt) are floors: the label wraps to two or more lines
+  instead of truncating, the capsule takes the height it needs (with
+  `space-3` vertical and `space-4` horizontal padding), and a parent never
+  squeezes it. A screen with a pinned primary action scrolls its content
+  at accessibility text sizes so the capsule stays whole and reachable
+  (Welcome, the completion screen and the stacked walk screen do this).
 
   `.primaryCapsule` is the same style at `button-height` (50pt) for
   screens that are not a single decision.
@@ -430,29 +473,55 @@ the disclaimer is not one — it is the consent gate the flow ends on, so
 it carries no number and draws no bar. Counting it would also make the
 bar read as full on the one screen where nothing is done yet.
 
-**Skip appears on the two optional screens only** — device type and
-K-level [PRD §6, §7 AC]. The designs show it greyed on some required
+**Skip appears on the three optional screens only** — time since
+amputation, device type and K-level [PRD §6, §7 AC; decisions.md entry 53].
+All three can be edited later in Settings. The designs show it greyed on some required
 screens; the PRD is what governs, so it is absent rather than disabled
 there.
 
-**There is no helper text in onboarding**, with one exception: while the
-disclaimer box is unticked, a single centred Footnote line in `ink-600`
-sits above the button reading "Check the box above to continue." That is
-the case [PRD §6] names, and the gate there is a tick box a reader may
-not have registered as required. A choice screen with nothing chosen
-needs no line telling the reader to choose — it is a list of unchosen
-options. (A *failed save* still reports itself in `danger`; an error is
-not helper text, and suppressing it would leave the button pressable and
-silent, which is what [PRD §6] forbids outright.)
+**There is no helper text in onboarding**, except on the steps that really
+block. While the disclaimer box is unticked, a single centred Footnote line
+in `ink-600` sits above the button reading "Check the box above to
+continue." That is the case [PRD §6] names, and the gate there is a tick box
+a reader may not have registered as required. Since 2026-11-15 the two
+required questions say it too: on the amputation level and side steps a
+disabled Next shows "Choose an answer to continue" in the same place
+(product decision; it replaces the earlier "a list of unchosen options needs
+no line" position). The three optional steps never block, so they never say
+anything. The same words are the Next button's VoiceOver hint, and the
+visible line is hidden from VoiceOver so it is not read twice. (A *failed
+save* still reports itself in `danger`; an error is not helper text, and
+suppressing it would leave the button pressable and silent, which is what
+[PRD §6] forbids outright.)
 
 ### Toggles (Step Feedback, Metronome cue)
 Native `Toggle`, `.tint(primary-600)`.
 
 ### Segmented / closed-choice inputs (Test Mode, onboarding fields)
-Native `Picker` with `.pickerStyle(.segmented)` for 2–3 options (Quick
-Test / Full Test), or `Picker` with `.pickerStyle(.inline)` inside a
-`List` row for longer closed-choice fields (amputation level, side).
-Never a custom dropdown.
+**Two options: `SegmentedChoice`** (`DesignSystem/SegmentedChoice.swift`),
+used for the Test Mode choice on Walk, the mode switch on Result and the
+mode switch on Clinician Summary. It replaces the system `.segmented`
+`Picker`, whose labels stay near 13pt and do not scale with Dynamic Type,
+which breaks the 15pt floor (§3). This is a deliberate exception to the
+component law above: the control is composed from stock `Button`s and
+`HStack`/`VStack` layouts, not drawn by hand.
+
+- Labels are text styles (Body Text Regular; Body Text Bold when selected)
+  and wrap rather than truncate.
+- The options sit side by side and **stack vertically from the
+  accessibility sizes up**.
+- Each option is at least **44pt** tall (`Metrics.minimumTapTarget`); the
+  screen's first decision may ask for more (Walk uses
+  `segmented-control-height`, 50pt), never less.
+- The selected option is shown with a **checkmark and a `primary-600` fill**
+  with an `on-primary` label, and carries the `.isSelected` accessibility
+  trait, so the state is never colour alone. Unselected options are
+  `bg-elevated` with a 1px `ink-400` hairline.
+- The group is a VoiceOver container named by its `label` (for example
+  "Choose a test"); each option's identifier is `<identifier>.<index>`.
+
+**Longer closed-choice fields** (amputation level, side) are still rows in a
+card (see Onboarding card), never a custom dropdown.
 
 ### Destructive confirmations (restore-overwrite flow)
 Native `.confirmationDialog` (action sheet) for
@@ -461,9 +530,85 @@ exact iOS pattern for a destructive multi-choice decision, so it's used
 as-is rather than a custom modal.
 
 ### System permission (Motion & Fitness)
-Rely entirely on the native iOS permission prompt; a plain-text
-pre-permission explanation screen (system `Text`, no custom illustration
-required) precedes it if the app needs to explain *why* before asking.
+Rely entirely on the native iOS permission prompt. The app asks **when the
+user taps Start**, before sensor priming and the countdown, while
+authorization is undetermined, so the system alert does not land while the
+user is stowing the phone. Start is disabled while the prompt is up.
+Denied or restricted shows the existing blocked state on the Start button.
+
+While (and only while) authorization is undetermined, one Footnote line sits
+above Start: "Stabilyz needs Motion & Fitness access to measure your
+walking. We'll ask when you tap Start." Once the user has answered, the line
+is gone. No separate pre-permission screen is built.
+
+### Walk setup framing
+Under the mode choice, one block of Body Text Regular lines, read by
+VoiceOver as a single element in order:
+
+- "Walk normally — there's no target pace" — shown only **before that mode's
+  baseline exists** (when Step Feedback is available and no tempo may be
+  implied). It goes once the baseline exists and the Metronome Cue, which is
+  a pace, becomes available.
+- "Walk in as straight a line as you can" — always shown, because turns are
+  not scored.
+
+### Baseline progress wording
+One source, `Features/Shared/BaselineProgressCopy.swift`, used by Walk setup,
+the Score screen, the Result tab's trend card and its rows, and the
+provisional summary:
+
+- "Walk N of 5 toward your baseline" for how far along (N is clamped to the
+  range), with the ring caption "walks toward your baseline" under a bare
+  "N of 5".
+- "N more walks to go" (singular "1 more walk to go"); as a sentence, "N more
+  walks to go before your personal baseline is set."
+
+The 5 is always `Baseline.requiredValidSessionCount`; nothing else spells the
+count. Clinician Summary's own lines were left as they were.
+
+### Session rings (timer and score)
+From Dynamic Type **xxLarge** upward (`DynamicTypeSize.usesStackedRing`), text
+no longer fits inside a ring and moves out: the score numeral and its labels
+sit **below** the score ring, and the recording clock sits **below** the timer
+ring, so nothing is clipped by the stroke or truncated. Below xxLarge the text
+stays inside the ring. The ring itself is one VoiceOver element either way.
+On the walk screen the stacked layout scrolls its middle and keeps Stop
+pinned; the recording toggle labels (for example "Start & Stop Haptics") wrap
+to two lines and the row grows. The clock shrinks (down to
+`countdownNumeralMinimumScale`, 0.5) rather than truncating.
+
+### Countdown
+- The scrim is `countdown-scrim` (§2.6); the white numeral reaches 4.5:1 on it.
+- The numeral is **centred in the timer ring** (the ring publishes its own
+  bounds, so the numeral follows the ring through Dynamic Type and screen
+  height rather than a guessed position), at most `timer-ring-inner-diameter`
+  wide, one line, shrinking to 0.5 rather than truncating. It is hidden from
+  VoiceOver (the owner announces each tick) and takes no touches.
+- The scrim carries only Cancel. The **clock and Stop are hidden until the
+  countdown has cleared**; the hidden Stop is not tappable and not reachable
+  by VoiceOver, so Cancel is never over Stop and the timer never competes
+  with the numeral. Recording itself starts at T-0 regardless.
+- Under Reduce Motion the overlay uses **opacity only**; otherwise the numeral
+  also eases down from 1.1x (`countdownNumeralDismissScale`).
+
+### Completion (success moment)
+On a **valid completion only**, the checkmark bounces once
+(`symbolEffect(.bounce)`, non-repeating, after the hand-off's fade-out) and
+one success notification haptic plays (see §10 and PRD §5). The unclear walk
+gets neither. Under Reduce Motion the checkmark is static; it is hidden from
+VoiceOver either way (the title says what happened).
+
+At accessibility sizes the message scrolls and the actions stay pinned, as on
+Welcome, where the illustration also drops out so the wrapped capsules stay
+whole.
+
+### Unclear-walk copy
+The unclear completion screen gives the cause, one next step, then "This
+session won't count toward your baseline." The cause comes from the session's
+invalid reason: too short (quotes the mode's valid-walking floor from
+`SessionPolicy`, "60 seconds" Quick, "2 minutes 15 seconds" Full, never typed
+in the copy), too much phone movement, an interruption, or the phone stopping
+sending motion data. Never alarming, never pass/fail.
 
 ### Score display (Home / Score Screen)
 The one place layout is still bespoke, because there's no native
@@ -472,6 +617,20 @@ The one place layout is still bespoke, because there's no native
 §2.4, centered, with the baseline comparison in Small Body Text Regular
 directly beneath. No card/border around it — sits directly on
 `bg-base` so it reads as the page's primary content.
+
+### Watch screens (layout and contrast)
+The watch keeps each state's essential element first, so it is on the first
+screen even where the rest scrolls: **Countdown** keeps "Phone in pocket" with
+the numeral; **Disconnected** shows the timer, the progress bar, then
+"Phone not reachable" and its detail; **Stopped** shows the title, then Done, then the detail. Layout tries
+full size, then the big numbers at 0.7, then at 0.5 (`tightNumberScale`), and
+only then scrolls; nothing truncates.
+
+The progress bar is custom (a light fill on a lighter-than-black track, 8pt
+tall) and exposed as one element with a "Progress" label and a percent value.
+It **fills continuously with the timer and never pulses**; it has no animation
+of its own. The navy primary capsule carries a 1pt outline. Colours and
+ratios are in §2.6.
 
 ### Surfaces and materials
 
@@ -507,8 +666,10 @@ Built with **Swift Charts** (already the PRD's stated choice).
   still visible at a glance even though the line/fill stay monochrome.
 - Gridlines: `primary-300` (light) / a dimmed `primary-300` (dark),
   thin, no axis border box.
-- Quick Test vs. Full Test split via the same native segmented `Picker`
-  used for mode selection elsewhere — switching modes swaps the chart's
+- A session recorded with the Metronome Cue on is drawn as a distinct marker
+  and is left out of the line and fill (decisions.md entry 49).
+- Quick Test vs. Full Test split via the same `SegmentedChoice` used for
+  mode selection elsewhere (§5) — switching modes swaps the chart's
   data source, not its visual style.
 - Baseline reference line (once established): a thin dashed
   `RuleMark` at the baseline value, labeled "baseline" in Small Body
@@ -560,6 +721,25 @@ scale rather than the brand color:
   numeral comparison carry the meaning, color reinforces it).
 - VoiceOver: score numeral should announce as "Stability score 112,
   8 points above your baseline," not just the bare number.
+- Large text: hero capsule labels wrap and the capsule grows (§5 Buttons);
+  from Dynamic Type xxLarge the score and timer rings stack their text
+  below the ring (§5 Session rings); `SegmentedChoice` stacks vertically
+  from the accessibility sizes and keeps 44pt options; screens with a pinned
+  primary action scroll their content at accessibility sizes.
+- Countdown contrast: the white numeral reaches at least 4.5:1 on the scrim in
+  both modes (§2.6, tested). Watch non-text contrast is 3:1 or better (§2.6,
+  tested in `WatchContrastTests`).
+- Selected state is never colour alone: `SegmentedChoice` adds a checkmark and
+  a fill, plus the selected trait.
+- During the countdown the hidden Stop is neither tappable nor reachable by
+  VoiceOver; the numeral is hidden from VoiceOver because each tick is
+  announced by its owner.
+- A blocked onboarding Next carries its reason as its VoiceOver hint.
+- Reduce Motion: hand-offs swap instantly, the countdown overlay uses opacity
+  only, the completion checkmark is static, and the timer ring steps once a
+  second without animating (§10). The success haptic is not affected by it.
+- **Not verified (2026-11-15).** VoiceOver was reviewed in code only, not run
+  against a device. See §10 for the haptic and bounce.
 
 ---
 
@@ -579,11 +759,43 @@ scale exists to keep small.
 | `splash-hold` | 0.3s | The mark at rest before hand-off |
 | `splash-total` | 0.9s | Launch to hand-off |
 | `splash-initial-scale` | 0.92 | Where the mark starts |
+| `handoff-out` | 0.2s ease-in | Outgoing session content fading out (`Motion.handoffOut`) |
+| `handoff-in` | 0.25s ease-out, after `handoff-out` | Incoming session content fading in (`Motion.handoffIn`) |
+| `countdown-numeral-dismiss-scale` | 1.1 | The scale the countdown numeral eases down from as it clears |
 
 The ordering is the rule, not the numbers: **covering a change is faster
 than performing one.** A cross-fade hides a hand-off nobody asked to
 watch; a press confirms a touch already made. Only the brand reveal is
 worth a beat.
+
+### Session hand-offs
+
+Countdown to walk, walk to processing, and processing to completion to score
+are **sequential**: the old content fades out (`handoff-out`), then the new
+fades in (`handoff-in`), never both at once, so Cancel is not drawn over Stop
+and "Processing your data" is not drawn over the completion title. Together
+they stay inside `root-cross-fade` plus 0.15s (tested). Under **Reduce Motion**
+the swap is instant.
+
+The hand-offs change nothing about timing that matters: recording still
+starts at T-0 and the Go haptic and tone are unchanged. After the numeral
+clears, the clock and Stop fade in (`handoff-in`; instantly under Reduce
+Motion).
+
+### Success moment
+
+On a valid completion only: the checkmark bounces once (static under Reduce
+Motion; hidden from VoiceOver), after the fade-out, and **one** success
+notification haptic plays after Stop, on the phone, only when Start & Stop
+Haptics is on (`HapticFeedbackService.playCompletionSuccess()`). With Reduce
+Motion on the haptic plays at once rather than after the fade. An unclear walk
+gets neither. This is an approved addition to the PRD's haptic list
+(product owner, 2026-11-15; PRD §5, decisions.md entry 59). **No cue of any
+kind was added between Go and Stop.**
+
+**Not verified (2026-11-15).** The success haptic was not felt on a device and
+the checkmark bounce was not seen; both are covered by unit tests of their
+gating only (`SessionResultTests`, `CountdownCoordinatorTests`).
 
 ### Splash
 

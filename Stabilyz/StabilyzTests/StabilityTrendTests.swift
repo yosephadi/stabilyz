@@ -125,13 +125,13 @@ private let britain = Locale(identifier: "en_GB")
 @Test func theCalibrationCardSaysWhatUnlocksTheTrend() {
     let quick = trend(.quickTest, Array(calibration().prefix(3)))
 
-    #expect(quick.lockedHeadline == "3 of 5 calibration walks done")
-    #expect(quick.lockedMessage == "Complete two more valid Quick Tests to set your personal baseline. Your trend starts with the Quick Test after that.")
+    #expect(quick.lockedHeadline == "Walk 3 of 5 toward your baseline")
+    #expect(quick.lockedMessage == "2 more walks to go before your personal baseline is set. Your trend starts with the Quick Test after that.")
 }
 
 @Test func theLastCalibrationWalkIsSingular() {
     let full = trend(.fullTest, Array(calibration(.fullTest).prefix(4)))
-    #expect(full.lockedMessage == "Complete one more valid Full Test to set your personal baseline. Your trend starts with the Full Test after that.")
+    #expect(full.lockedMessage == "1 more walk to go before your personal baseline is set. Your trend starts with the Full Test after that.")
 }
 
 @Test func afterCalibrationTheCardNeverPromisesTheNextWalk() {
@@ -271,4 +271,85 @@ private func alpha(_ color: Color, dark: Bool) -> CGFloat {
     #expect(ChartMetrics.lineWidth == 2)
     #expect(ChartMetrics.gridLineWidth == Metrics.hairline)
     #expect(ChartMetrics.baselineDash.isEmpty == false)
+}
+
+// MARK: - Metronome Cue walks (decided 2026-11-14)
+
+private func cued(
+    _ mode: TestMode = .quickTest,
+    day: Double,
+    index: Int,
+    audio: SessionAudioConfig? = nil
+) -> GaitSession {
+    GaitSession.fixtureValid(
+        mode: mode,
+        startedAt: at(day),
+        score: .fixture(relativeIndex: index),
+        provisionalScore: .fixture(value: 64),
+        audioConfig: audio ?? .metronome(cue: .fixture(mode: mode))
+    )
+}
+
+@Test func onlyTheMetronomeConfigurationCountsAsCued() {
+    #expect(SessionAudioConfig.metronome(cue: .fixture()).isMetronomeCued)
+    #expect(SessionAudioConfig.none.isMetronomeCued == false)
+    #expect(SessionAudioConfig.stepFeedback.isMetronomeCued == false)
+}
+
+@Test func aCuedWalkIsKeptAsAMarkerAndLeftOffTheLine() {
+    let a = scored(day: 5, index: 100)
+    let b = cued(day: 6, index: 112)
+    let c = scored(day: 7, index: 104)
+
+    let quick = trend(.quickTest, calibration() + [a, b, c])
+
+    // Every scored walk is still a point, in order, with its own x position...
+    #expect(quick.points.map(\.id) == [a.id, b.id, c.id])
+    #expect(quick.points.map(\.position) == [1, 2, 3])
+    // ...the line joins the uncued ones, skipping the cued one...
+    #expect(quick.linePoints.map(\.id) == [a.id, c.id])
+    // ...and the cued one is the marker.
+    #expect(quick.markerPoints.map(\.id) == [b.id])
+    #expect(quick.hasMetronomeMarkers)
+    #expect(quick.state == .trend)
+}
+
+@Test func stepFeedbackWalksStayOnTheLine() {
+    let feedback = cued(day: 5, index: 105, audio: .stepFeedback)
+    let plain = scored(day: 6, index: 101)
+
+    let quick = trend(.quickTest, calibration() + [feedback, plain])
+
+    #expect(quick.linePoints.map(\.id) == [feedback.id, plain.id])
+    #expect(quick.markerPoints.isEmpty)
+    #expect(quick.hasMetronomeMarkers == false)
+}
+
+@Test func theCuedDecisionComesFromTheStoredAudioConfigurationPerMode() {
+    let quickCued = cued(.quickTest, day: 5, index: 110)
+    let fullCued = cued(.fullTest, day: 5, index: 90)
+    let sessions = calibration(.quickTest) + calibration(.fullTest) + [quickCued, fullCued]
+
+    #expect(trend(.quickTest, sessions).markerPoints.map(\.id) == [quickCued.id])
+    #expect(trend(.fullTest, sessions).markerPoints.map(\.id) == [fullCued.id])
+}
+
+@Test func aTrendOfOnlyCuedWalksHasNoLineButStillShowsEveryWalk() {
+    let quick = trend(.quickTest, calibration() + [cued(day: 5, index: 109), cued(day: 6, index: 111)])
+    #expect(quick.linePoints.isEmpty)
+    #expect(quick.points.count == 2)
+    #expect(quick.latest?.index == 111)
+}
+
+@Test func aCuedPointIsDescribedAsCuedForVoiceOverAndTheLegendIsLargeEnoughCopy() {
+    let b = cued(day: 6, index: 112)
+    let a = scored(day: 5, index: 100)
+    let quick = trend(.quickTest, calibration() + [a, b])
+
+    let cuedPoint = try! #require(quick.points.first { $0.id == b.id })
+    let plainPoint = try! #require(quick.points.first { $0.id == a.id })
+    #expect(quick.pointAccessibilityLabel(cuedPoint, locale: britain, timeZone: utc).contains("Metronome Cue was on"))
+    #expect(quick.pointAccessibilityLabel(plainPoint, locale: britain, timeZone: utc).contains("Metronome") == false)
+    #expect(quick.accessibilitySummary.contains("1 with the Metronome Cue on"))
+    #expect(StabilityTrend.metronomeLegend.contains("Metronome Cue was on"))
 }

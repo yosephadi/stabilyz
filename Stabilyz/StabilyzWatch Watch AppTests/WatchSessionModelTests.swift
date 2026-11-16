@@ -44,7 +44,7 @@ private final class HapticSpy: WatchHapticPlaying {
         link.onEvent?(.message(.stopped(sessionID: sessionA)))
         #expect(model.screen == .stopped)
         model.tapDone()
-        #expect(model.screen == .waiting(selection: "Quick Test · 2 min", selectionLabel: "Quick Test, 2 minutes"))
+        #expect(model.screen == .waiting(selection: "Quick Test · 1:30", selectionLabel: "Quick Test, 1 minute 30 seconds"))
         #expect(haptics.played.isEmpty, "the phone owned the haptics")
     }
 

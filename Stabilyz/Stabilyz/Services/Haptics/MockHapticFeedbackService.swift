@@ -11,6 +11,7 @@ enum HapticCall: Sendable, Equatable {
     case cadenceTick
     case sessionStart
     case sessionStop
+    case completionSuccess
     case teardown
 }
 
@@ -50,6 +51,7 @@ actor MockHapticFeedbackService: HapticFeedbackService {
     func playCadenceTick() async { calls.append(.cadenceTick) }
     func playSessionStart() async { calls.append(.sessionStart) }
     func playSessionStop() async { calls.append(.sessionStop) }
+    func playCompletionSuccess() async { calls.append(.completionSuccess) }
     func teardown() async { calls.append(.teardown) }
 }
 

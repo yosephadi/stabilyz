@@ -27,6 +27,9 @@ struct StabilityTrend: Equatable {
         let index: Int
         /// Signed against the baseline's reference index [PRD §7].
         let delta: Int
+        /// The walk was recorded with the Metronome Cue on. Such a walk is
+        /// kept, scored and drawn, but as a marker apart from the line.
+        let isMetronomeCued: Bool
     }
 
     enum State: Equatable {
@@ -74,7 +77,8 @@ struct StabilityTrend: Equatable {
                 position: offset + 1,
                 date: scored.row.startedAt,
                 index: scored.index,
-                delta: scored.delta
+                delta: scored.delta,
+                isMetronomeCued: scored.row.isMetronomeCued
             )
         }
         self.latestSummary = scoredOldestFirst.last?.row.detail.highlight
@@ -90,6 +94,16 @@ struct StabilityTrend: Equatable {
     }
 
     var latest: Point? { points.last }
+
+    /// The points the line and its fill connect: walks without the Metronome
+    /// Cue. A cue can lower stride-time variability, so a cued walk joined into
+    /// the line would read as improvement (decided 2026-11-14).
+    var linePoints: [Point] { points.filter { !$0.isMetronomeCued } }
+
+    /// The walks drawn as a distinct marker, off the line.
+    var markerPoints: [Point] { points.filter(\.isMetronomeCued) }
+
+    var hasMetronomeMarkers: Bool { points.contains(where: \.isMetronomeCued) }
 
     // MARK: - Scales
 
@@ -138,6 +152,11 @@ struct StabilityTrend: Equatable {
     /// §6: the rule is labelled in lower case.
     static let baselineRuleLabel = "baseline"
     static let todayLabel = "Today"
+    /// Under the chart when a cued walk is on it; the diamond carries the
+    /// meaning, so the caption is not colour-only.
+    static let metronomeLegend = "Diamond: Metronome Cue was on. Not joined to the line."
+    /// A cued point's extra VoiceOver sentence.
+    static let metronomeAccessibility = "Metronome Cue was on. Not part of the trend line."
 
     /// "(14 Sep 2026)", beside "Last Test", as the node writes it.
     func lastTestDate(locale: Locale = .current, timeZone: TimeZone = .current) -> String? {
@@ -174,7 +193,7 @@ struct StabilityTrend: Equatable {
     var lockedHeadline: String? {
         switch state {
         case .trend: nil
-        case .calibrating(let completed, let required): "\(completed) of \(required) calibration walks done"
+        case .calibrating(let completed, let required): BaselineProgressCopy.progress(walk: completed, required: required)
         case .awaitingFirstScore: "Calibration walks done"
         }
     }
@@ -188,10 +207,9 @@ struct StabilityTrend: Equatable {
             return nil
         case .calibrating(let completed, let required):
             let remaining = required - completed
-            let tests = remaining == 1 ? mode.displayName : "\(mode.displayName)s"
             return """
-                Complete \(SessionScorePresentation.spelledOut(remaining)) more valid \(tests) \
-                to set your personal baseline. Your trend starts with the \(mode.displayName) after that.
+                \(BaselineProgressCopy.remainingSentence(remaining)) \
+                Your trend starts with the \(mode.displayName) after that.
                 """
         case .awaitingFirstScore:
             return """
@@ -216,7 +234,8 @@ struct StabilityTrend: Equatable {
         var style = Date.FormatStyle.dateTime.day().month(.wide).year()
         style.locale = locale
         style.timeZone = timeZone
-        return "\(point.date.formatted(style)). \(Self.scoreSentence(index: point.index, delta: point.delta))"
+        let sentence = "\(point.date.formatted(style)). \(Self.scoreSentence(index: point.index, delta: point.delta))"
+        return point.isMetronomeCued ? "\(sentence) \(Self.metronomeAccessibility)" : sentence
     }
 
     /// The chart, for a listener who cannot see the line.
@@ -225,9 +244,11 @@ struct StabilityTrend: Equatable {
             return "\(title). \(lockedHeadline ?? ""). \(lockedMessage ?? "")"
         }
         let walks = points.count == 1 ? "1 walk" : "\(points.count) walks"
+        let cued = markerPoints.count
+        let cuedNote = cued == 0 ? "" : " \(cued) with the Metronome Cue on, not part of the trend line."
         return """
             \(title). \(walks) scored against your baseline of \(baselineIndex). \
-            Latest: \(Self.scoreSentence(index: latest.index, delta: latest.delta))
+            Latest: \(Self.scoreSentence(index: latest.index, delta: latest.delta))\(cuedNote)
             """
     }
 }

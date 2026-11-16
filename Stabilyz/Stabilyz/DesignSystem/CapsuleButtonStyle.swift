@@ -15,8 +15,10 @@ enum CapsuleButtonRole {
     case destructive
 }
 
-/// The app's capsule buttons: full width, `button-height-hero` (55pt) on
-/// single-decision screens, `button-height` (50pt) elsewhere.
+/// The app's capsule buttons: full width, a **minimum** `button-height-hero`
+/// (55pt) on single-decision screens, `button-height` (50pt) elsewhere. The
+/// height is a floor: at accessibility text sizes the label wraps to as many
+/// lines as it needs and the capsule grows with it.
 ///
 /// **Why this is a style and not `.borderedProminent`.** The enabled primary is
 /// exactly what the system draws — a `primary-600` capsule with a white label —
@@ -57,8 +59,16 @@ struct CapsuleButtonStyle: ButtonStyle {
             configuration.label
                 .font(StabilyzFont.buttonLabel)
                 .foregroundStyle(label)
-                .frame(maxWidth: .infinity)
-                .frame(height: height)
+                // A label that outgrows one line wraps rather than truncating;
+                // `height` is a floor, never a ceiling, so the capsule grows
+                // with it at accessibility sizes.
+                .multilineTextAlignment(.center)
+                .padding(.vertical, Space.x3)
+                .padding(.horizontal, Space.x4)
+                .frame(maxWidth: .infinity, minHeight: height)
+                // The capsule takes the height its wrapped label needs and is
+                // never squeezed by a parent that has run out of room.
+                .fixedSize(horizontal: false, vertical: true)
                 .background(fill)
                 // Edge to edge, not the width of the label.
                 .contentShape(Capsule())
