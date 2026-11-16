@@ -252,12 +252,27 @@ private func fillRequiredFields(_ model: OnboardingViewModel, level: AmputationL
     let model = makeModel(store: store)
 
     model.select(level: .bilateral)
-    await Task.yield()
+    await draftSettles(store) { $0?.amputationLevel == .bilateral }
     #expect(await store.draft?.amputationLevel == .bilateral)
 
     model.select(timeSinceAmputation: .sixToTwelveMonths)
-    await Task.yield()
+    await draftSettles(store) { $0?.timeSinceAmputation == .sixToTwelveMonths }
     #expect(await store.draft?.timeSinceAmputation == .sixToTwelveMonths)
+}
+
+/// Gives a fire-and-forget `persist()` time to land before the store is read.
+///
+/// A single `Task.yield()` is not a guarantee that the save task has run — it
+/// failed once when the suite's scheduling changed. This waits, briefly and
+/// bounded, for the write; the expectation after it still decides the test.
+private func draftSettles(
+    _ store: MemoryDraftStore,
+    _ landed: (OnboardingDraft?) -> Bool
+) async {
+    for _ in 0..<200 {
+        if landed(await store.draft) { return }
+        try? await Task.sleep(for: .milliseconds(10))
+    }
 }
 
 @MainActor
