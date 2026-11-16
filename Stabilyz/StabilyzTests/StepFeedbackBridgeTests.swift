@@ -326,7 +326,7 @@ private func ticks(
 
 // MARK: - The sample path is never blocked (4.3.1's design stands)
 
-@Test func aStalledAudioConsumerNeverDelaysRecording() async throws {
+@Test(.wallClockSensitive) func aStalledAudioConsumerNeverDelaysRecording() async throws {
     // Newest-value buffering on the step stream means a slow audio layer drops
     // ticks rather than backing up into ingestion (docs/10 §10.4).
     let clock = BridgeClock()
