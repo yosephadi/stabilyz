@@ -22,6 +22,13 @@
 # Stabilyz/StabilyzTests/WallClockSensitiveTrait.swift; the list of such tests
 # is pinned by RealAudioEngineGuardTests.
 #
+# One simulator, one bundle at a time: both jobs pass -parallel-testing-enabled
+# NO. With it on, xcodebuild boots simulator clones and runs the unit and UI
+# bundles at once; on three cores the UI tests then miss their fixed waits ("the
+# Result tab was tapped but not selected", "Timed out while launching
+# application"), and the watch job cannot boot its second clone at all. Nothing
+# is skipped by this: every test still runs, one bundle after the other.
+#
 # Watch: a second job builds the watch app and runs its unit and UI tests on a
 # watch simulator. It is a separate job so it cannot slow or fail the phone job.
 # The watch test targets deploy to watchOS 27.0 in the project, and this runner
@@ -97,6 +104,7 @@ jobs:
             -scheme Stabilyz \
             -destination "platform=iOS Simulator,id=${{ steps.simulator.outputs.udid }}" \
             -resultBundlePath TestResults.xcresult \
+            -parallel-testing-enabled NO \
             CODE_SIGNING_ALLOWED=NO
 
       - name: Upload test results
@@ -152,6 +160,7 @@ jobs:
             -scheme "StabilyzWatch Watch App" \
             -destination "platform=watchOS Simulator,id=${{ steps.simulator.outputs.udid }}" \
             -resultBundlePath WatchTestResults.xcresult \
+            -parallel-testing-enabled NO \
             WATCHOS_DEPLOYMENT_TARGET="${{ steps.simulator.outputs.version }}" \
             CODE_SIGNING_ALLOWED=NO
 
