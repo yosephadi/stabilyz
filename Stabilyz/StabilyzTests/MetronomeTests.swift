@@ -285,7 +285,7 @@ private let stepPolicy = AlgorithmConfiguration.v1.liveStepFeedback
 
 // MARK: - The engine
 
-@Test func startingTheMetronomeQueuesBeatsAheadOnTheTimeline() async {
+@Test(.requiresRealAudioEngine) func startingTheMetronomeQueuesBeatsAheadOnTheTimeline() async {
     let service = EngineAudioFeedbackService(logService: MetronomeLog())
     await service.prepare()
     guard await service.isRunning else {
@@ -305,7 +305,7 @@ private let stepPolicy = AlgorithmConfiguration.v1.liveStepFeedback
     await service.teardown()
 }
 
-@Test func schedulingReusesTheOnePreloadedBeatBuffer() async {
+@Test(.requiresRealAudioEngine) func schedulingReusesTheOnePreloadedBeatBuffer() async {
     // No per-tick allocation: every beat is the same buffer, re-scheduled.
     let service = EngineAudioFeedbackService(logService: MetronomeLog())
     await service.prepare()
@@ -349,7 +349,7 @@ private func settledAfterResume(
     return await service.isRunning
 }
 
-@Test func anInterruptionStopsTheBeatAndResumeCostsTheSameWhateverItsLength() async {
+@Test(.requiresRealAudioEngine) func anInterruptionStopsTheBeatAndResumeCostsTheSameWhateverItsLength() async {
     // 7.1.2's machinery drives this; the metronome's part is that it comes back
     // at tempo **from now** [PRD §6]. The observable form of "missed beats are
     // never replayed" is that resuming costs the same whether the call lasted a
@@ -396,7 +396,7 @@ private func settledAfterResume(
     await service.teardown()
 }
 
-@Test func aMetronomeRequestBeforePrepareOrAfterTeardownIsSilentNotFatal() async {
+@Test(.requiresRealAudioEngine) func aMetronomeRequestBeforePrepareOrAfterTeardownIsSilentNotFatal() async {
     let service = EngineAudioFeedbackService(logService: MetronomeLog())
 
     await service.startMetronome(bpm: 120)

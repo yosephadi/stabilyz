@@ -90,7 +90,8 @@ enum ProsthesisType: String, Sendable, CaseIterable, Codable {
 
 /// The single user profile (docs/05 §5.1).
 ///
-/// Created at onboarding completion and immutable in v1. `disclaimerAcceptedAt`
+/// Created at onboarding completion. Level and side never change; the three
+/// optional answers can be edited later from the You tab. `disclaimerAcceptedAt`
 /// is non-optional because the disclaimer is a hard gate before Home [PRD §7] —
 /// a profile cannot exist without it. The in-progress wizard uses
 /// `OnboardingDraft` (docs/05 §5.3), not this type.
@@ -107,12 +108,14 @@ struct UserProfile: Sendable, Equatable, Identifiable {
     let id: UUID
     let amputationLevel: AmputationLevel
     let side: AmputationSide
-    /// Months since amputation [REC].
+    /// Months since amputation [REC]. Optional since the 2026-11-14 product
+    /// decision: nil means the question was skipped or never answered. Profiles
+    /// and archives written earlier always carry a value and read unchanged.
     ///
     /// [OPEN] The *input format* is unresolved (docs/05 §5.1) — whether the
     /// wizard collects a date, a year, or a duration is a product decision.
     /// Months is the storage unit regardless.
-    let timeSinceAmputationMonths: Int
+    let timeSinceAmputationMonths: Int?
     /// Optional free text [PRD AC].
     let prosthesisType: String?
     /// Optional [PRD AC].
@@ -125,7 +128,7 @@ struct UserProfile: Sendable, Equatable, Identifiable {
         id: UUID,
         amputationLevel: AmputationLevel,
         side: AmputationSide,
-        timeSinceAmputationMonths: Int,
+        timeSinceAmputationMonths: Int? = nil,
         prosthesisType: String? = nil,
         kLevel: KLevel? = nil,
         disclaimerAcceptedAt: Date,
@@ -142,8 +145,8 @@ struct UserProfile: Sendable, Equatable, Identifiable {
             break
         }
 
-        guard timeSinceAmputationMonths >= 0 else {
-            throw ValidationError.negativeTimeSinceAmputation(months: timeSinceAmputationMonths)
+        if let months = timeSinceAmputationMonths, months < 0 {
+            throw ValidationError.negativeTimeSinceAmputation(months: months)
         }
 
         self.id = id
@@ -154,6 +157,26 @@ struct UserProfile: Sendable, Equatable, Identifiable {
         self.kLevel = kLevel
         self.disclaimerAcceptedAt = disclaimerAcceptedAt
         self.createdAt = createdAt
+    }
+
+    /// This profile with its three optional answers replaced; everything else —
+    /// including amputation level and side, which gate step-time asymmetry —
+    /// is carried over untouched. `nil` clears an answer.
+    func replacingOptionalAnswers(
+        timeSinceAmputationMonths: Int?,
+        prosthesisType: String?,
+        kLevel: KLevel?
+    ) throws -> UserProfile {
+        try UserProfile(
+            id: id,
+            amputationLevel: amputationLevel,
+            side: side,
+            timeSinceAmputationMonths: timeSinceAmputationMonths,
+            prosthesisType: prosthesisType,
+            kLevel: kLevel,
+            disclaimerAcceptedAt: disclaimerAcceptedAt,
+            createdAt: createdAt
+        )
     }
 
     /// Whether the hard gate before Home has actually been passed [PRD §7].

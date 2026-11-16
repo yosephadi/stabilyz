@@ -30,6 +30,8 @@ struct SessionHistoryRow: Equatable, Identifiable {
     let id: UUID
     let mode: TestMode
     let startedAt: Date
+    /// Whether the Metronome Cue was on, from the stored audio configuration.
+    let isMetronomeCued: Bool
     let standing: Standing
     /// The Score screen for this walk, as the row's chevron opens it.
     let detail: SessionScorePresentation
@@ -79,6 +81,7 @@ struct SessionHistoryRow: Equatable, Identifiable {
         self.id = session.id
         self.mode = session.mode
         self.startedAt = session.startedAt
+        self.isMetronomeCued = session.audioConfig.isMetronomeCued
         self.detail = SessionScorePresentation(
             stored: session,
             walk: walk,

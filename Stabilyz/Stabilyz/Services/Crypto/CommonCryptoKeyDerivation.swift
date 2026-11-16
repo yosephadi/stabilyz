@@ -17,14 +17,26 @@ enum KeyDerivationPolicy {
     /// has already waited through the passphrase screens.
     static let targetDuration: TimeInterval = 0.3
 
-    /// The fewest iterations a calibration may ever return.
+    /// The fewest iterations a calibration may ever return, and so the fewest
+    /// an export is CREATED with.
     ///
     /// **PROVISIONAL engineering choice** (docs/21 §21.2: "KDF iteration count
-    /// — calibrate 200–500 ms"). docs/13 §13.2's ~300k starting point doubles
-    /// as a floor, so a slow device or a failed calibration can make derivation
-    /// *slower* but never *weaker*. The count actually used is stored in the
-    /// archive header, so raising this later leaves old exports decryptable.
-    static let minimumIterations = 300_000
+    /// — calibrate 200–500 ms"). 600,000 is the OWASP Password Storage Cheat
+    /// Sheet's recommendation for PBKDF2-HMAC-SHA256 (raised from 300,000,
+    /// approved 2026-11-14), so a slow device or a failed calibration can make
+    /// derivation *slower* but never *weaker*. The count actually used is
+    /// stored in the archive header, so raising this left older exports
+    /// decryptable. This floor applies to writing only; reading is governed by
+    /// `legacyMinimumIterations` and `ArchiveFormat.maximumIterations`.
+    static let minimumIterations = 600_000
+
+    /// The floor builds before 2026-11-14 wrote exports with. Reading an
+    /// archive whose header carries a count from here up to
+    /// `minimumIterations` must keep working, so nothing on the import path
+    /// may compare against `minimumIterations`. A count below this was never
+    /// written by any build; the importer's header parse has never enforced a
+    /// lower bound beyond "at least 1" (that stays unchanged).
+    static let legacyMinimumIterations = 300_000
 
     /// Passphrase length the calibration measures with. PBKDF2's per-iteration
     /// cost is independent of passphrase length below the HMAC block size, so

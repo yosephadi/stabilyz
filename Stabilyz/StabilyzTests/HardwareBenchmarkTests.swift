@@ -55,7 +55,7 @@ private final class QuietLog: LogService, @unchecked Sendable {
     #expect(await benchmark.readAudio() == nil)
 }
 
-@Test func theAudioRouteComesFromTheSessionsOwner() async {
+@Test(.requiresRealAudioEngine) func theAudioRouteComesFromTheSessionsOwner() async {
     let engine = EngineAudioFeedbackService(logService: QuietLog())
     let benchmark = HardwareBenchmark(
         keyDerivation: CountingDerivation(calibration: 0),

@@ -257,7 +257,7 @@ disappears silently between stages.
 **Date:** 2026-09-09 · **Task:** 5.2.3 · **Status:** Decided
 
 **No new tunables.** Stage 4 reuses `NoisePolicy` (8 Hz cutoff, 0.35 threshold)
-and `SessionPolicy` (90 s / 240 s) from entry 1. The dominant-frequency
+and `SessionPolicy` (90 s / 240 s — *superseded by entry 47, 2026-11-14: 60 s / 135 s*) from entry 1. The dominant-frequency
 diagnostic derives its search band from `plausibleCadenceRange` (30–200 spm ⇒
 0.5–3.33 Hz) rather than declaring one of its own.
 
@@ -295,6 +295,11 @@ so the unbiased estimator leaves fundamental and harmonics tied and lets a
 subharmonic win, reporting half the true frequency. This was caught by a test
 expecting 1.8 Hz and is worth carrying into Task 5.2.4, where Ad1/Ad2 depend on
 exactly this distinction.
+
+> **Superseded by entry 48 (2026-11-14)** for the anchored-lag step and stride
+> regularity values, which now use the unbiased estimator (divide by N−|m|). The
+> reasoning above concerns a free peak search; the regularity lags are anchored,
+> so it no longer applies there.
 
 ---
 
@@ -1393,6 +1398,8 @@ area stays wrapped around the word "Next" — a ~30pt target on a 354pt button,
 and the failure this user base would hit hardest. Putting it in the style means
 no caller can get it wrong.
 
+> *Note (2026-11-14): this is the second entry numbered 27 — see the onboarding-card entry above. Numbers are left as they are so existing references keep working.*
+
 ---
 
 ## 28. The session starts at Go, not at the tap
@@ -1664,6 +1671,12 @@ and `Mock`/`Silent` doubles, wired into both production graphs.
 Five calls: `prepare`, `playCadenceTick`, `playSessionStart`, `playSessionStop`,
 `teardown`. Taps come from `UIImpactFeedbackGenerator` — `.light` per numeral,
 `.heavy` at Go, `.medium` at Stop.
+
+> **Superseded by entry 56 (2026-11-14)** for Go and Stop: they are now
+> `CHHapticEngine` sustained vibrations (400 ms / 500 ms) with a heavy-transient
+> fallback, and play regardless of the System Haptics setting. The countdown tick
+> is still a light `UIImpactFeedbackGenerator` transient. The text below records
+> the original reasoning.
 
 ### Why UIKit and not CoreHaptics
 
@@ -2304,6 +2317,11 @@ a deliberate act with the user walking right up to it, so there is no artefact
 there mirroring the one at the start; trimming symmetrically would discard real
 gait to guard against nothing.
 
+> **Superseded by entry 51 (2026-11-14)** for sessions that end by a manual Stop:
+> the final 3 s are now dropped (provisional placeholder), because Tura et al. 2012
+> report a negative effect of the last strides before stopping. A session that
+> ends on the timer still keeps its tail. The head trim above is unchanged.
+
 Its own stage rather than part of `Preprocessing`, and ahead of it. This is a
 decision about which part of the session counts as the walk — the same family as
 walking-bout detection — where preprocessing is signal conditioning. Putting it
@@ -2596,7 +2614,9 @@ without taking the phone out of a pocket. It is display + haptics + Stop only
   (30 min, scheduled). None is documented as needing HealthKit. Physical therapy
   survives leaving the app and covers waiting plus a 6-minute walk. It must start
   while the app is active, so it starts on Waiting, not when the countdown message
-  arrives. Self care is the fallback if App Review disagrees.
+  arrives. Self care is the fallback if App Review disagrees. *(Revised by entry 54,
+  2026-11-14: physical therapy is kept and the review notes state the purpose; the
+  walk is now 1:30 or 3:00 rather than 6 minutes.)*
 - **watchOS 10 minimum**, the pair for iOS 17. Live Activities reach the watch
   only on iOS 18 / watchOS 11 ([OPEN] PRD OQ-7b).
 
@@ -2610,3 +2630,306 @@ without taking the phone out of a pocket. It is display + haptics + Stop only
   case becomes a watch drop.
 - Final haptic patterns from on-device testing ([OPEN] PRD OQ-7c) change the
   `WKHapticType` values, not the ownership rule.
+
+---
+
+## 47. Test lengths: Quick Test 1:30 (60 s floor), Full Test 3:00 (2:15 floor)
+
+**Date:** 2026-11-14 · **Task:** post-review follow-ups · **Status:** Decided by the product owner (all values provisional)
+
+The advertised lengths and valid-walking floors change from 2:00 / 6:00 and
+90 s / 240 s to:
+
+| Mode | Advertised | Valid-walking floor |
+|---|---|---|
+| Quick Test | 1:30 (90 s) | 60 s |
+| Full Test | 3:00 (180 s) | 2:15 (135 s) |
+
+All four numbers are **provisional product thresholds, not research-validated**;
+they are to be validated with real prosthetic users. Replaces the 90 s / 240 s
+floors referenced by entries 1 and 10 and PRD OQ-3.
+
+### Why
+
+- **The 2MWT/6MWT literature validates distance, not gait regularity.** Reid et
+  al. 2015 (J Rehabil Med, n=86 people with unilateral or bilateral lower-limb
+  amputation): the 2-minute walk test predicts the 6-minute walk test — a
+  distance result. [doi 10.2340/16501977-1916](https://doi.org/10.2340/16501977-1916).
+  The earlier PRD sentence about "the sensitivity gap the research showed between
+  2- and 6-minute walks" had no source and is removed.
+- **Stride arithmetic.** At 60–100 steps/min, 60 s is 30–50 strides and 135 s is
+  67–112 strides.
+- **Regularity needs few strides.** Tura et al. 2012 (J NeuroEng Rehabil 9:11, n=10
+  men, unilateral transfemoral, C-leg, thorax sensor), strides needed as mean ± SE:
+  amputees Ad1 2.21 ± 0.23 and Ad2 3.57 ± 0.44 with the first and last 15 s
+  excluded; 15.68 ± 2.00 and 20.81 ± 1.76 on the whole signal.
+  [Europe PMC](https://europepmc.org/article/PMC/PMC3305516).
+- **Step-time variability is the weakest link.** Kroneberg et al. 2019 (162
+  healthy older adults, 31 people with movement disorders; not amputees): about 15
+  strides for stride-time variability, "at most 20" in the abstract
+  ([doi 10.3389/fnagi.2018.00435](https://doi.org/10.3389/fnagi.2018.00435)).
+  König et al. 2014 (n=12 healthy): variability reliability levels off after about
+  50 cycles; at least 50 recommended
+  ([doi 10.1016/j.gaitpost.2013.06.014](https://doi.org/10.1016/j.gaitpost.2013.06.014)).
+  Hollman et al. 2010 (n=24 healthy adults 65+): 10–20 strides fine for velocity
+  and cadence means, variability may need far more
+  ([doi 10.1016/j.gaitpost.2010.02.017](https://doi.org/10.1016/j.gaitpost.2010.02.017)).
+- **A weak signal.** The product owner's own self-test, without a prosthesis,
+  found 2 and 6 minutes too long. One person, not an amputee: not evidence.
+
+### Also corrected
+
+PRD §4 no longer says the Full Test reads "fatigue-related patterns": each metric
+is a median across windows (entry 12), so within-session drift is not captured as
+built.
+
+### What depends on it
+
+`TestMode` advertised durations and `SessionPolicy` floors; the phone's segment labels
+"Quick (1:30)" / "Full (3:00)" and the watch's "Quick Test · 1:30" /
+"Full Test · 3:00" labels; docs/05, 07, 08, 21, 22 and the
+real-watch checklist. A recording's `algorithmVersion` still tells old from new.
+
+---
+
+## 48. Step and stride regularity use the unbiased autocorrelation estimator
+
+**Date:** 2026-11-14 · **Task:** post-review follow-ups · **Status:** Decided by the product owner
+
+Ad1 (step regularity) and Ad2 (stride regularity) now divide the lagged sum by
+N−|m| (the unbiased estimator) instead of by N. This is what Moe-Nilssen &
+Helbostad 2004 (J Biomech,
+[doi 10.1016/S0021-9290(03)00233-1](https://doi.org/10.1016/S0021-9290(03)00233-1);
+abstract read) and Tura et al. 2012 use. **Supersedes entry 10's biased-estimator
+paragraph for the anchored-lag regularity values.**
+
+### Why
+
+The biased estimator scales a value at lag m by (N−m)/N, so the same gait scores
+lower in a shorter window and at a longer stride period. That is a cadence- and
+window-length-dependent bias in a number meant to compare a user with their own
+baseline. Entry 10's reason for it — a free peak search picking a subharmonic —
+does not apply where the lags are anchored to the detected step and stride
+period (entry 11). The code comment at the anchoring site already says as much.
+
+### Consequences
+
+`AlgorithmConfiguration.version` moves 1.1.0-provisional → **1.2.0-provisional**;
+baselines built under the old version are not comparable (docs/09 §9.6) and the
+goldens move (entry 57). Only the anchored-lag regularity values change: the
+half-stride peak-splitting search used for step-time asymmetry **deliberately
+stays on the biased estimator**, because its position and the entry-41
+prominence floor were tuned on it.
+
+Because the unbiased estimator gets noisier as the lag approaches the window
+length, a new **[OPEN] placeholder**, `maximumLagFractionOfWindow = 0.5`, discards
+a window when the largest stride-search lag exceeds half the window. It affects
+only very slow cadences in short trailing windows. Unvalidated.
+
+**Version-mismatch consequence (docs/09 §9.6 and docs/21 item 12 stay [OPEN]).**
+Raw samples are not persisted, so old sessions cannot be recomputed. A baseline
+frozen under 1.1.0 never yields a relative score for a 1.2.0 session:
+`CompositeScorer` returns `algorithmVersionMismatch`. A user with 1–4 valid 1.1.0
+sessions never forms a baseline: `BaselineCalculationService` throws
+`mixedAlgorithmVersions` and the commit is refused. Whether to offer a
+re-baseline/reset path is an open product decision. The app has not been
+released, so only development data is affected.
+
+---
+
+## 49. Metronome Cue sessions are marked, not trended; Step Feedback is unchanged
+
+**Date:** 2026-11-14 · **Task:** post-review follow-ups · **Status:** Decided by the product owner
+
+**Metronome Cue.** A session with the cue on is kept, scored, and shown, but it
+appears as a distinct marker in the trend and is left out of the trend line.
+Reason: an auditory cue can lower stride-time variability — Sejdić et al. 2012
+(PLoS One, n=15 healthy adults, overground; speed and mean stride interval
+unchanged,
+[doi 10.1371/journal.pone.0043104](https://doi.org/10.1371/journal.pone.0043104)).
+The evidence is mixed: Terrier 2012 (PLoS One, n=20 healthy, treadmill, cue at own
+cadence) found no effect on the SD of step time
+([Europe PMC](https://europepmc.org/article/PMC/PMC3466237)); Piergiovanni &
+Terrier 2024 (Sensors, 60 older and 42 young adults, 4 × 200 m) found step and
+stride regularity barely changed, with other, long-range measures altered
+([Europe PMC](https://europepmc.org/article/PMC/PMC11644259)). No
+amputee-specific cueing study turned up in the search. So the marker is a
+precaution, not a finding. Previously the only trace was a "Metronome Cue was on"
+label on the score screen. Entry 37's line that a metronome "measurably
+regularises cadence" had no citation and should be read with this in mind.
+
+**Step Feedback — unchanged.** Still available from the first session and still
+counted toward the baseline, by product-owner decision: users should hear that
+steps are being detected. That its effect on gait is nil is an **unverified
+assumption** to revisit with real users.
+
+**Citations fixed (PRD Open Question 1, docs/21).** The plantar-pressure
+validation of the regularity method is Tura et al. 2010 (J NeuroEng Rehabil 7:4);
+the stride counts are Tura et al. 2012 (9:11) — two papers on the same ten men.
+Counts as mean ± SE: Ad1 (anteroposterior) 2.21 ± 0.23 and Ad2 (vertical)
+3.57 ± 0.44 strides with the first and last 15 s excluded; 15.68 ± 2.00 and
+20.81 ± 1.76 on the whole signal. The app computes both from the vertical axis.
+
+**Depends on code:** metronome flag stored on the session and read by the trend.
+
+---
+
+## 50. Pre-baseline trunk anchors are g-scale placeholders
+
+**Date:** 2026-11-14 · **Task:** post-review follow-ups · **Status:** Provisional — `[OPEN]` placeholders
+
+The intrinsic (sessions 1–5) score's trunk anchors were written on a
+metres-per-second² scale, but the trunk signal is CoreMotion `userAcceleration`,
+which is in g and is never converted. Walking trunk RMS in g falls below the old
+"good" anchor, so the trunk term saturated. The anchors are now g-scale:
+
+| Axis | Poor | Good |
+|---|---|---|
+| Mediolateral | 0.25 | 0.05 |
+| Vertical | 0.40 | 0.10 |
+
+Still **[OPEN] placeholders**: not validated, not clinical thresholds, and doubly
+provisional while the trunk-proxy formulation itself is `[OPEN]` (docs/08 §8.2).
+The regularity and step-time CV anchors are unchanged. The golden walks read ML
+0.127–0.131 and VT 0.232–0.303, inside the range. Algorithm version bumped to
+1.2.0-provisional.
+
+---
+
+## 51. A manual Stop drops the final 3 seconds before analysis
+
+**Date:** 2026-11-14 · **Task:** post-review follow-ups · **Status:** Decided; the 3 s is a provisional placeholder
+
+When a session ends by a manual Stop — on the phone or from the watch — the last
+3 s of signal are dropped before any stage sees it. A session that ends on the
+timer keeps its tail. **Supersedes** the "no artefact at Stop" reasoning in entry
+41: Tura et al. 2012 report a negative effect of the last strides before
+stopping. The 3 s matches the 3 s head trim; neither number is validated.
+Algorithm version bumped to 1.2.0-provisional.
+
+The 3 s is `manualStopTailTrim`, an **[OPEN] placeholder**. The end reason is
+**derived, not stored**: if the recorded clock reached the mode's advertised
+length it is a timer end (tail kept); otherwise it is a manual Stop from the
+phone or the watch (last 3 s dropped). The valid-walking floor is evaluated
+**after** the trim.
+
+---
+
+## 52. Sessions 1–5 carry a provisional 0–100 score
+
+**Date:** 2026-11-14 · **Task:** post-review follow-ups (records a decision made while building Task 8.2.4) · **Status:** Provisional
+
+The PRD said that before the baseline exists there is "no relative score yet".
+What was built, with the product owner, is a **provisional score on its own
+labelled 0–100 scale** for sessions 1–5: each of step regularity, stride
+regularity, step-time CV and the two trunk axes is placed between a fixed
+"poor" and "good" anchor (`IntrinsicScorePolicy` in `AlgorithmConfiguration`).
+Every anchor is an unvalidated `[OPEN]` placeholder (see entry 50
+for the trunk pair). The screen labels it provisional and shows "Walk X of 5".
+The **relative index** (baseline = 100) still starts only after the fifth valid
+session. PRD §5, §7 and docs/04 §4.9 are updated to match. This is the one place the build
+went beyond the PRD's wording; it is recorded here so it is a decision, not drift.
+
+---
+
+## 53. All five onboarding questions stay; the three optional ones are skippable and editable
+
+**Date:** 2026-11-14 · **Task:** post-review follow-ups · **Status:** Decided by the product owner
+
+Amputation level and side stay required. Time since amputation becomes skippable
+like prosthesis type and K-level. All three can be edited later in Settings.
+Nothing is removed from onboarding. PRD §5, §6, §7 and the onboarding sections of
+docs/04 and docs/05 are updated.
+
+---
+
+## 54. Watch runtime: physical therapy kept; Live Activity launch key; haptics stay unverified
+
+**Date:** 2026-11-14 · **Task:** post-review follow-ups · **Status:** Decided (7a, 7b) / Open (7c)
+
+**OQ-7a.** Keep the `physical-therapy` extended runtime session. State the
+rehab/gait-assessment purpose in the App Review notes: Apple says to choose the
+session type "based on the app's intended use"
+([Using extended runtime sessions](https://developer.apple.com/documentation/watchkit/using-extended-runtime-sessions)).
+Self care remains the fallback. The same page lists physical therapy as a
+background session of up to one hour.
+
+**OQ-7b.** The Smart Stack needs iOS 18 and watchOS 11 ([WWDC24 session
+10068](https://developer.apple.com/videos/play/wwdc2024/10068/)). Opening the
+watch app from the Live Activity needs the `WKSupportsLiveActivityLaunchAttributeTypes`
+key in the watch Info.plist
+([Launching your app from a Live Activity](https://developer.apple.com/documentation/activitykit/launching-your-app-from-a-live-activity)),
+which is being added; it was absent from the project.
+
+**OQ-7c — stays open.** Apple's
+[`WKInterfaceDevice.play(_:)`](https://developer.apple.com/documentation/watchkit/wkinterfacedevice/play(_:))
+page says haptics have no effect in the background, with workout sessions the only
+exception; the extended-runtime article says sessions can play sounds or haptics
+after the screen turns off. The two conflict, so background haptics are
+**unverified**. **Phone-only haptics is the expected fallback** (entry 46's exit
+condition). The real-watch checklist gains an item for watch-to-phone Stop
+delivery while the watch app is in the background: `sendMessage` from an active
+watch wakes the phone app, but the watch-side `isReachable` description does not
+list extended runtime sessions among its true conditions, and the watch link
+drops an unanswered Stop silently (the 3 s retry exists).
+
+---
+
+## 55. Priming deadline, export KDF floor, product name
+
+**Date:** 2026-11-14 · **Task:** post-review follow-ups · **Status:** Mixed, as below
+
+- **Priming deadline before Go: stays `[OPEN]`** (PRD §7). The code uses a 2 s
+  value as a **provisional placeholder**; it is not a decided number.
+- **Export KDF floor: PBKDF2-HMAC-SHA256 raised from 300,000 to 600,000
+  iterations**, following the OWASP Password Storage Cheat Sheet
+  ([link](https://cheatsheetseries.owasp.org/cheatsheets/Password_Storage_Cheat_Sheet.html)).
+  The calibrated target (about 0.3 s) can still raise it. Import still accepts
+  archives written with older iteration counts, because the count is stored in
+  the file (docs/13, docs/24). Salt (16 B) and the random per-seal 12-byte
+  nonce are unchanged.
+- **"Stability Score" name: kept**, to be revisited after user testing.
+
+---
+
+## 56. Phone Go and Stop are sustained CoreHaptics vibrations
+
+**Date:** 2026-11-14 · **Task:** post-review follow-ups (documents commit `ef9b704`) · **Status:** Decided
+
+**Supersedes entry 31** for Go and Stop. `LiveHapticFeedbackService` plays Go as a
+400 ms and Stop as a 500 ms continuous `CHHapticEngine` vibration; the countdown
+tick remains a light `UIImpactFeedbackGenerator` transient. Reason: a transient is
+the cue a pocket swallows. If the engine cannot run, Go and Stop fall back to a
+heavy transient; with no Taptic Engine (or in the simulator) everything is a silent
+no-op.
+
+**System Haptics.** The tick honours the System Haptics setting; Go and Stop play
+regardless of it, because they exist to reach a user who cannot see the screen.
+The app's own Start & Stop Haptics setting still governs them. This does not
+contradict PRD §6 (a user with System Haptics off loses nothing they need), but
+entry 31's "respect the setting for free" no longer holds for Go and Stop. Sources:
+`Services/Haptics/LiveHapticFeedbackService.swift` and `HapticPattern.swift`.
+
+---
+
+## 57. Goldens regenerated for algorithm 1.2.0-provisional
+
+**Date:** 2026-11-14 · **Task:** post-review follow-ups · **Status:** Decided; regenerated under the `Goldens/README.md` protocol
+
+**Reason:** the estimator change of entry 48, approved by the product owner on
+2026-11-14. Commit aba3757 regenerated the goldens in
+`Stabilyz/StabilyzTests/Goldens`.
+
+**What moved:** only Ad1 and Ad2, with one trim-driven and one scoring-driven
+consequence.
+
+- Clean walk: Ad1 0.9446 → 0.9995, Ad2 0.889 → 0.999.
+- Scored-sixth-session case: `relativeIndex` 102 → 97, `compositeZ` 0.023 → −0.027.
+- `hundred-second-walk-full`: valid walking 100 → 97 s, from the manual-Stop tail
+  trim of entry 51 (the walk ends before the advertised length, so it is a
+  manual Stop). Its note now says 135 s is required.
+
+Nothing else moved. The estimator and the unchanged peak-splitting search are
+described in entry 48.
+
+---

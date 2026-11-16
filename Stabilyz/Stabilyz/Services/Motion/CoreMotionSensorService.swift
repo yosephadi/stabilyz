@@ -24,6 +24,11 @@ actor CoreMotionSensorService: MotionSensorService {
     private let logService: LogService
     /// Start-latency budget: if the first sample does not arrive inside this,
     /// the session fails fast rather than recording nothing (docs/07 §7.3).
+    ///
+    /// **[OPEN] PLACEHOLDER / provisional:** the PRD leaves the priming
+    /// deadline before Go [OPEN] (docs/stabilyz-prd.md). The 2 s default below
+    /// has no source; it is pending on-device validation and must not be read
+    /// as a decision.
     private let primingBudget: Duration
 
     private let updateQueue: OperationQueue
@@ -32,7 +37,7 @@ actor CoreMotionSensorService: MotionSensorService {
     init(
         clock: Clock,
         logService: LogService,
-        primingBudget: Duration = .seconds(2),
+        primingBudget: Duration = .seconds(2), // [OPEN] PLACEHOLDER, see `primingBudget`
         manager: CMMotionManager = CMMotionManager(),
         activityManager: CMMotionActivityManager = CMMotionActivityManager()
     ) {

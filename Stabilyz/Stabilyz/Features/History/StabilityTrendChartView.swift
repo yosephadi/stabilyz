@@ -26,6 +26,7 @@ struct StabilityTrendChartView: View {
                 VStack(alignment: .leading, spacing: Space.x4) {
                     title
                     chart
+                    if trend.hasMetronomeMarkers { legend }
                 }
                 .padding(Space.x4)
 
@@ -137,7 +138,9 @@ struct StabilityTrendChartView: View {
                 .accessibilityLabel(StabilityTrend.baselineLabel)
                 .accessibilityValue("\(trend.baselineIndex)")
 
-            ForEach(trend.points) { point in
+            // The line and its fill join the walks recorded without the
+            // Metronome Cue only (StabilityTrend.linePoints).
+            ForEach(trend.linePoints) { point in
                 AreaMark(
                     x: .value("Walk", Double(point.position)),
                     yStart: .value("Floor", trend.yDomain.lowerBound),
@@ -153,19 +156,35 @@ struct StabilityTrendChartView: View {
                 .foregroundStyle(StabilyzColor.chartLine)
                 .lineStyle(StrokeStyle(lineWidth: ChartMetrics.lineWidth))
                 .accessibilityHidden(true)
+            }
 
+            ForEach(trend.points) { point in
                 PointMark(
                     x: .value("Walk", Double(point.position)),
                     y: .value("Stability score", point.index)
                 )
                 .symbol {
-                    // §6: filled per the score scale. The ring keeps the palest
-                    // bands visible on a white card; the height already says
-                    // what the colour says (§9).
-                    Circle()
-                        .fill(StabilyzColor.score(point.index))
-                        .overlay(Circle().strokeBorder(StabilyzColor.chartLine, lineWidth: Metrics.hairline))
-                        .frame(width: ChartMetrics.pointDiameter, height: ChartMetrics.pointDiameter)
+                    if point.isMetronomeCued {
+                        // A diamond, not a circle: the difference is shape, so
+                        // it survives without colour.
+                        ZStack {
+                            Image(systemName: "diamond.fill")
+                                .resizable()
+                                .foregroundStyle(StabilyzColor.score(point.index))
+                            Image(systemName: "diamond")
+                                .resizable()
+                                .foregroundStyle(StabilyzColor.chartLine)
+                        }
+                        .frame(width: ChartMetrics.cuedMarkerDiameter, height: ChartMetrics.cuedMarkerDiameter)
+                    } else {
+                        // §6: filled per the score scale. The ring keeps the palest
+                        // bands visible on a white card; the height already says
+                        // what the colour says (§9).
+                        Circle()
+                            .fill(StabilyzColor.score(point.index))
+                            .overlay(Circle().strokeBorder(StabilyzColor.chartLine, lineWidth: Metrics.hairline))
+                            .frame(width: ChartMetrics.pointDiameter, height: ChartMetrics.pointDiameter)
+                    }
                 }
                 .annotation(position: .top, spacing: Space.x1) {
                     if trend.labelledPositions.contains(point.position) {
@@ -202,6 +221,17 @@ struct StabilityTrendChartView: View {
         }
         .frame(height: ChartMetrics.trendHeight)
         .accessibilityLabel(trend.accessibilitySummary)
+    }
+
+    /// Explains the diamond, at the 15pt floor and beside its own glyph so it
+    /// does not rely on colour.
+    private var legend: some View {
+        Label(StabilityTrend.metronomeLegend, systemImage: "diamond")
+            .font(StabilyzFont.smallRegular)
+            .foregroundStyle(StabilyzColor.ink600)
+            .fixedSize(horizontal: false, vertical: true)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .accessibilityIdentifier("trend.metronomeLegend")
     }
 
     private func isLatest(_ point: StabilityTrend.Point) -> Bool {

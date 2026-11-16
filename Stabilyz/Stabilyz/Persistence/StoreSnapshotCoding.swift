@@ -101,7 +101,7 @@ private struct ProfileRow: Codable {
     let id: UUID
     let amputationLevel: String
     let side: String
-    let timeSinceAmputationMonths: Int
+    let timeSinceAmputationMonths: Int?
     let prosthesisType: String?
     let kLevel: String?
     let disclaimerAcceptedAt: Date

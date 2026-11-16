@@ -41,6 +41,8 @@ final class SettingsJourneyTests: XCTestCase {
     func testTheDisclaimerOpensAndGoesBack() {
         let app = openYou()
 
+        // About You pushed the About & Legal rows below the first screenful.
+        app.swipeUp()
         app.buttons["settings.disclaimer"].waitToAppear().tap()
         let bar = app.navigationBars["Disclaimer"].waitToAppear()
         app.element(labelContaining: "not a medical device").waitToAppear(timeout: 5, "the disclaimer text is shown")
@@ -48,5 +50,19 @@ final class SettingsJourneyTests: XCTestCase {
         bar.buttons.firstMatch.tap()
         bar.waitToDisappear()
         app.buttons["settings.disclaimer"].waitToAppear(timeout: 5, "back returns to You")
+    }
+
+    @MainActor
+    func testTheOptionalProfileAnswersCanBeEditedFromYou() {
+        let app = openYou()
+
+        let kLevel = app.descendants(matching: .any)["settings.profile.kLevel"].waitToAppear()
+        kLevel.tap()
+        let bar = app.navigationBars["K-level"].waitToAppear()
+        app.buttons["K2 — limited community walking"].tap()
+
+        bar.buttons.firstMatch.tap()
+        bar.waitToDisappear()
+        app.element(labelContaining: "K2 — limited community walking").waitToAppear(timeout: 5, "the You row shows the new answer")
     }
 }

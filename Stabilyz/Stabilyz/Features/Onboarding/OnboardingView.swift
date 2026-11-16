@@ -115,7 +115,7 @@ struct OnboardingView: View {
         .accessibilityIdentifier("onboarding.back")
     }
 
-    /// Skip, on the two optional screens only.
+    /// Skip, on the three optional screens only.
     ///
     /// `model.canSkip` is the authority, not this view: which fields are
     /// optional is a [PRD §7 AC] rule, and a required screen that became
@@ -220,9 +220,9 @@ struct OnboardingView: View {
             }
 
         case .timeSinceAmputation:
-            step("How long has it been since your amputation?", "An estimate is fine.") {
+            step("How long has it been since your amputation?", "Optional. An estimate is fine.") {
                 ChoiceCard(
-                    options: TimeSinceAmputation.allCases.map { .init($0, timeLabel($0)) },
+                    options: TimeSinceAmputation.allCases.map { .init($0, ProfileAnswerCopy.timeLabel($0)) },
                     selection: timeBinding
                 )
             }
@@ -233,7 +233,7 @@ struct OnboardingView: View {
                 "Optional. This helps you keep a useful record of your setup."
             ) {
                 ChoiceCard(
-                    options: ProsthesisType.allCases.map { .init($0, prosthesisLabel($0)) },
+                    options: ProsthesisType.allCases.map { .init($0, ProfileAnswerCopy.prosthesisLabel($0)) },
                     selection: prosthesisBinding
                 )
             }
@@ -244,8 +244,8 @@ struct OnboardingView: View {
                 "Optional. Your prosthetist may have discussed this with you."
             ) {
                 ChoiceCard(
-                    options: OnboardingDraft.offeredKLevels.map { .init($0, kLevelLabel($0)) }
-                        + [.init(nil, "I don't know")],
+                    options: OnboardingDraft.offeredKLevels.map { .init($0, ProfileAnswerCopy.kLevelLabel($0)) }
+                        + [.init(nil, ProfileAnswerCopy.kLevelUnknown)],
                     selection: kLevelBinding
                 )
             }
@@ -318,41 +318,6 @@ struct OnboardingView: View {
         case .left: "Left"
         case .right: "Right"
         case .both: "Both"
-        }
-    }
-
-    /// The five bands, worded as the design words them.
-    private func timeLabel(_ band: TimeSinceAmputation) -> String {
-        switch band {
-        case .underSixMonths: "Less than 6 months"
-        case .sixToTwelveMonths: "6–12 months"
-        case .oneToTwoYears: "1–2 years"
-        case .threeToFiveYears: "3–5 years"
-        case .overFiveYears: "More than 5 years"
-        }
-    }
-
-    /// The five answers, worded as the design words them.
-    private func prosthesisLabel(_ type: ProsthesisType) -> String {
-        switch type {
-        case .everydayWalking: "Everyday walking prosthesis"
-        case .activityOrSports: "Activity or sports prosthesis"
-        case .microprocessorKnee: "Microprocessor-controlled knee"
-        case .preferNotToSay: "Prefer not to say"
-        case .other: "Other"
-        }
-    }
-
-    /// K1-K4 are worded as the designs word them. K0 keeps a label without
-    /// being offered: `OnboardingDraft.offeredKLevels` decides what this screen
-    /// shows, and a restored profile carrying K0 still has something to render.
-    private func kLevelLabel(_ level: KLevel) -> String {
-        switch level {
-        case .k0: "K0 — not walking at present"
-        case .k1: "K1 — household walking"
-        case .k2: "K2 — limited community walking"
-        case .k3: "K3 — community walking"
-        case .k4: "K4 — high activity"
         }
     }
 

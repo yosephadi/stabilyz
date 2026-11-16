@@ -115,7 +115,7 @@ document does not contain.
 
 ## 3. Typography
 
-**SF Pro**, non-italic, Regular / Medium / Bold only, 15pt minimum per HIG.
+**SF Pro**, non-italic, Regular / Medium / Bold only, 15pt minimum — **the project's own rule**, not an Apple one: the HIG minimum text size is 11 pt on iOS and 12 pt on watchOS ([Typography](https://developer.apple.com/design/human-interface-guidelines/typography)). **Open issue:** on watchOS at the xSmall Dynamic Type size, Body and Headline render at 14 pt, below this floor.
 
 | Style | Size | Weight | Use |
 |---|---|---|---|
@@ -190,7 +190,7 @@ an iOS button".
   8pt overhang on each side is what makes the card read as a surface the
   copy sits on top of, rather than as another paragraph in the same
   column.
-- Minimum tap target: 44×44pt (HIG), non-negotiable given the user base
+- Minimum tap target: 44×44pt (the HIG's default control size; its minimum is 28×28pt), non-negotiable given the user base
   skews toward less tech-savvy, older users.
 - Corner radius: `8px` for buttons/inputs, `26px` for cards, `24px` for
   sheets/modals. No sharp corners anywhere. The card's 26px is iOS 26's
@@ -256,8 +256,8 @@ work.
 - `NavigationStack` throughout, system **Large Title** style for screen
   titles — this already renders at 34pt Bold, so it maps directly onto
   the Heading style in §3 with zero custom type work.
-- `TabView` with SF Symbols for the top-level destinations (Home,
-  History, Settings) — a native iOS tab bar rather than a custom
+- `TabView` with SF Symbols for the top-level destinations (Walk,
+  Result, You — as built in `MainShellView`; there is no Home tab) — a native iOS tab bar rather than a custom
   dashboard-button layout. Selected tab tinted `primary-600`.
 
 ### Buttons
@@ -430,8 +430,9 @@ the disclaimer is not one — it is the consent gate the flow ends on, so
 it carries no number and draws no bar. Counting it would also make the
 bar read as full on the one screen where nothing is done yet.
 
-**Skip appears on the two optional screens only** — device type and
-K-level [PRD §6, §7 AC]. The designs show it greyed on some required
+**Skip appears on the three optional screens only** — time since
+amputation, device type and K-level [PRD §6, §7 AC; decisions.md entry 53].
+All three can be edited later in Settings. The designs show it greyed on some required
 screens; the PRD is what governs, so it is absent rather than disabled
 there.
 
@@ -507,6 +508,8 @@ Built with **Swift Charts** (already the PRD's stated choice).
   still visible at a glance even though the line/fill stay monochrome.
 - Gridlines: `primary-300` (light) / a dimmed `primary-300` (dark),
   thin, no axis border box.
+- A session recorded with the Metronome Cue on is drawn as a distinct marker
+  and is left out of the line and fill (decisions.md entry 49).
 - Quick Test vs. Full Test split via the same native segmented `Picker`
   used for mode selection elsewhere — switching modes swaps the chart's
   data source, not its visual style.
