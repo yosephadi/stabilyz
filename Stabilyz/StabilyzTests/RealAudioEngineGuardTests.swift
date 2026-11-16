@@ -122,4 +122,30 @@ struct RealAudioEngineGuardTests {
         #expect(!RealAudioEngine.isSkipped(in: [RealAudioEngine.skipVariable: "0"]))
         #expect(!RealAudioEngine.isSkipped(in: [RealAudioEngine.skipVariable: "true"]))
     }
+
+    @Test func theWallClockSwitchIsItsOwnVariableSetToOne() {
+        #expect(WallClockSensitive.isSkipped(in: [WallClockSensitive.skipVariable: "1"]))
+        #expect(!WallClockSensitive.isSkipped(in: [:]))
+        #expect(!WallClockSensitive.isSkipped(in: ["CI": "true"]))
+        #expect(!WallClockSensitive.isSkipped(in: [WallClockSensitive.skipVariable: "true"]))
+        // The two switches are independent: neither turns the other's tests off.
+        #expect(!WallClockSensitive.isSkipped(in: [RealAudioEngine.skipVariable: "1"]))
+        #expect(!RealAudioEngine.isSkipped(in: [WallClockSensitive.skipVariable: "1"]))
+        #expect(WallClockSensitive.skipVariable != RealAudioEngine.skipVariable)
+    }
+
+    /// The wall-clock skip is for tests that cannot be written any other way.
+    /// Listing them here means adding one is a visible, reviewed change.
+    @Test func onlyTheListedTestsCarryTheWallClockTrait() {
+        let marker = ".wallClock" + "Sensitive"
+        let allowed: Set<String> = ["aStalledAudioConsumerNeverDelaysRecording"]
+        var found: Set<String> = []
+        for (name, text) in Self.testSources where name != "WallClockSensitiveTrait.swift" {
+            for line in text.split(separator: "\n") where line.contains("@Test") && line.contains(marker) {
+                guard let range = line.range(of: "func ") else { continue }
+                found.insert(String(line[range.upperBound...].prefix { $0.isLetter || $0.isNumber || $0 == "_" }))
+            }
+        }
+        #expect(found == allowed)
+    }
 }
