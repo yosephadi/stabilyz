@@ -221,9 +221,12 @@ private func fillRequiredFields(_ model: OnboardingViewModel, level: AmputationL
     await fillRequiredFields(model)
     model.disclaimerAccepted = true
 
-    // Anything that persists after the tick must still not carry it.
+    // Anything that persists after the tick must still not carry it. Wait for
+    // the back step's own write: read too early, the store still holds the
+    // draft saved on arriving at the disclaimer, whose step name alone would
+    // match the check below.
     model.back()
-    await Task.yield()
+    await draftSettles(store) { $0?.step != .disclaimer }
 
     let saved = await store.draft
     let encoded = String(decoding: try! JSONEncoder().encode(saved), as: UTF8.self)
