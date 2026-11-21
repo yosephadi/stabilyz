@@ -62,42 +62,68 @@ final class ProfileAnswersViewModel {
     // MARK: - Changes (nil clears an answer)
 
     func setTimeSinceAmputation(_ band: TimeSinceAmputation?) async {
-        guard let profile else { return }
-        await save {
-            try profile.replacingOptionalAnswers(
+        await update { current in
+            try current.replacingOptionalAnswers(
                 timeSinceAmputationMonths: band?.lowerBoundMonths,
-                prosthesisType: profile.prosthesisType,
-                kLevel: profile.kLevel
+                prosthesisType: current.prosthesisType,
+                kLevel: current.kLevel
             )
         }
     }
 
     func setProsthesisType(_ type: ProsthesisType?) async {
-        guard let profile else { return }
-        await save {
-            try profile.replacingOptionalAnswers(
-                timeSinceAmputationMonths: profile.timeSinceAmputationMonths,
+        await update { current in
+            try current.replacingOptionalAnswers(
+                timeSinceAmputationMonths: current.timeSinceAmputationMonths,
                 prosthesisType: type?.rawValue,
-                kLevel: profile.kLevel
+                kLevel: current.kLevel
             )
         }
     }
 
     func setKLevel(_ level: KLevel?) async {
-        guard let profile else { return }
-        await save {
-            try profile.replacingOptionalAnswers(
-                timeSinceAmputationMonths: profile.timeSinceAmputationMonths,
-                prosthesisType: profile.prosthesisType,
+        await update { current in
+            try current.replacingOptionalAnswers(
+                timeSinceAmputationMonths: current.timeSinceAmputationMonths,
+                prosthesisType: current.prosthesisType,
                 kLevel: level
             )
         }
     }
 
-    private func save(_ makeUpdated: () throws -> UserProfile) async {
+    // MARK: - Saving
+
+    /// The save in flight, so the next one waits for it.
+    private var saveChain: Task<Void, Never>?
+
+    /// Applies one answer change to the profile **as stored now**, one change
+    /// at a time.
+    ///
+    /// Two things this guards against. The cached `profile` can be out of date
+    /// — a restore replaces the store underneath this screen — and rebuilding
+    /// from it would write the old level, side and disclaimer date back over
+    /// the restored profile. And two edits made close together would otherwise
+    /// both start from the same snapshot, so the second save would undo the
+    /// first. So each change waits for the previous save, then reads the stored
+    /// profile and changes only its own answer.
+    private func update(_ change: @escaping @Sendable (UserProfile) throws -> UserProfile) async {
+        let previous = saveChain
+        let task = Task { @MainActor in
+            await previous?.value
+            await self.apply(change)
+        }
+        saveChain = task
+        await task.value
+    }
+
+    private func apply(_ change: (UserProfile) throws -> UserProfile) async {
         saveFailure = nil
         do {
-            let updated = try makeUpdated()
+            guard let current = try await profiles.fetchProfile() else {
+                profile = nil
+                return
+            }
+            let updated = try change(current)
             try await profiles.save(updated)
             profile = updated
         } catch let error as StabilyzError {
