@@ -405,13 +405,23 @@ final class SessionSetupViewModel {
             begin()
             return
         }
-        Task { await startAfterAuthorization() }
+        // Claimed here, synchronously, before the request is even scheduled:
+        // a second tap on Start arriving before the task runs would otherwise
+        // pass `isStartEnabled` too and start the walk twice.
+        isRequestingAuthorization = true
+        Task { await requestAuthorizationThenBegin() }
     }
 
     /// The undetermined path of `start()`: ask, wait, then begin or explain.
     func startAfterAuthorization() async {
         guard isStartEnabled else { return }
         isRequestingAuthorization = true
+        await requestAuthorizationThenBegin()
+    }
+
+    /// Runs with `isRequestingAuthorization` already set by the caller, and
+    /// clears it once the answer is in.
+    private func requestAuthorizationThenBegin() async {
         let status = await motionSensor.requestAuthorization()
         isRequestingAuthorization = false
         authorization = status

@@ -464,6 +464,29 @@ private func makeModel(
 }
 
 @MainActor
+@Test func aDoubleTapWhileUndeterminedAsksOnceAndStartsOnce() async {
+    let handed = Locked(0)
+    let requests = Locked(0)
+    let model = makeModel(authorization: .notDetermined, requestResult: .authorized, requests: requests) { _, _, _ in
+        handed.withLock { $0 += 1 }
+    }
+    await model.refreshPermission()
+
+    // Two taps before either request has had a chance to run.
+    model.start()
+    #expect(model.isStartEnabled == false, "Start stays enabled while the first tap is being handled")
+    model.start()
+
+    for _ in 0..<200 where handed.withLock({ $0 }) == 0 {
+        try? await Task.sleep(for: .milliseconds(10))
+    }
+    try? await Task.sleep(for: .milliseconds(50))
+    #expect(requests.withLock { $0 } == 1)
+    #expect(handed.withLock { $0 } == 1)
+    #expect(model.isRequestingAuthorization == false)
+}
+
+@MainActor
 @Test func alreadyAuthorizedStartsImmediatelyWithoutAsking() async {
     let handed = Locked(0)
     let requests = Locked(0)
