@@ -397,6 +397,41 @@ private func rewritingHeader(
     }
 }
 
+@Test func newExportsAreWrittenWithAtLeastTheCurrentFloor() async throws {
+    #expect(ArchiveFormat.exportIterations(calibrated: 1) >= 600_000)
+    #expect(ArchiveFormat.exportIterations(calibrated: KeyDerivationPolicy.legacyMinimumIterations) == 600_000)
+
+    // The production coder writes the floor into the header and refuses the old one.
+    let production = SecureArchiveCoder()
+    let floor = ArchiveFormat.exportIterations(calibrated: 0)
+    let data = try await production.encode(payload(), passphrase: passphrase, iterations: floor)
+    #expect(try ArchiveEnvelope.parse(data).header.iterations >= 600_000)
+
+    let old = KeyDerivationPolicy.legacyMinimumIterations
+    await #expect(throws: ArchiveEncodingError.iterationsOutOfRange(old)) {
+        _ = try await production.encode(payload(), passphrase: passphrase, iterations: old)
+    }
+}
+
+@Test func anArchiveFromBeforeTheRaisedFloorStillRestores() async throws {
+    // Written by an older build: 300,000 iterations, under today's export floor.
+    let old = KeyDerivationPolicy.legacyMinimumIterations
+    let older = SecureArchiveCoder(minimumEncodeIterations: old)
+    let data = try await older.encode(payload(), passphrase: passphrase, iterations: old)
+    #expect(try ArchiveEnvelope.parse(data).header.iterations == old)
+
+    let decoded = try await SecureArchiveCoder().decode(archiveData: data, passphrase: passphrase)
+    #expect(decoded.payload.sessions.count == 2)
+}
+
+@Test func anArchiveBelowTheOldFloorIsStillRefusedWhenWriting() async {
+    let below = KeyDerivationPolicy.legacyMinimumIterations - 1
+    await #expect(throws: ArchiveEncodingError.iterationsOutOfRange(below)) {
+        _ = try await SecureArchiveCoder(minimumEncodeIterations: KeyDerivationPolicy.legacyMinimumIterations)
+            .encode(payload(), passphrase: passphrase, iterations: below)
+    }
+}
+
 @Test func anInconsistentPayloadIsRefused() async throws {
     await #expect(throws: ArchiveEncodingError.emptyPassphrase) {
         _ = try await coder.encode(payload(), passphrase: [], iterations: testIterations)

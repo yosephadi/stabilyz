@@ -14,7 +14,7 @@ import Testing
         .countdownStarted(
             sessionID: sessionID,
             mode: .quick,
-            durationSeconds: 120,
+            durationSeconds: 90,
             plannedGoAt: goAt,
             hapticOwner: .watch,
             hapticsEnabled: true
@@ -22,7 +22,7 @@ import Testing
         .countdownStarted(
             sessionID: sessionID,
             mode: .full,
-            durationSeconds: 360,
+            durationSeconds: 180,
             plannedGoAt: goAt,
             hapticOwner: .phone,
             hapticsEnabled: false
@@ -32,8 +32,8 @@ import Testing
         .cancelled(sessionID: sessionID),
         .hapticsChanged(enabled: false),
         .hapticsChanged(enabled: true),
-        .setupSelection(mode: .quick, durationSeconds: 120),
-        .setupSelection(mode: .full, durationSeconds: 360),
+        .setupSelection(mode: .quick, durationSeconds: 90),
+        .setupSelection(mode: .full, durationSeconds: 180),
     ]
 
     static func json(_ text: String) -> Data { Data(text.utf8) }
@@ -104,7 +104,7 @@ import Testing
     }
 
     @Test func anUnknownModeIsDropped() {
-        let data = Self.json(#"{"version":1,"message":{"countdownStarted":{"sessionID":"6F9619FF-8B86-D011-B42D-00C04FC964FF","mode":"quickTest","durationSeconds":120,"plannedGoAt":1793000000,"hapticOwner":"watch","hapticsEnabled":true}}}"#)
+        let data = Self.json(#"{"version":1,"message":{"countdownStarted":{"sessionID":"6F9619FF-8B86-D011-B42D-00C04FC964FF","mode":"quickTest","durationSeconds":90,"plannedGoAt":1793000000,"hapticOwner":"watch","hapticsEnabled":true}}}"#)
         #expect(WatchSyncCoder.decodePhoneToWatch(data) == nil)
     }
 
@@ -120,22 +120,22 @@ import Testing
     /// A version-1 payload written by hand. If this stops decoding, the wire
     /// format changed and `WatchSyncVersion` must be bumped.
     @Test func aHandWrittenVersionOnePayloadStillDecodes() {
-        let countdown = Self.json(#"{"version":1,"message":{"countdownStarted":{"sessionID":"6F9619FF-8B86-D011-B42D-00C04FC964FF","mode":"full","durationSeconds":360,"plannedGoAt":1793000000.5,"hapticOwner":"phone","hapticsEnabled":false}}}"#)
+        let countdown = Self.json(#"{"version":1,"message":{"countdownStarted":{"sessionID":"6F9619FF-8B86-D011-B42D-00C04FC964FF","mode":"full","durationSeconds":180,"plannedGoAt":1793000000.5,"hapticOwner":"phone","hapticsEnabled":false}}}"#)
         let stop = Self.json(#"{"version":1,"message":{"stopRequest":{"sessionID":"6F9619FF-8B86-D011-B42D-00C04FC964FF"}}}"#)
         let haptics = Self.json(#"{"version":1,"message":{"hapticsChanged":{"enabled":true}}}"#)
-        let setup = Self.json(#"{"version":1,"message":{"setupSelection":{"mode":"quick","durationSeconds":120}}}"#)
+        let setup = Self.json(#"{"version":1,"message":{"setupSelection":{"mode":"quick","durationSeconds":90}}}"#)
 
         #expect(WatchSyncCoder.decodePhoneToWatch(countdown) == .countdownStarted(
             sessionID: Self.sessionID,
             mode: .full,
-            durationSeconds: 360,
+            durationSeconds: 180,
             plannedGoAt: Date(timeIntervalSince1970: 1_793_000_000.5),
             hapticOwner: .phone,
             hapticsEnabled: false
         ))
         #expect(WatchSyncCoder.decodeWatchToPhone(stop) == .stopRequest(sessionID: Self.sessionID))
         #expect(WatchSyncCoder.decodePhoneToWatch(haptics) == .hapticsChanged(enabled: true))
-        #expect(WatchSyncCoder.decodePhoneToWatch(setup) == .setupSelection(mode: .quick, durationSeconds: 120))
+        #expect(WatchSyncCoder.decodePhoneToWatch(setup) == .setupSelection(mode: .quick, durationSeconds: 90))
     }
 
     @Test func wireRawValuesArePinned() {

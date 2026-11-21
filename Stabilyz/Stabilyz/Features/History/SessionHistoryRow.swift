@@ -30,6 +30,8 @@ struct SessionHistoryRow: Equatable, Identifiable {
     let id: UUID
     let mode: TestMode
     let startedAt: Date
+    /// Whether the Metronome Cue was on, from the stored audio configuration.
+    let isMetronomeCued: Bool
     let standing: Standing
     /// The Score screen for this walk, as the row's chevron opens it.
     let detail: SessionScorePresentation
@@ -79,6 +81,7 @@ struct SessionHistoryRow: Equatable, Identifiable {
         self.id = session.id
         self.mode = session.mode
         self.startedAt = session.startedAt
+        self.isMetronomeCued = session.audioConfig.isMetronomeCued
         self.detail = SessionScorePresentation(
             stored: session,
             walk: walk,
@@ -116,10 +119,10 @@ struct SessionHistoryRow: Equatable, Identifiable {
         return "\(mode.displayName) · \(startedAt.formatted(style))"
     }
 
-    /// "Walk 3 of 5" under a calibration walk's number; nil on every other row.
+    /// "Walk 3 of 5 toward your baseline" under a calibration walk's number; nil on every other row.
     var walkLabel: String? {
         guard case .calibrating(let walk, let required, _) = standing else { return nil }
-        return "Walk \(walk) of \(required)"
+        return BaselineProgressCopy.progress(walk: walk, required: required)
     }
 
     static let noScoreLabel = "No score"
@@ -140,7 +143,7 @@ struct SessionHistoryRow: Equatable, Identifiable {
             // "Provisional" leads, as on the Score screen: a listener who stops
             // early must not be left with the bare number.
             let result = provisional.map { "Provisional stability score \($0) out of 100." } ?? "No score."
-            return "\(heading) \(result) Walk \(walk) of \(required)."
+            return "\(heading) \(result) \(BaselineProgressCopy.progress(walk: walk, required: required))."
         case .notComparable:
             return "\(heading) No score. This walk could not be compared against your baseline."
         }

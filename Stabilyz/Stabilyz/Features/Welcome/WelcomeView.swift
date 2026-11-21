@@ -28,26 +28,26 @@ struct WelcomeView: View {
     @State private var isPickingFile = false
     @State private var restore: RestoreDataViewModel?
 
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
     var body: some View {
-        VStack(spacing: 0) {
-            header
-                .padding(.horizontal, Space.screenMargin)
+        Group {
+            if dynamicTypeSize.isAccessibilitySize {
+                // The illustration drops out and the copy scrolls, so the
+                // wrapped capsules stay whole and pinned at the bottom.
+                VStack(spacing: Space.x4) {
+                    ScrollView {
+                        header
+                            .padding(.horizontal, Space.screenMargin)
+                    }
+                    .scrollBounceBehavior(.basedOnSize)
 
-            Spacer(minLength: Space.x6)
-
-            // Full bleed: the node draws this 402pt wide in a 402pt frame.
-            Image("WelcomeIllustration")
-                .resizable()
-                .scaledToFit()
-                .frame(maxWidth: .infinity)
-                // Decorative. The title and subtitle already say everything it
-                // says, so announcing it would only add a stop to navigate past.
-                .accessibilityHidden(true)
-
-            Spacer(minLength: Space.x6)
-
-            actions
-                .padding(.horizontal, Space.screenMargin)
+                    actions
+                        .padding(.horizontal, Space.screenMargin)
+                }
+            } else {
+                regularLayout
+            }
         }
         .padding(.top, Space.x12)
         .padding(.bottom, Controls.footerBottomGap)
@@ -74,6 +74,29 @@ struct WelcomeView: View {
         let model = makeRestore { restore = nil }
         restore = model
         Task { await model.fileImported(result) }
+    }
+
+    private var regularLayout: some View {
+        VStack(spacing: 0) {
+            header
+                .padding(.horizontal, Space.screenMargin)
+
+            Spacer(minLength: Space.x6)
+
+            // Full bleed: the node draws this 402pt wide in a 402pt frame.
+            Image("WelcomeIllustration")
+                .resizable()
+                .scaledToFit()
+                .frame(maxWidth: .infinity)
+                // Decorative. The title and subtitle already say everything it
+                // says, so announcing it would only add a stop to navigate past.
+                .accessibilityHidden(true)
+
+            Spacer(minLength: Space.x6)
+
+            actions
+                .padding(.horizontal, Space.screenMargin)
+        }
     }
 
     // MARK: - Header

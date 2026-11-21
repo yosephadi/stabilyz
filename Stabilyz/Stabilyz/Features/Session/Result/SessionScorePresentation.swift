@@ -269,12 +269,11 @@ struct SessionScorePresentation: Equatable {
         let remaining = required - completed
         guard remaining > 0 else { return nil }
 
-        let tests = remaining == 1 ? mode.displayName : "\(mode.displayName)s"
         return BaselineProgress(
             completed: completed,
             required: required,
-            header: "\(completed) of \(required) sessions complete",
-            helper: "Complete \(spelledOut(remaining)) more valid \(tests) to set your personal baseline."
+            header: BaselineProgressCopy.progress(walk: completed, required: required),
+            helper: BaselineProgressCopy.remainingSentence(remaining)
         )
     }
 
@@ -296,7 +295,7 @@ struct SessionScorePresentation: Equatable {
         return BaselineProgress(
             completed: walk,
             required: required,
-            header: "Walk \(walk) of \(required)",
+            header: BaselineProgressCopy.progress(walk: walk, required: required),
             helper: helper
         )
     }

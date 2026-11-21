@@ -45,6 +45,20 @@ final class SessionSetupViewModel {
 
     private(set) var permission: PermissionState = .clear
 
+    /// What the last check found. Starts at `.authorized` so no "why" line is
+    /// shown before the first check has run.
+    private(set) var authorization: MotionAuthorizationStatus = .authorized
+
+    /// True while the system Motion & Fitness prompt is up after Start.
+    private(set) var isRequestingAuthorization = false
+
+    /// Whether the user has yet to answer the Motion & Fitness prompt. Drives
+    /// the one-line "why" near Start, shown only in this state.
+    var isAuthorizationUndetermined: Bool { authorization == .notDetermined }
+
+    static let authorizationWhyLine =
+        "Stabilyz needs Motion & Fitness access to measure your walking. We'll ask when you tap Start."
+
     /// This mode's state. `.notStarted` only when the store actually said so —
     /// `baselineLoadFailed` covers the case where it said nothing.
     var baselineState: BaselineState { baselineStates[mode] ?? .notStarted }
@@ -195,8 +209,8 @@ final class SessionSetupViewModel {
     /// than the mode — it is the length the user is choosing between.
     func segmentLabel(for mode: TestMode) -> String {
         switch mode {
-        case .quickTest: "Quick (2 min)"
-        case .fullTest: "Full (6 min)"
+        case .quickTest: "Quick (1:30)"
+        case .fullTest: "Full (3:00)"
         }
     }
 
@@ -219,7 +233,7 @@ final class SessionSetupViewModel {
         case .notStarted:
             return "Start building your baseline"
         case .building(let completed):
-            return "\(completed) of \(Baseline.requiredValidSessionCount) sessions complete"
+            return BaselineProgressCopy.progress(walk: completed)
         case .baselineRefused:
             // Never "7 of 5" (Task 9.2.1).
             return Self.baselineRefusedHeadline
@@ -248,7 +262,7 @@ final class SessionSetupViewModel {
             return "Complete \(required) valid \(pluralTests(required)) to create your personal reference point."
         case .building(let completed):
             let remaining = max(required - completed, 0)
-            return "Complete \(remaining) more valid \(pluralTests(remaining)) to set your personal baseline."
+            return BaselineProgressCopy.remainingSentence(remaining)
         case .baselineRefused:
             // Cause-neutral, and no promise that another walk fixes it: a retry
             // refuses the same first five (docs/decisions.md entry 17).
@@ -290,6 +304,22 @@ final class SessionSetupViewModel {
     static let hapticsTitle = "Start & Stop Haptics"
     static let hapticsSubtitle = "A tap on each countdown second, and when the walk ends."
 
+    // MARK: - Copy: how to walk [PRD §5, §6 edge cases]
+
+    static let noTargetPaceLine = "Walk normally — there's no target pace"
+    static let straightLineLine = "Walk in as straight a line as you can"
+
+    /// The framing shown before Start. "No target pace" is the PRD's
+    /// pre-baseline framing (sessions 1-5 in a mode, where Step Feedback is
+    /// the only cue and no tempo may be implied), so it goes once the mode's
+    /// baseline exists and the Metronome Cue — a pace — becomes available. The
+    /// straight-line instruction applies to every walk (turns are not scored).
+    var framingLines: [String] {
+        baselineState.allowsStepFeedback
+            ? [Self.noTargetPaceLine, Self.straightLineLine]
+            : [Self.straightLineLine]
+    }
+
     // MARK: - Copy: the primary action
 
     var startButtonTitle: String { "Start \(mode.displayName)" }
@@ -315,6 +345,7 @@ final class SessionSetupViewModel {
     // MARK: - Gates
 
     var isStartEnabled: Bool {
+        if isRequestingAuthorization { return false }
         if case .blocked = permission { return false }
         return true
     }
@@ -343,7 +374,9 @@ final class SessionSetupViewModel {
     /// (docs/07 §7.6) [PRD §6 — the Start button explains why, never fails
     /// silently].
     func refreshPermission() async {
-        switch await motionSensor.authorizationStatus {
+        let status = await motionSensor.authorizationStatus
+        authorization = status
+        switch status {
         case .denied:
             permission = .blocked(.permission(.motionDenied))
             logService.log(.warning, .session, "session setup: motion permission denied")
@@ -351,8 +384,8 @@ final class SessionSetupViewModel {
             permission = .blocked(.permission(.motionRestricted))
             logService.log(.warning, .session, "session setup: motion permission restricted")
         case .authorized, .notDetermined:
-            // `notDetermined` is not a refusal — the system prompt appears when
-            // the recorder first touches the sensor.
+            // `notDetermined` is not a refusal — `start()` asks for it before
+            // the countdown begins.
             permission = .clear
         }
     }
@@ -362,8 +395,52 @@ final class SessionSetupViewModel {
     }
 
     /// Hands the chosen session to the countdown. Starts nothing itself.
+    ///
+    /// When Motion & Fitness has not been answered yet, the system prompt is
+    /// raised here, first, and the countdown only begins once it is answered —
+    /// otherwise the alert lands while the user is stowing the phone.
     func start() {
         guard isStartEnabled else { return }
+        guard isAuthorizationUndetermined else {
+            begin()
+            return
+        }
+        // Claimed here, synchronously, before the request is even scheduled:
+        // a second tap on Start arriving before the task runs would otherwise
+        // pass `isStartEnabled` too and start the walk twice.
+        isRequestingAuthorization = true
+        Task { await requestAuthorizationThenBegin() }
+    }
+
+    /// The undetermined path of `start()`: ask, wait, then begin or explain.
+    func startAfterAuthorization() async {
+        guard isStartEnabled else { return }
+        isRequestingAuthorization = true
+        await requestAuthorizationThenBegin()
+    }
+
+    /// Runs with `isRequestingAuthorization` already set by the caller, and
+    /// clears it once the answer is in.
+    private func requestAuthorizationThenBegin() async {
+        let status = await motionSensor.requestAuthorization()
+        isRequestingAuthorization = false
+        authorization = status
+        switch status {
+        case .denied:
+            permission = .blocked(.permission(.motionDenied))
+            logService.log(.warning, .session, "session setup: motion permission denied at start")
+        case .restricted:
+            permission = .blocked(.permission(.motionRestricted))
+            logService.log(.warning, .session, "session setup: motion permission restricted at start")
+        case .authorized, .notDetermined:
+            // Still undetermined means the system could not ask (no activity
+            // hardware); the recorder reports that case itself.
+            permission = .clear
+            begin()
+        }
+    }
+
+    private func begin() {
         let config = audioConfig
         logService.log(
             .info, .session,

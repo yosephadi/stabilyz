@@ -33,6 +33,7 @@ countdown → recording → processing → result(score | noisy | failure)
 `modeSelection` and `audioConfiguration` were the first two stages; both now live in `SessionSetupView` at the root of the Walk tab, which hands `(TestMode, SessionAudioConfig)` to the cover through `onStart`. The coordinator therefore starts at the countdown rather than at a choice.
 
 - State-dependent contents: the setup screen's cue toggle depends on `BaselineState(for: selectedMode)` [PRD §5], read for **both** modes so a mode switch never waits on a query; first-session framing [PRD §5].
+- **Hand-offs inside the cover are sequential (2026-11-15):** countdown → walk, walk → processing, and processing → completion → score each fade the old content out (`Motion.handoffOut`, 0.2 s) and then the new in (`Motion.handoffIn`, 0.25 s) — never both at once; under Reduce Motion the swap is instant. Recording start and the Go haptic and tone are unchanged.
 - After Processing: route to Noisy or Score — never both, never neither (failure → plain-language error + safe dismissal, session invalid) [PRD §5].
 - Dismissal from result returns to Home; History refresh reflects the committed session.
 

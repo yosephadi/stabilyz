@@ -54,6 +54,15 @@ protocol HapticFeedbackService: Sendable {
     /// Returns before it has finished playing, like Go.
     func playSessionStop() async
 
+    /// The success notification on the completion screen of a measured walk.
+    ///
+    /// **After Stop only.** Never during the countdown or the walk, and never
+    /// for an unclear walk — the caller decides which (see
+    /// `SessionCompletionContent.playsSuccessHaptic`). One request per
+    /// completion screen. Gated by the same Start & Stop Haptics setting as
+    /// the other session cues.
+    func playCompletionSuccess() async
+
     /// Releases the generators. Called when the session ends or the countdown
     /// is aborted.
     func teardown() async
@@ -67,4 +76,5 @@ extension HapticFeedbackService {
     /// but an implementation that *does* hold generators overrides both.
     func prepare() async {}
     func teardown() async {}
+    func playCompletionSuccess() async {}
 }

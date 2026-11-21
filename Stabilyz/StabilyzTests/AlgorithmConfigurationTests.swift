@@ -144,7 +144,7 @@ private let config = AlgorithmConfiguration.v1
     // [PRD OQ-3] and the plainer explanation is reported first.
     let reason = config.quality.invalidReason(
         mode: .quickTest,
-        validWalkingDuration: .seconds(60),
+        validWalkingDuration: .seconds(30),
         validStrideCount: 100,
         highFrequencyPowerRatio: 0.9
     )
@@ -183,8 +183,8 @@ private let config = AlgorithmConfiguration.v1
 
 @Test func theQualityGateUsesTheModesOwnMinimum() {
     // 100 s passes Quick Test and fails Full Test [PRD OQ-3].
-    #expect(config.quality.minimumValidWalkingDuration(for: .quickTest) == .seconds(90))
-    #expect(config.quality.minimumValidWalkingDuration(for: .fullTest) == .seconds(240))
+    #expect(config.quality.minimumValidWalkingDuration(for: .quickTest) == .seconds(60))
+    #expect(config.quality.minimumValidWalkingDuration(for: .fullTest) == .seconds(135))
 
     let quick = config.quality.invalidReason(
         mode: .quickTest, validWalkingDuration: .seconds(100),

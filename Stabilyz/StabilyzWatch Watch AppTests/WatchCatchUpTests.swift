@@ -18,7 +18,7 @@ private func stored(
 ) -> WatchCatchUp {
     let countdown = countdownStarted(owner: owner)
     return WatchCatchUp(
-        setup: .setupSelection(mode: .quick, durationSeconds: 120),
+        setup: .setupSelection(mode: .quick, durationSeconds: 90),
         countdown: countdown,
         sessionState: state ?? countdown,
         haptics: haptics.map { .hapticsChanged(enabled: $0) }
@@ -30,13 +30,13 @@ private func stored(
     @Test func everyKeyIsReadWhenPresent() throws {
         let countdown = countdownStarted()
         let context: [String: Any] = [
-            WatchSyncKeys.setup: try WatchSyncCoder.encode(PhoneToWatchMessage.setupSelection(mode: .full, durationSeconds: 360)),
+            WatchSyncKeys.setup: try WatchSyncCoder.encode(PhoneToWatchMessage.setupSelection(mode: .full, durationSeconds: 180)),
             WatchSyncKeys.countdown: try WatchSyncCoder.encode(countdown),
             WatchSyncKeys.sessionState: try WatchSyncCoder.encode(PhoneToWatchMessage.started(sessionID: sessionA, t0: goAt)),
             WatchSyncKeys.haptics: try WatchSyncCoder.encode(PhoneToWatchMessage.hapticsChanged(enabled: false)),
         ]
         #expect(WatchCatchUp(applicationContext: context) == WatchCatchUp(
-            setup: .setupSelection(mode: .full, durationSeconds: 360),
+            setup: .setupSelection(mode: .full, durationSeconds: 180),
             countdown: countdown,
             sessionState: .started(sessionID: sessionA, t0: goAt),
             haptics: .hapticsChanged(enabled: false)
@@ -69,7 +69,7 @@ private func stored(
             return
         }
         #expect(announcements(in: effects) == ["3"])
-        #expect(machine.selection == WatchSelection(mode: .quick, durationSeconds: 120))
+        #expect(machine.selection == WatchSelection(mode: .quick, durationSeconds: 90))
     }
 
     /// The case from the brief: the watch owns haptics, drops at "4" and
@@ -157,7 +157,7 @@ private func stored(
     /// back by an older stored state.
     @Test func catchUpNeverMovesASessionBackwards() {
         var machine = WatchSessionMachine.running(owner: .watch)
-        machine.run([.reachability(false, at: at(30)), .tick(at(120))])
+        machine.run([.reachability(false, at: at(30)), .tick(at(90))])
         #expect(machine.phase == .stopped(sessionID: sessionA))
 
         machine.run([.catchUp(stored(.started(sessionID: sessionA, t0: goAt)), at: at(125))])
@@ -176,15 +176,15 @@ private func stored(
 
     /// Stored state counts as current until 5 minutes after the planned end.
     @Test func aStaleSessionLeavesTheWatchWaiting() {
-        // Quick Test: planned end at goAt + 120 s; current until + 300 s.
+        // Quick Test: planned end at goAt + 90 s; current until + 300 s.
         var current = WatchSessionMachine()
-        current.run([.catchUp(stored(.stopped(sessionID: sessionA)), at: at(420))])
+        current.run([.catchUp(stored(.stopped(sessionID: sessionA)), at: at(390))])
         #expect(current.phase == .stopped(sessionID: sessionA))
 
         var stale = WatchSessionMachine()
-        stale.run([.catchUp(stored(.stopped(sessionID: sessionA)), at: at(420.1))])
+        stale.run([.catchUp(stored(.stopped(sessionID: sessionA)), at: at(390.1))])
         #expect(stale.phase == .waiting)
-        #expect(stale.selection == WatchSelection(mode: .quick, durationSeconds: 120), "the setup still applies")
+        #expect(stale.selection == WatchSelection(mode: .quick, durationSeconds: 90), "the setup still applies")
     }
 
     @Test func aStoredRunningWalkPastItsLengthIsShownEndedWithoutABuzz() {
@@ -210,9 +210,9 @@ private func stored(
     @Test func atTheEndWhileDisconnectedTheWatchStopsAndBuzzesIfItOwns() {
         var machine = WatchSessionMachine.running(owner: .watch)
         machine.run([.reachability(false, at: at(30))])
-        #expect(machine.run([.tick(at(119.9))]).isEmpty)
+        #expect(machine.run([.tick(at(89.9))]).isEmpty)
 
-        let effects = machine.run([.tick(at(120))])
+        let effects = machine.run([.tick(at(90))])
         #expect(machine.phase == .stopped(sessionID: sessionA))
         #expect(haptics(in: effects) == [.stop])
     }
@@ -221,7 +221,7 @@ private func stored(
         for (owner, enabled) in [(WireHapticOwner.phone, true), (.watch, false)] {
             var machine = WatchSessionMachine.running(owner: owner, hapticsEnabled: enabled)
             machine.run([.reachability(false, at: at(30))])
-            let effects = machine.run([.tick(at(120))])
+            let effects = machine.run([.tick(at(90))])
             #expect(machine.phase == .stopped(sessionID: sessionA))
             #expect(haptics(in: effects).isEmpty)
         }
@@ -229,7 +229,7 @@ private func stored(
 
     @Test func thePhonesLateStoppedAddsNoSecondBuzz() {
         var machine = WatchSessionMachine.running(owner: .watch)
-        machine.run([.reachability(false, at: at(30)), .tick(at(120))])
+        machine.run([.reachability(false, at: at(30)), .tick(at(90))])
         let effects = machine.run([
             .reachability(true, at: at(125)),
             .received(.stopped(sessionID: sessionA), at: at(125.1)),
@@ -349,8 +349,8 @@ private func stored(
 
     @Test func aStoredSetupSelectionAppliesAtOnce() {
         var machine = WatchSessionMachine()
-        machine.run([.storedUpdate(WatchCatchUp(setup: .setupSelection(mode: .full, durationSeconds: 360)), at: at(0))])
-        #expect(machine.selection == WatchSelection(mode: .full, durationSeconds: 360))
+        machine.run([.storedUpdate(WatchCatchUp(setup: .setupSelection(mode: .full, durationSeconds: 180)), at: at(0))])
+        #expect(machine.selection == WatchSelection(mode: .full, durationSeconds: 180))
     }
 }
 

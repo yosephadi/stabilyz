@@ -84,7 +84,7 @@ private func first<Value>(_ count: Int, of stream: AsyncStream<Value>) async -> 
     @Test func theMockRecordsSendsInOrder() async {
         let mock = MockWatchSessionService()
         let messages: [PhoneToWatchMessage] = [
-            .countdownStarted(sessionID: sessionA, mode: .quick, durationSeconds: 120,
+            .countdownStarted(sessionID: sessionA, mode: .quick, durationSeconds: 90,
                               plannedGoAt: Date(timeIntervalSince1970: 10), hapticOwner: .watch, hapticsEnabled: true),
             .started(sessionID: sessionA, t0: Date(timeIntervalSince1970: 10.01)),
             .hapticsChanged(enabled: false),
@@ -170,7 +170,7 @@ private func first<Value>(_ count: Int, of stream: AsyncStream<Value>) async -> 
     }
 
     private let countdown = PhoneToWatchMessage.countdownStarted(
-        sessionID: sessionA, mode: .full, durationSeconds: 360,
+        sessionID: sessionA, mode: .full, durationSeconds: 180,
         plannedGoAt: Date(timeIntervalSince1970: 100), hapticOwner: .watch, hapticsEnabled: true
     )
 
@@ -197,7 +197,7 @@ private func first<Value>(_ count: Int, of stream: AsyncStream<Value>) async -> 
     /// Waiting needs the selection whatever the session is doing, and a
     /// session message must never erase it — nor it the session.
     @Test func theSetupSelectionLivesBesideTheSession() throws {
-        let setup = PhoneToWatchMessage.setupSelection(mode: .full, durationSeconds: 360)
+        let setup = PhoneToWatchMessage.setupSelection(mode: .full, durationSeconds: 180)
         let context = try record([setup, countdown, .stopped(sessionID: sessionA)])
         let stored = (context.dictionary[WatchSyncKeys.setup] as? Data).flatMap(WatchSyncCoder.decodePhoneToWatch)
         #expect(stored == setup)
@@ -217,7 +217,7 @@ private func first<Value>(_ count: Int, of stream: AsyncStream<Value>) async -> 
         #expect(decoded(context).state == .stopped(sessionID: sessionA))
 
         let next = PhoneToWatchMessage.countdownStarted(
-            sessionID: sessionB, mode: .quick, durationSeconds: 120,
+            sessionID: sessionB, mode: .quick, durationSeconds: 90,
             plannedGoAt: Date(timeIntervalSince1970: 500), hapticOwner: .phone, hapticsEnabled: true
         )
         let replaced = try record([countdown, started, next])

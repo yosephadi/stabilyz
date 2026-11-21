@@ -6,9 +6,9 @@
 |---|---|
 | **CoreMotion / CMMotionManager** | High-rate accelerometer (and device-motion attitude/gravity) streaming — the primary trunk-acceleration signal [PRD §5] |
 | **CoreMotion / CMPedometer** | Steps, cadence, pace, distance — co-recorded live [PRD §5], cross-check input for segmentation & step detection |
-| **CoreMotion / CMMotionActivityManager** | [REC] Coarse walking/stationary classification to assist non-walking segment exclusion [PRD §6 "user stands still"] |
+| **CoreMotion / CMMotionActivityManager** | [REC, not as built] Coarse walking/stationary classification was planned to assist non-walking segment exclusion [PRD §6 "user stands still"]. As built, `CMMotionActivityManager` is used only for the Motion & Fitness permission path; segmentation is RMS-based |
 | **AVFoundation** | Tones & feedback (see §10) — listed here only for completeness of the session stack |
-| **CoreHaptics / UIKit feedback generators** | Countdown ticks and the stop pulse [PRD OQ-6] — behind `HapticFeedbackService` in `Services/Haptics`. Taps come from `UIImpactFeedbackGenerator` (light per numeral, heavy at Go, medium at Stop); CoreHaptics supplies only the capability probe. Silently degraded when unsupported or when System Haptics is off; listed here for completeness of the session stack |
+| **CoreHaptics / UIKit feedback generators** | Countdown ticks and the stop pulse [PRD OQ-6] — behind `HapticFeedbackService` in `Services/Haptics`. The countdown tick is a light `UIImpactFeedbackGenerator` transient (honours the System Haptics setting); Go and Stop are `CHHapticEngine` sustained vibrations (400 ms / 500 ms) with a heavy-transient fallback, and play regardless of the System Haptics setting (the app's own Start & Stop Haptics setting still applies) [decisions.md entry 56]. A fourth cue, the one success notification on a valid completion screen (`playCompletionSuccess()`, a `UINotificationFeedbackGenerator` `.success`), plays after Stop only, gated by the same Start & Stop Haptics setting [decisions.md entry 59]; nothing plays between Go and Stop. Not felt on a device as of 2026-11-15. Silently degraded when unsupported; listed here for completeness of the session stack |
 | **WatchConnectivity** (Phase 3) | Sync with the watch companion — behind `WatchSessionService` in `Services/Watch` (docs/04 §4.18). **The watch is not a sensor** [PRD §8 decision 1]: no watch motion data is requested, received or stored, and nothing it sends reaches the recorder except a stop request. Listed here for completeness of the session stack |
 
 ## 7.2 Structure — Strictly Separated Stages [PRD Rule 10]
@@ -41,11 +41,11 @@
 
 ## 7.5 Sampling / Configuration Abstraction
 
-A `MotionAcquisitionPolicy` value (rate, axes, deviceMotion on/off) and a `SessionPolicy`/`DataQualityPolicy` (thresholds: valid-walking minimums 90 s / 240 s [PRD OQ-3], noise threshold [OPEN], confidence thresholds, refractory) live in a **versioned configuration** owned by the Algorithms module so tuning never touches call sites.
+A `MotionAcquisitionPolicy` value (rate, axes, deviceMotion on/off) and a `SessionPolicy`/`DataQualityPolicy` (thresholds: valid-walking minimums 60 s / 135 s [PRD OQ-3; decisions.md entry 47], noise threshold [OPEN], confidence thresholds, refractory) live in a **versioned configuration** owned by the Algorithms module so tuning never touches call sites.
 
 ## 7.6 Availability & Permissions
 
-- `CMAuthorizationRequirement`/`CMPedometer.authorization` checked in Session Setup before Start; state drives the degraded Start button copy [PRD AC].
+- `CMAuthorizationRequirement`/`CMPedometer.authorization` checked in Session Setup before Start; state drives the degraded Start button copy [PRD AC]. When the status is undetermined, **Start requests it** before priming and the countdown (`SessionSetupViewModel.startAfterAuthorization()`), so the system alert does not land while the user is stowing the phone; denied or restricted shows the blocked state. The undetermined state was not captured in the simulator as of 2026-11-15.
 - Sensor availability (accelerometer exists) verified on device at launch of the session flow; simulator absence → deterministic mock in dev.
 
 ## 7.7 Interruptions & Backgrounding

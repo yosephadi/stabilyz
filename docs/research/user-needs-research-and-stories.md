@@ -6,17 +6,17 @@ Desk research on what prosthetic/lower-limb-loss users actually need and want fr
 
 ## What the research found
 
-### 1. Balance confidence — not fall count, not fear — is what predicts whether someone actually moves through the world
-A study of 435 lower-limb amputees found balance confidence was the *only* factor that remained significantly associated with mobility capability, mobility performance, and social activity once other variables were controlled for — fear of falling and actual fall history dropped out of the model. This is a meaningful reframe: your app's job isn't just to measure instability, it's to build and protect the user's *confidence* in their own walking. A score that feels punishing or alarming works against the actual goal.
+### 1. Balance confidence — not fall count, not fear — is what is associated with whether someone actually moves through the world
+A cross-sectional survey of 435 community-living people with unilateral lower-limb amputation (Miller et al. 2001, Arch Phys Med Rehabil 82(9):1238-44) found balance confidence was the *only* factor that remained significantly *associated with* mobility capability, mobility performance, and social activity once other variables were controlled for — fear of falling and actual fall history dropped out of the model. It is an association in a survey, not evidence that balance confidence predicts or causes anything. This is a meaningful reframe: your app's job isn't just to measure instability, it's to build and protect the user's *confidence* in their own walking. A score that feels punishing or alarming works against the actual goal.
 
-### 2. Prosthetic adherence is fragile — 30-50% stop using their device in year one
-Discontinuation is commonly linked to pain, technical difficulty, and insufficient support. Anything in the app that adds friction, confusion, or discouragement is working against an already-fragile adoption curve.
+### 2. Prosthetic adherence is fragile — roughly 11 to 22 percent stop using their device at about one year
+An AHRQ review (Balk et al. 2018) found about 11 to 22 percent of lower-limb amputees prescribed a prosthesis stop using it at about 1 year, with low strength of evidence. (The earlier "30-50%" figure is unsourced and removed.) Discontinuation was described as linked to pain, technical difficulty, and insufficient support — also unsourced. Anything in the app that adds friction, confusion, or discouragement is working against an already-fragile adoption curve.
 
-### 3. Objective, self-directed technology + peer support measurably improved walking confidence in this exact population
-A feasibility study (SMART, University of British Columbia) combining online self-management modules with peer mentor check-ins produced a large effect size on walking confidence (0.86) in adults with recent lower-limb loss, with 100% retention and all participants trained in under 15 minutes. Two things stand out: (a) self-directed technology for this population is genuinely usable and effective when it's simple, and (b) confidence, not just capability, was the outcome that moved most.
+### 3. Self-directed education plus peer support was associated with improved walking confidence in a small study
+SMART (Esfandiari et al., Prosthet Orthot Int 49(3):260-267, doi 10.1097/PXR.0000000000000368) was a single-group pre-post study with n=12, ages 26-79 (median 56) and 100% retention. Effect sizes were 0.86 for walking confidence and 0.51 for walking capacity. The intervention was online education modules plus peer mentoring — **not sensor-based** — so it says little about self-tracking technology as such. With no control group and twelve people, treat it as a feasibility signal: confidence moved more than capability, and a simple self-directed format was workable. (The earlier draft's "all participants trained in under 15 minutes" is not confirmed and is not repeated here.)
 
 ### 4. mHealth can become "disciplinary" instead of empowering if it's framed around deviations and compliance
-Research on mobile health in chronic disease management found that even well-designed, user-centered tools can end up structuring the user's relationship to their own body around "compliance" and "deviation from normal" — which undermines the empowerment the tool was meant to provide. This is a real design risk for a gait app specifically: presenting every session as a pass/fail against a number can easily read as judgment rather than support.
+Stampe et al. 2021 (JMIR, PMID 34128817) is an ethnographic study of 6 consultations with children and adolescents with juvenile arthritis; its finding concerns how those consultations were structured, not amputees or self-tracking at large. It suggests that even well-designed, user-centered tools can end up structuring the user's relationship to their own body around "compliance" and "deviation from normal" — which undermines the empowerment the tool was meant to provide. This is a real design risk for a gait app specifically: presenting every session as a pass/fail against a number can easily read as judgment rather than support.
 
 ### 5. Psychological adjustment after limb loss includes body image concerns and social anxiety
 Adjustment to prosthesis use is described in the literature as involving anxiety, body image disturbance, and social stigma concerns tied to visibility/exposure of the limb difference. This matters for tone and privacy — data and language around the user's body and walking should never feel exposing.
@@ -28,10 +28,10 @@ This confirms what we already scoped for the metronome cue and flagged for the R
 Consistent across GaitPulse, OneStep, and the general mHealth literature: patients want a way to know how they're doing *between* appointments, and clinicians want objective evidence rather than relying on the patient's memory of "it's been fine, I think."
 
 ### 8. Data privacy is a recurring, explicit concern
-Multiple mHealth self-management studies (independent of amputation specifically) found users explicitly want assurance their health data isn't shared without consent — this is table stakes trust, not a nice-to-have.
+A review of 33 articles (Alhammad et al. 2024, doi 10.2196/50715) found patients expressed diverse views on privacy — so privacy is a concern worth designing for, but the review does not show that every user wants the same assurance. Treating it as table stakes trust remains a product judgment, not a finding.
 
 ### 9. Low digital literacy and low-friction onboarding matter for real-world adoption
-The SMART study's 100% retention and sub-15-minute training is a strong signal: this population is not necessarily tech-native, particularly given the wide age range in amputee populations (26-79 in that study). Onboarding friction is a bigger dropout risk here than in a general fitness-app audience.
+The SMART study's 100% retention (n=12) is a weak signal, not a strong one: this population is not necessarily tech-native, particularly given the wide age range (26-79, median 56, in that n=12 study). The earlier sub-15-minute training claim is not confirmed. Onboarding friction is a bigger dropout risk here than in a general fitness-app audience.
 
 ---
 
@@ -74,3 +74,13 @@ Grouped by theme, each mapped loosely to where it lands relative to your current
 ## Net takeaway for your build
 
 Nothing here changes your MVP's feature list — the confidence-framing and privacy findings are mostly about **tone, copy, and how results are presented**, which your design tasks already touch (baseline-relative scoring, plain-language noisy-data messaging). The one concrete new idea worth a decision is the **short encouraging post-session summary** — it directly targets the single biggest risk this research surfaced (a self-tracking tool unintentionally feeling disciplinary rather than empowering) and it's cheap to build since it only needs the metrics you're already computing.
+
+---
+
+## References
+
+- Miller et al. 2001: cross-sectional survey, n=435 community-living people with unilateral lower-limb amputation. Arch Phys Med Rehabil 82(9):1238-44. doi 10.1053/apmr.2001.25079 — https://doi.org/10.1053/apmr.2001.25079
+- Balk et al. 2018, AHRQ review (about 11 to 22 percent of prescribed lower-limb prosthesis users stop at about 1 year; low strength of evidence). PMID 30285344 — https://europepmc.org/article/MED/30285344
+- Esfandiari et al. (SMART). Prosthet Orthot Int 49(3):260-267. doi 10.1097/PXR.0000000000000368 — https://doi.org/10.1097/PXR.0000000000000368
+- Stampe et al. 2021, JMIR. PMID 34128817 — https://europepmc.org/article/MED/34128817
+- Alhammad et al. 2024. doi 10.2196/50715 — https://doi.org/10.2196/50715

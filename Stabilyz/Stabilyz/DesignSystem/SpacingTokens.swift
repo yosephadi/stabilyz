@@ -1,4 +1,5 @@
 import CoreGraphics
+import SwiftUI
 
 /// The 4pt grid and its fixed measurements (docs/design/design-system.md §4).
 enum Space {
@@ -65,6 +66,9 @@ enum Controls {
     /// inside the same circle `strokeBorder` fills. Derived rather than typed,
     /// so the two cannot drift if the band changes.
     static let timerRingInset: CGFloat = timerRingWidth / 2
+    /// The clear space inside the timer ring's band — the widest the countdown
+    /// numeral may be.
+    static let timerRingInnerDiameter: CGFloat = timerRingDiameter - 2 * timerRingWidth
 
     /// Clearance between the primary button and the bottom safe-area edge on a
     /// **full-screen cover** — no tab bar, no wizard chrome.
@@ -192,4 +196,15 @@ enum Metrics {
     static let hairline: CGFloat = 1
     /// The type floor — nothing renders smaller (§3).
     static let minimumFontSize: CGFloat = 15
+}
+
+extension DynamicTypeSize {
+    /// Whether a ring's text no longer fits inside it and moves outside, below
+    /// the ring, in a stacked layout (design-system.md §9).
+    ///
+    /// From `xxLarge`: the score ring's inner width is about 144pt, and
+    /// "Stability Score" at body size no longer fits it from there up. The
+    /// numeral is the top Dynamic Type priority, so it must never be clipped
+    /// by the stroke.
+    var usesStackedRing: Bool { self >= .xxLarge }
 }

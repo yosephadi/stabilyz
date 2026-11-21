@@ -17,8 +17,8 @@ import Testing
     }
 
     @Test func durationsMatchTheAdvertisedLengths() {
-        #expect(WatchSyncMapping.durationSeconds(for: .quickTest) == 120)
-        #expect(WatchSyncMapping.durationSeconds(for: .fullTest) == 360)
+        #expect(WatchSyncMapping.durationSeconds(for: .quickTest) == 90)
+        #expect(WatchSyncMapping.durationSeconds(for: .fullTest) == 180)
         for mode in TestMode.allCases {
             #expect(.seconds(WatchSyncMapping.durationSeconds(for: mode)) == mode.advertisedDuration)
         }

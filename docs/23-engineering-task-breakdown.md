@@ -103,8 +103,9 @@ EPIC 7 — Audio & Haptics
     Task 7.3.1 HapticFeedbackService + tests
       ↳ DONE. `Services/Haptics/`: the `HapticFeedbackService` protocol
         (`prepare`/`playCadenceTick`/`playSessionStart`/`playSessionStop`/`teardown`),
-        `LiveHapticFeedbackService` over `UIImpactFeedbackGenerator` (light tick, heavy
-        Go, medium Stop), and `Mock`/`Silent` doubles. Capability probe is
+        `LiveHapticFeedbackService` (as first built: `UIImpactFeedbackGenerator`, light tick, heavy
+        Go, medium Stop; since changed — Go and Stop are `CHHapticEngine` sustained
+        400/500 ms vibrations, decisions.md entry 56), and `Mock`/`Silent` doubles. Capability probe is
         `CHHapticEngine.capabilitiesForHardware().supportsHaptics`; the System Haptics
         *setting* has no public API, and needs none — the generators no-op when it is
         off, which is the required behaviour. **Silent degradation**: no error, no
@@ -332,8 +333,11 @@ EPIC 12 — Watch Companion (Phase 3)  [PRD §8; docs/04 §4.18; decisions.md en
         locally and the phone plays the fallback (double buzz accepted).
   Feature 12.4 Keep-alive
     Task 12.4.1 Extended runtime keep-alive (0.5d)                           → dep: 12.1.1
-      ↳ physical therapy session, started when the app becomes active on
-        Waiting, invalidated after Stopped. [OPEN] PRD OQ-7a.
+      ↳ physical therapy session, started when the app becomes active on any
+        screen except Stopped (or, while active, when a countdown begins, a walk is
+        joined late, or the phone returns mid-walk); ended after Stopped → Done or once
+        Stopped has sat for 5 minutes (docs/04 §4.18; `WatchKeepAlivePolicy`). Kept
+        per decisions.md entry 54; PRD OQ-7a.
   Feature 12.5 Launch
     Task 12.5.1 Live Activity nudge (1d)                                     → dep: 12.1.1
       ↳ widget extension target set up by the user in Xcode. ActivityKit behind

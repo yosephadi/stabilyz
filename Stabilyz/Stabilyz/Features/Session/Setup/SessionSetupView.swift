@@ -27,6 +27,7 @@ struct SessionSetupView: View {
                         ExportNudgeCard(nudge: exportNudge)
                     }
                     modeGroup
+                    framingGroup
                     baselineGroup
                     cuesGroup
                 }
@@ -43,6 +44,14 @@ struct SessionSetupView: View {
                     .padding(.top, Space.x4)
                     .accessibilityLabel(SessionSetupViewModel.watchLine)
                     .accessibilityIdentifier("walk.watchLine")
+            }
+
+            if model.isAuthorizationUndetermined {
+                footnote(SessionSetupViewModel.authorizationWhyLine)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, Space.screenMargin)
+                    .padding(.top, Space.x4)
+                    .accessibilityIdentifier("walk.motionWhy")
             }
 
             startButton
@@ -76,18 +85,17 @@ struct SessionSetupView: View {
         VStack(alignment: .leading, spacing: 0) {
             sectionHeader(SessionSetupViewModel.chooseTestHeader)
 
-            Picker(SessionSetupViewModel.chooseTestHeader, selection: modeBinding) {
-                ForEach(TestMode.allCases, id: \.self) { mode in
-                    Text(model.segmentLabel(for: mode)).tag(mode)
-                }
-            }
-            .pickerStyle(.segmented)
-            .labelsHidden()
-            // The node's Large variant. `controlSize` alone does not resize a
-            // segmented picker on iOS, so the height is set explicitly to the
-            // 50pt the node draws.
-            .controlSize(.large)
-            .frame(height: Controls.segmentedControlHeight)
+            // The node's Large variant: 50pt tall, on text styles so the labels
+            // scale with Dynamic Type (the system segmented picker does not).
+            SegmentedChoice(
+                label: SessionSetupViewModel.chooseTestHeader,
+                options: TestMode.allCases.map {
+                    .init(value: $0, label: model.segmentLabel(for: $0))
+                },
+                selection: modeBinding,
+                identifier: "walk.mode",
+                minHeight: Controls.segmentedControlHeight
+            )
 
             footnote(model.modeSubtitle)
                 .padding(.top, Space.x2)
@@ -98,6 +106,24 @@ struct SessionSetupView: View {
     /// toggle — the two modes' cues are different features.
     private var modeBinding: Binding<TestMode> {
         Binding(get: { model.mode }, set: { model.select($0) })
+    }
+
+    // MARK: - How to walk
+
+    /// "Walk normally — there's no target pace" and the straight-line
+    /// instruction, as one VoiceOver element read in order.
+    private var framingGroup: some View {
+        VStack(alignment: .leading, spacing: Space.x1) {
+            ForEach(model.framingLines, id: \.self) { line in
+                Text(line)
+                    .font(StabilyzFont.bodyRegular)
+                    .foregroundStyle(StabilyzColor.ink900)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .accessibilityElement(children: .combine)
+        .accessibilityIdentifier("walk.framing")
     }
 
     // MARK: - Baseline

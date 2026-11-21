@@ -24,8 +24,18 @@ struct GaitAnalysisPipeline: GaitScoringAlgorithm {
         progress: @Sendable (ProcessingProgress) -> Void
     ) async throws -> SessionAnalysisOutcome {
         // Stage 1 already ran: the recorder froze an aligned series. The head
-        // of it is dropped here, before anything measures or projects it.
-        let captured = SessionLeadIn.trimmed(buffer.series, configuration: configuration)
+        // of it is dropped here, and — when the user ended the walk with Stop
+        // rather than the timer — the tail too, before anything measures or
+        // projects it. Everything downstream, the valid-walking floor included,
+        // sees the trimmed series.
+        let captured = SessionLeadIn.trimmed(
+            buffer.series,
+            endReason: SessionEndReason(
+                advertisedClockElapsed: buffer.advertisedClockElapsed,
+                mode: buffer.mode
+            ),
+            configuration: configuration
+        )
         progress(ProcessingProgress(stage: .ingestion, fraction: 1 / 6))
 
         let series = Preprocessing.process(captured, configuration: configuration)

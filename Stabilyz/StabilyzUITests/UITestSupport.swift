@@ -66,6 +66,33 @@ extension XCUIElement {
         return self
     }
 
+    /// Waits until the element can actually be tapped, and fails the test,
+    /// naming it, if it never can.
+    ///
+    /// Existing is not the same as tappable. Stop is on screen but hidden and
+    /// not hit-testable while the countdown clears after Go (about 0.75 s), so
+    /// a tap sent the moment it exists is lost and the walk runs to its timer.
+    @discardableResult
+    func waitToBeHittable(
+        timeout: TimeInterval = 10,
+        _ message: String = "",
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) -> XCUIElement {
+        let hittable = XCTNSPredicateExpectation(
+            predicate: NSPredicate(format: "exists == true AND isHittable == true"),
+            object: self
+        )
+        XCTAssertEqual(
+            XCTWaiter().wait(for: [hittable], timeout: timeout),
+            .completed,
+            "\(self) could not be tapped within \(timeout)s. \(message)",
+            file: file,
+            line: line
+        )
+        return self
+    }
+
     /// Waits for the element to be gone.
     func waitToDisappear(
         timeout: TimeInterval = 10,

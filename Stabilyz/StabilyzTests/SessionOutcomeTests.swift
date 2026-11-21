@@ -24,15 +24,15 @@ private final class OutcomeLog: LogService, @unchecked Sendable {
 /// A clean walk of the mode's own advertised length, as the recorder would
 /// have frozen it.
 ///
-/// Mode-aware on purpose: a 120-second signal is a complete Quick Test and a
-/// *failed* Full Test, because a Full Test needs ~4 minutes of valid walking
+/// Mode-aware on purpose: a 90-second signal is a complete Quick Test and a
+/// *failed* Full Test, because a Full Test needs 135 s (2:15) of valid walking
 /// [PRD OQ-3]. Handing the same buffer to both modes would quietly test the
 /// invalid path while claiming to test the valid one.
 private func walkBuffer(
     mode: TestMode = .quickTest,
     audioConfig: SessionAudioConfig = .none
 ) -> RawSessionBuffer {
-    let seconds = mode == .quickTest ? 120.0 : 360.0
+    let seconds = mode == .quickTest ? 90.0 : 180.0
     return GoldenSignal.buffer(
         for: GoldenSignalSpec(seconds: seconds),
         mode: mode,

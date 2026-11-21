@@ -53,13 +53,12 @@ struct ClinicianSummaryView: View {
     // MARK: - Mode
 
     private var modePicker: some View {
-        Picker(ClinicianSummaryViewModel.modePickerLabel, selection: modeBinding) {
-            ForEach(TestMode.allCases, id: \.self) { mode in
-                Text(mode.displayName).tag(mode)
-            }
-        }
-        .pickerStyle(.segmented)
-        .labelsHidden()
+        SegmentedChoice(
+            label: ClinicianSummaryViewModel.modePickerLabel,
+            options: TestMode.allCases.map { .init(value: $0, label: $0.displayName) },
+            selection: modeBinding,
+            identifier: "clinicianSummary.mode"
+        )
     }
 
     private var modeBinding: Binding<TestMode> {

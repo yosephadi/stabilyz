@@ -9,6 +9,8 @@ import UniformTypeIdentifiers
 /// `SettingsViewModel`'s; the flows it opens are their own features.
 struct SettingsView: View {
     @Bindable var model: SettingsViewModel
+    /// The three optional profile answers, editable here.
+    var profileAnswers: ProfileAnswersViewModel
 
     #if DEBUG
     /// Debug builds only: the on-device benchmark behind Diagnostics
@@ -22,6 +24,13 @@ struct SettingsView: View {
                 row(SettingsViewModel.clinicianSummaryLabel, systemImage: "stethoscope", identifier: "settings.clinicianSummary", disclosure: true) {
                     model.openClinicianSummary()
                 }
+            }
+
+            if profileAnswers.profile != nil {
+                Section(SettingsViewModel.profileSectionTitle) {
+                    profileRows
+                }
+                .font(StabilyzFont.bodyRegular)
             }
 
             Section(SettingsViewModel.backupSectionTitle) {
@@ -79,6 +88,73 @@ struct SettingsView: View {
             RestoreDataView(model: flow)
         }
         .task { await model.observeStoreReplacements() }
+        .task { await profileAnswers.load() }
+        // A restore replaces the store under this screen, which stays on
+        // screen beneath the restore flow, so its answers are read again once
+        // the flow closes, however it closed.
+        .onChange(of: model.restoreFlow != nil) { _, isOpen in
+            if !isOpen { Task { await profileAnswers.load() } }
+        }
+    }
+
+    // MARK: - Optional profile answers
+
+    @ViewBuilder
+    private var profileRows: some View {
+        NavigationLink {
+            ProfileAnswerEditorView(
+                title: SettingsViewModel.timeSinceAmputationLabel,
+                options: ProfileAnswersViewModel.timeOptions.map { .init($0, ProfileAnswerCopy.timeLabel($0)) }
+                    + [.init(nil, ProfileAnswerCopy.notSet)],
+                selection: profileAnswers.timeSinceAmputation,
+                failure: profileAnswers.saveFailure,
+                choose: { value in Task { await profileAnswers.setTimeSinceAmputation(value) } }
+            )
+        } label: {
+            profileLabel(SettingsViewModel.timeSinceAmputationLabel, profileAnswers.timeSummary)
+        }
+        .accessibilityIdentifier("settings.profile.timeSince")
+
+        NavigationLink {
+            ProfileAnswerEditorView(
+                title: SettingsViewModel.prosthesisTypeLabel,
+                options: ProfileAnswersViewModel.prosthesisOptions.map { .init($0, ProfileAnswerCopy.prosthesisLabel($0)) }
+                    + [.init(nil, ProfileAnswerCopy.notSet)],
+                selection: profileAnswers.prosthesisType,
+                failure: profileAnswers.saveFailure,
+                choose: { value in Task { await profileAnswers.setProsthesisType(value) } }
+            )
+        } label: {
+            profileLabel(SettingsViewModel.prosthesisTypeLabel, profileAnswers.prosthesisSummary)
+        }
+        .accessibilityIdentifier("settings.profile.prosthesis")
+
+        NavigationLink {
+            ProfileAnswerEditorView(
+                title: SettingsViewModel.kLevelLabel,
+                options: ProfileAnswersViewModel.kLevelOptions.map { .init($0, ProfileAnswerCopy.kLevelLabel($0)) }
+                    + [.init(nil, ProfileAnswerCopy.kLevelUnknown)],
+                selection: profileAnswers.kLevel,
+                failure: profileAnswers.saveFailure,
+                choose: { value in Task { await profileAnswers.setKLevel(value) } }
+            )
+        } label: {
+            profileLabel(SettingsViewModel.kLevelLabel, profileAnswers.kLevelSummary)
+        }
+        .accessibilityIdentifier("settings.profile.kLevel")
+    }
+
+    /// Question on the left, current answer on the right; read as one element.
+    private func profileLabel(_ title: String, _ value: String) -> some View {
+        LabeledContent {
+            Text(value)
+                .foregroundStyle(StabilyzColor.ink600)
+                .multilineTextAlignment(.trailing)
+        } label: {
+            Text(title).foregroundStyle(StabilyzColor.ink900)
+        }
+        .frame(minHeight: Metrics.minimumTapTarget)
+        .accessibilityElement(children: .combine)
     }
 
     /// A tappable row: the icon in the brand colour, the label in `ink-900`,

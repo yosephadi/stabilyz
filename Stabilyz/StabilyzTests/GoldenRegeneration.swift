@@ -71,7 +71,7 @@ struct GoldenRegeneration {
         ),
         GoldenCase(
             name: "hundred-second-walk-full",
-            notes: "The identical walk judged as a Full Test. Fails: 240 s required.",
+            notes: "The identical walk judged as a Full Test. Fails: 135 s required.",
             mode: "fullTest", profile: .unilateral,
             signal: GoldenSignalSpec(seconds: 105),
             calibration: nil,

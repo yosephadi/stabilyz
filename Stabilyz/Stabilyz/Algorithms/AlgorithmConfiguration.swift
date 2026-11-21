@@ -61,14 +61,23 @@ struct PreprocessingPolicy: Sendable, Equatable {
     /// high-amplitude enough to move the trunk proxy and the regularity
     /// estimates.
     ///
-    /// **Head only.** The tail is kept intact to the moment Stop was
-    /// triggered — the user is walking right up to it, and trimming there
-    /// would discard real gait to guard against an artefact that is not
-    /// symmetric with the start.
+    /// **Head only** — the tail has its own, separate rule: see
+    /// `manualStopTailTrim`. A session cut off by the timer keeps its tail
+    /// intact, because the recording is simply cut mid-walk.
     ///
     /// Distinct from `filterEdgePaddingCycles` below, which is about an IIR
     /// filter starting from rest. That is arithmetic; this is human.
     let leadInTrim: Duration
+
+    /// [OPEN] PLACEHOLDER / provisional — the 3 s value has no source; pending
+    /// device validation (Phase 12).
+    /// How much of the **end** of a recording to drop when the session ended by
+    /// the user's manual Stop (phone or watch) rather than by the timer reaching
+    /// the advertised length. Tura et al. (2012) report that the last strides
+    /// before a person stops degrade the regularity estimates. A timer-ended
+    /// session is cut mid-walk, with no stopping behaviour in it, so it keeps
+    /// its tail.
+    let manualStopTailTrim: Duration
 
     /// PROVISIONAL — pending device validation (Phase 12).
     /// Cycles of the high-pass cutoff to reflect-pad each end with before
@@ -172,6 +181,14 @@ struct FeatureExtractionPolicy: Sendable, Equatable {
     /// peak. The search is always anchored: a free search over all lags is what
     /// lets a stride peak be mistaken for a step peak.
     let lagSearchTolerance: Double
+    /// [OPEN] PLACEHOLDER / provisional — no source specifies it; pending device
+    /// validation (Phase 12).
+    /// The unbiased autocorrelation (Ad1/Ad2) divides the lag-m sum by `N − m`,
+    /// so its variance grows as the overlap shrinks. A window is analysed only
+    /// if the largest lag the stride search can read stays within this fraction
+    /// of the window length, i.e. at least half the window still overlaps. A
+    /// window that fails is discarded, like one with too few footfalls.
+    let maximumLagFractionOfWindow: Double
 }
 
 /// How noise is measured and where the acceptable limit sits
@@ -437,7 +454,16 @@ struct AlgorithmConfiguration: Sendable, Equatable {
         // the version exists to make visible (docs/09 §9.6). Minor rather than
         // major: the contract, the metric set and the record shape are
         // unchanged; only the numbers are. See docs/decisions.md entry 41.
-        version: "1.1.0-provisional",
+        //
+        // 1.2.0 (2026-11-14): Ad1/Ad2 switch from the biased to the unbiased
+        // autocorrelation estimator (every regularity value rises); the
+        // pre-baseline trunk anchors move from an m/s²-like scale to g; a manual
+        // Stop trims the last 3 s before analysis; and the test lengths and
+        // valid-walking floors change (Quick 90 s / 60 s, Full 180 s / 135 s).
+        // Every metric and both scores move, so 1.1.0 and 1.2.0 sessions are not
+        // comparable. Minor, as for 1.1.0: contract, metric set and record shape
+        // unchanged.
+        version: "1.2.0-provisional",
         motionAcquisition: MotionAcquisitionPolicy(
             // PROVISIONAL — pending device validation (Phase 12).
             // Enough for autocorrelation at walking cadences and pedometer-grade
@@ -465,9 +491,11 @@ struct AlgorithmConfiguration: Sendable, Equatable {
             minimumSegmentDuration: .seconds(2),
             // PROVISIONAL — pending device validation (Phase 12).
             // Long enough to cover pocketing the phone and the first step from
-            // standing; short enough that a Quick Test still clears its 90s
+            // standing; short enough that a Quick Test still clears its 60 s
             // valid-walking minimum with room to spare [PRD OQ-3].
             leadInTrim: .seconds(3),
+            // [OPEN] PLACEHOLDER / provisional — see `manualStopTailTrim`.
+            manualStopTailTrim: .seconds(3),
             // PROVISIONAL — pending device validation (Phase 12).
             filterEdgePaddingCycles: 3,
             zeroPhaseFiltering: true
@@ -496,7 +524,9 @@ struct AlgorithmConfiguration: Sendable, Equatable {
             // PROVISIONAL — pending device validation (Phase 12).
             stepPeakProminenceSDs: 0.5,
             // PROVISIONAL — pending device validation (Phase 12).
-            lagSearchTolerance: 0.15
+            lagSearchTolerance: 0.15,
+            // [OPEN] PLACEHOLDER / provisional — see the policy's doc comment.
+            maximumLagFractionOfWindow: 0.5
         ),
         baseline: BaselinePolicy(
             // PROVISIONAL — pending device validation (Phase 12).
@@ -588,8 +618,16 @@ struct AlgorithmConfiguration: Sendable, Equatable {
                 // formulation itself is [OPEN] (docs/08 §8.2), so these anchors
                 // are doubly provisional — if the proxy changes units, they
                 // become meaningless rather than merely unvalidated.
-                .trunkMotionML: MetricReferenceRange(poor: 2.5, good: 0.5),
-                .trunkMotionVT: MetricReferenceRange(poor: 4.0, good: 1.0)
+                //
+                // **Unit: g.** The proxy is RMS of CMDeviceMotion.userAcceleration
+                // with no conversion to m/s², so it is in units of g (a steady
+                // synthetic/golden walk reads roughly ML 0.13, VT 0.23-0.30). The
+                // pre-change anchors (ML 2.5/0.5, VT 4.0/1.0) were on the wrong
+                // scale and pinned every real walk at "good". These g-scale
+                // values are [OPEN] PLACEHOLDERS — unvalidated, chosen only to
+                // bracket the readings seen so far, not clinical thresholds.
+                .trunkMotionML: MetricReferenceRange(poor: 0.25, good: 0.05),
+                .trunkMotionVT: MetricReferenceRange(poor: 0.40, good: 0.10)
             ],
             range: 0...100
         ),

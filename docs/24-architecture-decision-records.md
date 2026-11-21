@@ -61,7 +61,7 @@ Trade-offs: full archive rewrite per export (trivial at v1 data volume); no part
 Options: custom crypto · plain SHA-256 key · third-party crypto libs · **PBKDF2-HMAC-SHA256 (CommonCrypto) + AES-256-GCM (CryptoKit), per-export salt/nonce, all params embedded**.
 Chosen: platform vetted pair.
 Why: PRD mandates a real KDF, authenticated encryption, embedded parameters, and no custom primitives; CryptoKit provides AEAD but not PBKDF2, hence CommonCrypto for the KDF — both Apple-vetted.
-Trade-offs: PBKDF2 is weaker than Argon2 against GPU attacks (no native Apple Argon2 — adding a dependency is rejected); mitigated by calibrated iterations, high-entropy requirement being user-passphrase reality, and the local threat model (offline guessing by whoever obtains the file, which the KDF slows).
+Trade-offs: PBKDF2 is weaker than Argon2 against GPU attacks (no native Apple Argon2 — adding a dependency is rejected); mitigated by calibrated iterations with a floor of 600,000 (OWASP Password Storage Cheat Sheet; raised from 300,000 on 2026-11-14, decisions.md entry 55), high-entropy requirement being user-passphrase reality, and the local threat model (offline guessing by whoever obtains the file, which the KDF slows).
 
 **ADR-011 — Watch Companion Sync**
 Chosen: phone-authoritative WatchConnectivity sync with a versioned Codable contract shared by both targets; the watch displays, plays haptics when it owns them, and sends Stop. Full context, options and consequences: decisions.md entry 46 [PRD §8].

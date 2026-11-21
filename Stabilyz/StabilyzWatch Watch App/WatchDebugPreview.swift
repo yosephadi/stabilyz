@@ -39,14 +39,14 @@ enum WatchDebugPreview: String, CaseIterable {
 
     func events(at now: Date) -> [WatchLinkEvent] {
         let id = UUID()
-        let quick = PhoneToWatchMessage.setupSelection(mode: .quick, durationSeconds: 120)
-        // T-0 1 minute 24 seconds ago.
-        let t0 = now.addingTimeInterval(-84)
+        let quick = PhoneToWatchMessage.setupSelection(mode: .quick, durationSeconds: 90)
+        // T-0 1 minute 4 seconds ago (of a 1:30 Quick Test).
+        let t0 = now.addingTimeInterval(-64)
         let walking: [WatchLinkEvent] = [
             .reachability(true),
             .message(quick),
             .message(.countdownStarted(
-                sessionID: id, mode: .quick, durationSeconds: 120,
+                sessionID: id, mode: .quick, durationSeconds: 90,
                 plannedGoAt: t0, hapticOwner: .phone, hapticsEnabled: true
             )),
             .message(.started(sessionID: id, t0: t0)),
@@ -61,7 +61,7 @@ enum WatchDebugPreview: String, CaseIterable {
                 .reachability(true),
                 .message(quick),
                 .message(.countdownStarted(
-                    sessionID: id, mode: .quick, durationSeconds: 120,
+                    sessionID: id, mode: .quick, durationSeconds: 90,
                     plannedGoAt: now.addingTimeInterval(2.5), hapticOwner: .phone, hapticsEnabled: true
                 )),
             ]

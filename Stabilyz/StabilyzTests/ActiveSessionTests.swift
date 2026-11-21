@@ -25,20 +25,20 @@ private func elapsedStream(_ seconds: [Int]) -> AsyncStream<SessionRecordingEven
 // MARK: - The clock, per mode
 
 @MainActor
-@Test func aQuickTestStartsAtTwoMinutes() {
+@Test func aQuickTestStartsAtNinetySeconds() {
     let model = makeSession(mode: .quickTest)
 
-    #expect(model.total == .seconds(120))
-    #expect(model.timerText == "02:00")
+    #expect(model.total == .seconds(90))
+    #expect(model.timerText == "01:30")
     #expect(model.progress == 1)
 }
 
 @MainActor
-@Test func aFullTestStartsAtSixMinutes() {
+@Test func aFullTestStartsAtThreeMinutes() {
     let model = makeSession(mode: .fullTest)
 
-    #expect(model.total == .seconds(360))
-    #expect(model.timerText == "06:00")
+    #expect(model.total == .seconds(180))
+    #expect(model.timerText == "03:00")
     #expect(model.progress == 1)
 }
 
@@ -51,18 +51,18 @@ private func elapsedStream(_ seconds: [Int]) -> AsyncStream<SessionRecordingEven
     await model.observe(elapsedStream([1, 30, 61]))
 
     #expect(model.elapsed == .seconds(61))
-    #expect(model.timerText == "00:59")
+    #expect(model.timerText == "00:29")
 }
 
 @MainActor
 @Test func theClockIsZeroPaddedThroughout() async {
     let model = makeSession(mode: .quickTest)
 
-    await model.observe(elapsedStream([111]))
+    await model.observe(elapsedStream([81]))
     #expect(model.timerText == "00:09")
 
     let full = makeSession(mode: .fullTest)
-    await full.observe(elapsedStream([300]))
+    await full.observe(elapsedStream([120]))
     #expect(full.timerText == "01:00")
 }
 
@@ -87,34 +87,34 @@ private func elapsedStream(_ seconds: [Int]) -> AsyncStream<SessionRecordingEven
     let model = makeSession(mode: .quickTest)
     #expect(model.progress == 1)
 
-    await model.observe(elapsedStream([30]))
-    #expect(abs(model.progress - 0.75) < 0.0001)
+    await model.observe(elapsedStream([18]))
+    #expect(abs(model.progress - 0.8) < 0.0001)
 
-    await model.observe(elapsedStream([60]))
+    await model.observe(elapsedStream([45]))
     #expect(abs(model.progress - 0.5) < 0.0001)
 
-    await model.observe(elapsedStream([120]))
+    await model.observe(elapsedStream([90]))
     #expect(model.progress == 0)
 }
 
 @MainActor
 @Test func theRingIsScaledToEachModesOwnLength() async {
-    // Sixty seconds is half a Quick Test and a sixth of a Full Test.
+    // Forty-five seconds is half a Quick Test and a quarter of a Full Test.
     let quick = makeSession(mode: .quickTest)
     let full = makeSession(mode: .fullTest)
 
-    await quick.observe(elapsedStream([60]))
-    await full.observe(elapsedStream([60]))
+    await quick.observe(elapsedStream([45]))
+    await full.observe(elapsedStream([45]))
 
     #expect(abs(quick.progress - 0.5) < 0.0001)
-    #expect(abs(full.progress - (5.0 / 6.0)) < 0.0001)
+    #expect(abs(full.progress - 0.75) < 0.0001)
 }
 
 @MainActor
 @Test func theRingStaysWithinBounds() async {
     let model = makeSession(mode: .quickTest)
 
-    await model.observe(elapsedStream([0, 60, 119, 120, 500]))
+    await model.observe(elapsedStream([0, 60, 89, 90, 500]))
 
     #expect(model.progress >= 0)
     #expect(model.progress <= 1)
@@ -150,9 +150,9 @@ private func elapsedStream(_ seconds: [Int]) -> AsyncStream<SessionRecordingEven
 @MainActor
 @Test func theTimerIsSpokenRatherThanSpelled() async {
     let model = makeSession(mode: .quickTest)
-    #expect(model.timerAccessibilityLabel == "2 minutes 0 seconds remaining")
+    #expect(model.timerAccessibilityLabel == "1 minute 30 seconds remaining")
 
-    await model.observe(elapsedStream([59]))
+    await model.observe(elapsedStream([29]))
     #expect(model.timerAccessibilityLabel == "1 minute 1 second remaining")
 }
 
@@ -365,13 +365,13 @@ private func elapsedStream(_ seconds: [Int]) -> AsyncStream<SessionRecordingEven
 
 @MainActor
 @Test func reachingZeroEndsTheWalkWithoutATap() async {
-    // The user asked for two minutes, so two minutes is what the app takes.
+    // The user asked for 90 seconds, so 90 seconds is what the app takes.
     // Leaving them walking past a clock reading 00:00, waiting to be told they
     // may stop, would be the app failing to finish what it started.
     let stops = Locked(0)
     let model = makeSession(mode: .quickTest) { stops.withLock { $0 += 1 } }
 
-    await model.observe(elapsedStream([60, 119, 120]))
+    await model.observe(elapsedStream([60, 89, 90]))
 
     #expect(model.timerText == "00:00")
     #expect(stops.withLock { $0 } == 1)
@@ -383,8 +383,8 @@ private func elapsedStream(_ seconds: [Int]) -> AsyncStream<SessionRecordingEven
     let stops = Locked(0)
     let model = makeSession(mode: .fullTest) { stops.withLock { $0 += 1 } }
 
-    // Two minutes into a six-minute walk.
-    await model.observe(elapsedStream([60, 120]))
+    // Ninety seconds into a three-minute walk.
+    await model.observe(elapsedStream([60, 90]))
 
     #expect(stops.withLock { $0 } == 0)
     #expect(model.isStopping == false)
@@ -398,7 +398,7 @@ private func elapsedStream(_ seconds: [Int]) -> AsyncStream<SessionRecordingEven
     let model = makeSession(mode: .quickTest) { stops.withLock { $0 += 1 } }
 
     model.stop()
-    await model.observe(elapsedStream([120, 121]))
+    await model.observe(elapsedStream([90, 91]))
 
     #expect(stops.withLock { $0 } == 1)
 }
@@ -408,7 +408,7 @@ private func elapsedStream(_ seconds: [Int]) -> AsyncStream<SessionRecordingEven
     let stops = Locked(0)
     let model = makeSession(mode: .quickTest) { stops.withLock { $0 += 1 } }
 
-    await model.observe(elapsedStream([120, 130, 140, 200]))
+    await model.observe(elapsedStream([90, 100, 110, 200]))
 
     #expect(stops.withLock { $0 } == 1)
 }

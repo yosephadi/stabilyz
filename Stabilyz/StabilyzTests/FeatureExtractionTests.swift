@@ -344,3 +344,81 @@ private func mean(_ values: [Double]) -> Double {
     #expect(found.lag == 55)
     #expect(found.value == 5.0)
 }
+
+// MARK: - Unbiased autocorrelation (Moe-Nilssen & Helbostad 2004; Tura 2012 eq. 1)
+
+/// A sampled sinusoid with a whole number of periods in `periodSamples` steps.
+private func sinusoid(count: Int, periodSamples: Int) -> [Double] {
+    (0..<count).map { sin(2 * .pi * Double($0) / Double(periodSamples)) }
+}
+
+@Test func aPeriodicSignalHasUnbiasedRegularityOfOneAtItsPeriodWhateverTheLength() {
+    // Period 110 samples (a 1.1 s stride at 100 Hz). The biased estimator gave
+    // (N − m) / N here — under 0.9 for a 10 s window at one stride, and falling
+    // as the window shortens; the unbiased one is 1.
+    for count in [600, 1000, 1500] {
+        let signal = sinusoid(count: count, periodSamples: 110)
+        let unbiased = FeatureExtraction.unbiasedAutocorrelation(signal, maximumLag: 220)
+        let biased = FeatureExtraction.biasedAutocorrelation(signal, maximumLag: 220)
+
+        let atStride = unbiased[110] / unbiased[0]
+        let atTwoStrides = unbiased[220] / unbiased[0]
+        // The mean-removed sinusoid is not exactly zero-mean over a window that
+        // is not a whole number of periods, hence the small tolerance.
+        #expect(abs(atStride - 1) < 0.03, "N=\(count): unbiased at one period was \(atStride)")
+        #expect(abs(atTwoStrides - 1) < 0.03, "N=\(count): unbiased at two periods was \(atTwoStrides)")
+        // And the biased estimate is visibly lower — that is the bias.
+        #expect(biased[110] / biased[0] < atStride - 0.05)
+    }
+}
+
+@Test func unbiasedRegularityDoesNotDependOnThePeriod() {
+    for period in [50, 80, 110, 160] {
+        let signal = sinusoid(count: 1100 - 1100 % period, periodSamples: period)
+        let unbiased = FeatureExtraction.unbiasedAutocorrelation(signal, maximumLag: period * 2)
+        #expect(abs(unbiased[period] / unbiased[0] - 1) < 0.01, "period \(period)")
+    }
+}
+
+@Test func twoWindowLengthsOfTheSamePeriodicSignalGiveTheSameUnbiasedValue() {
+    // Whole numbers of periods in both, so the mean is exactly removed.
+    let short = sinusoid(count: 110 * 6, periodSamples: 110)
+    let long = sinusoid(count: 110 * 9, periodSamples: 110)
+    let a = FeatureExtraction.unbiasedAutocorrelation(short, maximumLag: 110)
+    let b = FeatureExtraction.unbiasedAutocorrelation(long, maximumLag: 110)
+
+    #expect(abs(a[110] / a[0] - b[110] / b[0]) < 1e-9)
+    #expect(abs(a[110] / a[0] - 1) < 1e-9)
+    // The biased values differ with window length, which is the defect.
+    let biasedShort = FeatureExtraction.biasedAutocorrelation(short, maximumLag: 110)
+    let biasedLong = FeatureExtraction.biasedAutocorrelation(long, maximumLag: 110)
+    #expect(abs(biasedShort[110] / biasedShort[0] - biasedLong[110] / biasedLong[0]) > 0.05)
+}
+
+@Test func unbiasedAndBiasedAgreeAtLagZero() {
+    let signal = sinusoid(count: 500, periodSamples: 110)
+    #expect(FeatureExtraction.unbiasedAutocorrelation(signal, maximumLag: 10)[0]
+        == FeatureExtraction.biasedAutocorrelation(signal, maximumLag: 10)[0])
+}
+
+@Test func aPerfectlyPeriodicWalkScoresNearOneOnBothRegularities() {
+    // 1.1 s stride, 60 s: windows of 10 s. Unbiased Ad1/Ad2 are ~1, not
+    // discounted by the lag/window ratio.
+    let features = extract(walkingSignal(seconds: 60, strideSeconds: 1.1))
+    #expect(!features.windows.isEmpty)
+    #expect(mean(features.windows.map(\.ad2)) > 0.97)
+    #expect(mean(features.windows.map(\.ad1)) > 0.97)
+}
+
+@Test func aWindowTooShortToOverlapAtTheStrideLagIsDiscarded() {
+    // 1.1 s stride at 100 Hz: the search reaches ~126 samples. A 2.0 s window
+    // (200 samples) leaves under half the window overlapping, so it is refused
+    // rather than read from a handful of samples.
+    let signal = walkingSignal(seconds: 2.0, strideSeconds: 1.1)
+    let vertical = signal.map { -$0.acceleration.z }
+    let result = FeatureExtraction.features(
+        vertical: vertical, mediolateral: signal.map(\.acceleration.x),
+        intervalIndex: 0, startTimestamp: 0, rate: rate, configuration: config
+    )
+    #expect(result == nil)
+}

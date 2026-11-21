@@ -17,8 +17,8 @@ struct ProcessingView: View {
     static let title = "Processing your data"
     static let privacyNote = "Your data stays on your iPhone."
 
-    /// Names the mode, so a six-minute walk does not get a message written for
-    /// a two-minute one.
+    /// Names the mode, so a Full Test does not get a message written for
+    /// a Quick Test.
     static func body(for mode: TestMode) -> String {
         "Reviewing your \(mode.displayName) data. This usually takes a few seconds."
     }

@@ -17,7 +17,9 @@ final class UserProfileEntity {
     @Attribute(.unique) var id: UUID = UUID()
     var amputationLevel: String = ""
     var side: String = ""
-    var timeSinceAmputationMonths: Int = 0
+    /// Nil when skipped (optional since 2026-11-14). Existing rows carry their
+    /// value; Int -> Int? is a SwiftData lightweight migration.
+    var timeSinceAmputationMonths: Int?
     var prosthesisType: String?
     var kLevel: String?
     var disclaimerAcceptedAt: Date = Date.distantPast
@@ -27,7 +29,7 @@ final class UserProfileEntity {
         id: UUID,
         amputationLevel: String,
         side: String,
-        timeSinceAmputationMonths: Int,
+        timeSinceAmputationMonths: Int?,
         prosthesisType: String?,
         kLevel: String?,
         disclaimerAcceptedAt: Date,

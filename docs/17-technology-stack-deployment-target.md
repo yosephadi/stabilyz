@@ -2,14 +2,14 @@
 
 | Item | Choice | Notes |
 |---|---|---|
-| Minimum iOS | **17.0** [PRD §7] | Enables `@Observable`, SwiftData, modern Charts APIs |
+| Minimum iOS | **17.0** [PRD §7] | Enables `@Observable`, SwiftData, modern Charts APIs. Deployment targets: app 17.0, watch app 10.0; the iOS test targets inherit the project-level 26.4 and the watch test targets use 27.0 |
 | Minimum watchOS (Phase 3) | **10.0** | The pair for iOS 17. Live Activities reach the watch only on iOS 18 / watchOS 11 [PRD OQ-7b] |
-| Swift | 5.10+ toolchain; **strict concurrency checking enabled from day one**, Swift 6 language mode adopted when stable [REC] | PRD concurrency posture demands early data-race safety |
+| Swift | **Swift 5 language mode** (`SWIFT_VERSION` 5.0, all targets). No strict-concurrency build setting is set; `SWIFT_APPROACHABLE_CONCURRENCY` is on. Swift 6 language mode when stable [REC] | As built; the earlier "strict concurrency from day one" is not set in the build settings |
 | UI | SwiftUI + Observation | |
 | Persistence | SwiftData | §6 |
 | Charts | Swift Charts | Trend lines [PRD §5] |
-| Sensors | Core Motion (CMMotionManager, CMPedometer, CMMotionActivityManager [REC]) | §7 |
-| DSP | Accelerate / vDSP | Filtering + autocorrelation; justified: hand-rolled FFT/convolution in pure Swift would be slower and riskier; Apple-native |
+| Sensors | Core Motion (CMMotionManager, CMPedometer; `CMMotionActivityManager` is used only for the permission path — segmentation is RMS-based) | §7 |
+| DSP | Pure Swift (Accelerate / vDSP is permitted in `Algorithms/` but **not used**) | Filtering is a hand-written biquad (decisions.md entry 7) and autocorrelation is a hand loop |
 | Audio | AVFoundation / AVAudioEngine | §10 |
 | Crypto | **CryptoKit (AES-GCM) + CommonCrypto (PBKDF2)** | §13; both platform-vetted [PRD: vetted platform crypto only] |
 | Files | FileManager, UniformTypeIdentifiers, SwiftUI fileImporter / share sheet | |

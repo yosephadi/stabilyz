@@ -240,7 +240,7 @@ private func makeModel(
         .calibrating(walk: 2, required: 5, provisional: 75),
         .calibrating(walk: 1, required: 5, provisional: 72)
     ])
-    #expect(model.rows.map(\.walkLabel) == ["Walk 2 of 5", "Walk 1 of 5"])
+    #expect(model.rows.map(\.walkLabel) == ["Walk 2 of 5 toward your baseline", "Walk 1 of 5 toward your baseline"])
 }
 
 @MainActor @Test func calibrationIsCountedWithinEachModeSeparately() async {
@@ -251,9 +251,9 @@ private func makeModel(
 
     // Five Quick Tests say nothing about the Full Test count [PRD OQ-5].
     model.select(.fullTest)
-    #expect(model.rows.first?.walkLabel == "Walk 1 of 5")
+    #expect(model.rows.first?.walkLabel == "Walk 1 of 5 toward your baseline")
     model.select(.quickTest)
-    #expect(model.rows.first?.walkLabel == "Walk 5 of 5")
+    #expect(model.rows.first?.walkLabel == "Walk 5 of 5 toward your baseline")
 }
 
 @MainActor @Test func aWalkPastCalibrationWithNoStoredScoreIsNotShownAsCalibration() async {
@@ -292,7 +292,7 @@ private func makeModel(
     #expect(row?.detail == SessionScorePresentation(
         stored: second, walk: 2, validSessionCount: 3, baselineIndex: 100
     ))
-    #expect(row?.detail.baselineProgress?.header == "Walk 2 of 5")
+    #expect(row?.detail.baselineProgress?.header == "Walk 2 of 5 toward your baseline")
 }
 
 @MainActor @Test func aRowAndItsPageAgreeOnWhatTheWalkWas() async {
@@ -352,7 +352,7 @@ private let utc = TimeZone(identifier: "UTC")!
     await model.load()
 
     let label = model.rows.first?.accessibilityLabel(locale: britain, timeZone: utc) ?? ""
-    #expect(label.hasSuffix("Provisional stability score 72 out of 100. Walk 1 of 5."))
+    #expect(label.hasSuffix("Provisional stability score 72 out of 100. Walk 1 of 5 toward your baseline."))
 }
 
 // MARK: - Empty states

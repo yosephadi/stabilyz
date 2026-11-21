@@ -48,7 +48,7 @@ enum ProvisionalSummaryGenerator {
             return Summary(
                 text: """
                 Your \(mode.displayName) measured evenly across every signal. \
-                Four more walks like it and your personal baseline is ready.
+                \(Baseline.requiredValidSessionCount - 1) more walks like it and your personal baseline is ready.
                 """,
                 claim: .even,
                 strongest: nil,

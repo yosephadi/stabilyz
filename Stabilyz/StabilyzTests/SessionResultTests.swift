@@ -100,7 +100,7 @@ private func component(
         state: .notStarted
     ))
 
-    #expect(content == .unclear(mode: .quickTest))
+    #expect(content == .unclear(mode: .quickTest, reason: .excessiveNoise))
     #expect(content.offersResult == false)
     #expect(content.title == SessionCompletionContent.unclearTitle)
     #expect(content.glyph == "exclamationmark.circle.fill")
@@ -109,13 +109,14 @@ private func component(
 @Test func theUnclearScreenSaysTheSessionDoesNotCount() {
     // [PRD §5]: the user is told the consequence, not left to infer it from a
     // missing number.
-    let body = SessionCompletionContent.unclear(mode: .quickTest).body
-    #expect(body.localizedCaseInsensitiveContains("won't count toward your baseline"))
+    for reason in InvalidReason.allCases {
+        let body = SessionCompletionContent.unclear(mode: .quickTest, reason: reason).body
+        #expect(body.localizedCaseInsensitiveContains("won't count toward your baseline"), "\(reason)")
+    }
 }
 
 @Test func everyInvalidReasonRoutesToTheSameUnclearScreen() {
-    // One plain-language screen, not four. The reason is diagnostics
-    // (docs/20), not copy.
+    // One screen, with reason-specific copy. Routing is the same for all four.
     for reason in InvalidReason.allCases {
         let content = SessionCompletionContent.content(for: commit(
             session: .fixtureInvalid(reason: reason),
@@ -125,6 +126,48 @@ private func component(
         ))
         #expect(content.offersResult == false, "\(reason) must not offer a result")
     }
+}
+
+@Test func tooShortCopyQuotesTheModesOwnValidWalkingFloor() {
+    let quick = SessionCompletionContent.unclear(mode: .quickTest, reason: .insufficientValidWalking).body
+    #expect(quick.contains("shorter than the 60 seconds of walking needed"))
+    #expect(quick.contains("Try walking until the timer ends."))
+
+    let full = SessionCompletionContent.unclear(mode: .fullTest, reason: .insufficientValidWalking).body
+    #expect(full.contains("shorter than the 2 minutes 15 seconds of walking needed"))
+
+    // The number follows the policy, never a literal in the copy.
+    let custom = SessionPolicy(
+        version: 99,
+        quickTestMinimumValidWalking: .seconds(45),
+        fullTestMinimumValidWalking: .seconds(180)
+    )
+    #expect(SessionCompletionContent.unclear(mode: .quickTest, reason: .insufficientValidWalking)
+        .body(policy: custom).contains("45 seconds"))
+    #expect(SessionCompletionContent.unclear(mode: .fullTest, reason: .insufficientValidWalking)
+        .body(policy: custom).contains("3 minutes of walking"))
+}
+
+@Test func everyInvalidReasonHasItsOwnCopyWithOneNextStep() {
+    var seen = Set<String>()
+    for reason in InvalidReason.allCases {
+        let body = SessionCompletionContent.unclear(mode: .quickTest, reason: reason).body
+        #expect(body.contains("Try"), "\(reason) gives a next step")
+        #expect(body.hasSuffix("This session won't count toward your baseline."))
+        let lower = body.lowercased()
+        for banned in ["fail", "error", "wrong", "bad", "asymmetr", "symmetr"] {
+            #expect(!lower.contains(banned), "\(reason) must not say \(banned)")
+        }
+        seen.insert(body)
+    }
+    #expect(seen.count == InvalidReason.allCases.count, "each reason has distinct copy")
+
+    let noisy = SessionCompletionContent.unclear(mode: .quickTest, reason: .excessiveNoise).body
+    #expect(noisy.localizedCaseInsensitiveContains("movement"))
+    let tooShortWordsOnlyForShortWalks = InvalidReason.allCases.filter {
+        SessionCompletionContent.unclear(mode: .quickTest, reason: $0).body.contains("shorter than")
+    }
+    #expect(tooShortWordsOnlyForShortWalks == [.insufficientValidWalking])
 }
 
 @Test func theGateNamesTheModeThatWasWalked() {
@@ -207,27 +250,27 @@ private func component(
     let progress = SessionScorePresentation.baselineProgress(
         completed: 1, required: 5, mode: .quickTest
     )
-    #expect(progress?.header == "1 of 5 sessions complete")
+    #expect(progress?.header == "Walk 1 of 5 toward your baseline")
     #expect(progress?.completed == 1)
     #expect(progress?.required == 5)
 }
 
-@Test func theHelperCopySpellsTheRemainingWalksAndNamesTheMode() {
+@Test func theHelperCopyCountsTheRemainingWalksInNumerals() {
     #expect(
         SessionScorePresentation.baselineProgress(completed: 1, required: 5, mode: .quickTest)?.helper
-            == "Complete four more valid Quick Tests to set your personal baseline."
+            == "4 more walks to go before your personal baseline is set."
     )
     #expect(
         SessionScorePresentation.baselineProgress(completed: 2, required: 5, mode: .fullTest)?.helper
-            == "Complete three more valid Full Tests to set your personal baseline."
+            == "3 more walks to go before your personal baseline is set."
     )
 }
 
 @Test func theLastRemainingWalkIsSingular() {
-    // "one more valid Quick Tests" on the screen a user sees four times in five.
+    // "1 more walks to go" on the screen a user sees four times in five.
     #expect(
         SessionScorePresentation.baselineProgress(completed: 4, required: 5, mode: .quickTest)?.helper
-            == "Complete one more valid Quick Test to set your personal baseline."
+            == "1 more walk to go before your personal baseline is set."
     )
 }
 
@@ -706,7 +749,7 @@ private func stored(_ session: GaitSession, walk: Int, validCount: Int) -> Sessi
 @Test func aStoredCalibrationWalkIsNumberedByItsOwnPosition() {
     let model = stored(.fixtureValid(provisionalScore: .fixture(value: 71)), walk: 3, validCount: 4)
     #expect(model.progress == .building(validCount: 3, required: 5, provisional: 71))
-    #expect(model.baselineProgress?.header == "Walk 3 of 5")
+    #expect(model.baselineProgress?.header == "Walk 3 of 5 toward your baseline")
     #expect(model.baselineProgress?.completed == 3)
 }
 
@@ -714,7 +757,7 @@ private func stored(_ session: GaitSession, walk: Int, validCount: Int) -> Sessi
     // Walk 2, but four walks exist by the time it is looked at: what is left
     // is one, not three.
     let model = stored(.fixtureValid(), walk: 2, validCount: 4)
-    #expect(model.baselineProgress?.helper == "Complete one more valid Quick Test to set your personal baseline.")
+    #expect(model.baselineProgress?.helper == "1 more walk to go before your personal baseline is set.")
 }
 
 @Test func aCalibrationWalkLookedBackOnAfterCalibrationAsksForNothing() {
@@ -727,7 +770,7 @@ private func stored(_ session: GaitSession, walk: Int, validCount: Int) -> Sessi
     // would announce, again, something that happened weeks ago.
     let model = stored(.fixtureValid(), walk: 5, validCount: 5)
     #expect(model.note == nil)
-    #expect(model.baselineProgress?.header == "Walk 5 of 5")
+    #expect(model.baselineProgress?.header == "Walk 5 of 5 toward your baseline")
 }
 
 @Test func aStoredWalkPastCalibrationWithNoScoreIsNotComparable() {
@@ -741,4 +784,18 @@ private func stored(_ session: GaitSession, walk: Int, validCount: Int) -> Sessi
     #expect(model.highlight != nil)
     #expect(model.signals.isEmpty)
     #expect(model.measurements.count == 3)
+}
+
+// MARK: - The success moment (after Stop only)
+
+@Test func onlyAMeasuredWalkCelebratesAndOnlyWithHapticsOn() {
+    let measured = SessionCompletionContent.measured(mode: .quickTest)
+    let unclear = SessionCompletionContent.unclear(mode: .quickTest, reason: .excessiveNoise)
+
+    #expect(measured.celebratesCompletion)
+    #expect(measured.playsSuccessHaptic(hapticsOn: true))
+    #expect(measured.playsSuccessHaptic(hapticsOn: false) == false, "Start & Stop Haptics off is off")
+
+    #expect(unclear.celebratesCompletion == false)
+    #expect(unclear.playsSuccessHaptic(hapticsOn: true) == false, "an unclear walk is not a success")
 }

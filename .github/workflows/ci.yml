@@ -6,6 +6,38 @@
 # Simulator: an iPhone 17 on the newest installed iOS runtime, picked from
 # `simctl` rather than named in the destination. macos-26 has no "iPhone 16",
 # and `OS=latest` fails outright when the newest SDK has no runtime installed.
+#
+# Real audio engine: hosted runners have no usable audio route. Tests that build
+# a real AVAudioEngine can abort the test process there (AURemoteIO RPC timeout
+# on release) and stall every other test while they wait, so the phone job sets
+# TEST_RUNNER_STABILYZ_SKIP_REAL_AUDIO_ENGINE_TESTS=1 and those tests, and only
+# those, are skipped. They still run in every local run. The reasoning and the
+# guard that keeps the list exact are in
+# Stabilyz/StabilyzTests/RealAudioEngineTrait.swift.
+#
+# Wall clock: the suite's tests run concurrently on the runner's three cores, so
+# a test that asserts a real-time limit cannot hold there. The phone job sets
+# TEST_RUNNER_STABILYZ_SKIP_WALL_CLOCK_TESTS=1 and the tests marked
+# .wallClockSensitive, and only those, are skipped. See
+# Stabilyz/StabilyzTests/WallClockSensitiveTrait.swift; the list of such tests
+# is pinned by RealAudioEngineGuardTests.
+#
+# One simulator, one bundle at a time: both jobs pass -parallel-testing-enabled
+# NO. With it on, xcodebuild boots simulator clones and runs the unit and UI
+# bundles at once; on three cores the UI tests then miss their fixed waits ("the
+# Result tab was tapped but not selected", "Timed out while launching
+# application"), and the watch job cannot boot its second clone at all. Nothing
+# is skipped by this: every test still runs, one bundle after the other.
+#
+# Watch: a second job builds the watch app and runs its unit and UI tests on a
+# watch simulator. It is a separate job so it cannot slow or fail the phone job.
+# The watch test targets deploy to watchOS 27.0 in the project, and this runner
+# carries Xcode 26.x with watch simulators up to 26.x. So the job passes
+# WATCHOS_DEPLOYMENT_TARGET on the command line, set to the newest watchOS
+# runtime installed: a CI-only override that leaves the project untouched. The
+# watch app itself deploys to watchOS 10, so nothing it ships changes. Remove
+# the override once the test targets' deployment target is lowered in Xcode or
+# the runner carries a watchOS 27 simulator.
 name: CI
 
 on:
@@ -59,6 +91,12 @@ jobs:
           echo "udid=$UDID" >> "$GITHUB_OUTPUT"
 
       - name: Build and test
+        env:
+          # xcodebuild strips TEST_RUNNER_ and passes the rest to the test
+          # process. Skips only the tests marked .requiresRealAudioEngine.
+          TEST_RUNNER_STABILYZ_SKIP_REAL_AUDIO_ENGINE_TESTS: "1"
+          # Skips only the tests marked .wallClockSensitive (see the header).
+          TEST_RUNNER_STABILYZ_SKIP_WALL_CLOCK_TESTS: "1"
         run: |
           set -o pipefail
           xcodebuild test \
@@ -66,6 +104,7 @@ jobs:
             -scheme Stabilyz \
             -destination "platform=iOS Simulator,id=${{ steps.simulator.outputs.udid }}" \
             -resultBundlePath TestResults.xcresult \
+            -parallel-testing-enabled NO \
             CODE_SIGNING_ALLOWED=NO
 
       - name: Upload test results
@@ -74,4 +113,61 @@ jobs:
         with:
           name: TestResults
           path: TestResults.xcresult
+          retention-days: 7
+
+  test-watch:
+    name: Build and test (watch)
+    runs-on: macos-26
+    timeout-minutes: 45
+
+    steps:
+      - name: Check out
+        uses: actions/checkout@v4
+
+      - name: Select the latest Xcode
+        run: |
+          ls -d /Applications/Xcode*.app
+          XCODE="$(ls -d /Applications/Xcode_*.app | sort -V | tail -1)"
+          sudo xcode-select -s "$XCODE"
+          xcodebuild -version
+
+      - name: Pick a watch simulator
+        id: simulator
+        run: |
+          UDID="$(xcrun simctl list devices available -j | python3 -c '
+          import json, re, sys
+          runtimes = []
+          for key, devices in json.load(sys.stdin)["devices"].items():
+              match = re.search(r"watchOS-(\d+)-(\d+)", key)
+              watches = [d for d in devices if d["name"].startswith("Apple Watch")]
+              if match and watches:
+                  runtimes.append(((int(match.group(1)), int(match.group(2))), watches))
+          if not runtimes:
+              sys.exit("no watchOS simulator runtime with an Apple Watch device is installed")
+          version, watches = max(runtimes, key=lambda r: r[0])
+          chosen = watches[0]
+          print(chosen["name"], ".".join(map(str, version)), file=sys.stderr)
+          print(chosen["udid"], ".".join(map(str, version)))
+          ')"
+          echo "udid=${UDID%% *}" >> "$GITHUB_OUTPUT"
+          echo "version=${UDID##* }" >> "$GITHUB_OUTPUT"
+
+      - name: Build and test
+        run: |
+          set -o pipefail
+          xcodebuild test \
+            -project Stabilyz/Stabilyz.xcodeproj \
+            -scheme "StabilyzWatch Watch App" \
+            -destination "platform=watchOS Simulator,id=${{ steps.simulator.outputs.udid }}" \
+            -resultBundlePath WatchTestResults.xcresult \
+            -parallel-testing-enabled NO \
+            WATCHOS_DEPLOYMENT_TARGET="${{ steps.simulator.outputs.version }}" \
+            CODE_SIGNING_ALLOWED=NO
+
+      - name: Upload test results
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: WatchTestResults
+          path: WatchTestResults.xcresult
           retention-days: 7

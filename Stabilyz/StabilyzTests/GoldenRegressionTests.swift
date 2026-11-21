@@ -237,6 +237,32 @@ private extension SessionAnalysisOutcome {
     ])
 }
 
+@Test func aGoldenWalksTrunkTermIsNotSaturated() async throws {
+    // The trunk anchors are in g, the unit of the proxy. On the earlier
+    // m/s²-scale anchors every golden walk (ML ~0.13, VT ~0.23-0.30) clamped at
+    // "good", so the term carried no information. Strictly inside (0, 1) on
+    // both axes and in the combined contribution means the scale discriminates.
+    let ranges = AlgorithmConfiguration.v1.intrinsic.references
+    let mlRange = try #require(ranges[.trunkMotionML])
+    let vtRange = try #require(ranges[.trunkMotionVT])
+
+    for name in ["clean-walk-quick", "amplitude-asymmetry-quick", "jittered-steps-quick"] {
+        let golden = try GoldenStore.load(name)
+        let (result, _) = try await runPipeline(golden)
+        guard case .valid(let metrics, _, _, let provisional) = result.outcome else {
+            Issue.record("\(name): expected a valid session")
+            continue
+        }
+        let ml = try #require(mlRange.quality(of: metrics.trunkMotionML))
+        let vt = try #require(vtRange.quality(of: metrics.trunkMotionVT))
+        #expect(ml > 0 && ml < 1, "\(name): ML \(metrics.trunkMotionML) saturated at \(ml)")
+        #expect(vt > 0 && vt < 1, "\(name): VT \(metrics.trunkMotionVT) saturated at \(vt)")
+
+        let trunk = try #require(provisional?.contributions.first { $0.signal == .trunkMotion })
+        #expect(trunk.quality > 0 && trunk.quality < 1, "\(name): trunk term \(trunk.quality) saturated")
+    }
+}
+
 @Test func aNoisySessionCarriesNeitherScore() async throws {
     // Invalid sessions are never scored [PRD §5, §7] — and adding a second
     // scale is exactly the kind of change that could quietly reopen that.

@@ -14,8 +14,8 @@ import Testing
 
     @Test func theSetupSelectionIsRememberedForWaiting() {
         var machine = WatchSessionMachine()
-        machine.run([.received(.setupSelection(mode: .full, durationSeconds: 360), at: at(-60))])
-        #expect(machine.selection == WatchSelection(mode: .full, durationSeconds: 360))
+        machine.run([.received(.setupSelection(mode: .full, durationSeconds: 180), at: at(-60))])
+        #expect(machine.selection == WatchSelection(mode: .full, durationSeconds: 180))
         #expect(machine.phase == .waiting)
     }
 
@@ -32,7 +32,7 @@ import Testing
         #expect(session.plannedGoAt == goAt)
         #expect(session.t0 == nil)
         #expect(effects == [.announce("5"), .playHaptic(.click)])
-        #expect(machine.selection == WatchSelection(mode: .quick, durationSeconds: 120))
+        #expect(machine.selection == WatchSelection(mode: .quick, durationSeconds: 90))
     }
 
     @Test func numeralsCountDownToThePlannedGo() {
@@ -74,7 +74,7 @@ import Testing
         var machine = WatchSessionMachine.counting()
         machine.run([.received(.cancelled(sessionID: sessionA), at: at(-2))])
         #expect(machine.phase == .waiting)
-        #expect(machine.selection == WatchSelection(mode: .quick, durationSeconds: 120))
+        #expect(machine.selection == WatchSelection(mode: .quick, durationSeconds: 90))
     }
 
     @Test func theCountdownIsNotLeftWhenThePhoneDrops() {
