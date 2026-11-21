@@ -117,8 +117,8 @@ private func makeModel(
 @Test func eachModeHasItsOwnSegmentLabelAndSubtitle() {
     let model = makeModel()
 
-    #expect(model.segmentLabel(for: .quickTest) == "Quick (2 min)")
-    #expect(model.segmentLabel(for: .fullTest) == "Full (6 min)")
+    #expect(model.segmentLabel(for: .quickTest) == "Quick (1:30)")
+    #expect(model.segmentLabel(for: .fullTest) == "Full (3:00)")
 
     #expect(model.modeSubtitle == "A quick check-in on your walking stability.")
     model.select(.fullTest)
@@ -600,8 +600,8 @@ private func makeModel(
     while watch.sentMessages.count < 2 { await Task.yield() }
 
     #expect(watch.sentMessages == [
-        .setupSelection(mode: .quick, durationSeconds: 120),
-        .setupSelection(mode: .full, durationSeconds: 360),
+        .setupSelection(mode: .quick, durationSeconds: 90),
+        .setupSelection(mode: .full, durationSeconds: 180),
     ])
 }
 

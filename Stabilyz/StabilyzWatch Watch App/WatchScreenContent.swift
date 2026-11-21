@@ -20,15 +20,19 @@ nonisolated enum WatchCopy {
         }
     }
 
-    /// "Quick Test · 2 min".
+    /// "Quick Test · 1:30" — the advertised length as `m:ss`, since the
+    /// provisional lengths (1:30, 3:00) are not all whole minutes.
     static func selectionLine(_ selection: WatchSelection) -> String {
-        "\(modeName(selection.mode)) · \(selection.durationSeconds / 60) min"
+        "\(modeName(selection.mode)) · \(selection.durationSeconds / 60):\(String(format: "%02d", selection.durationSeconds % 60))"
     }
 
-    /// VoiceOver for the selection: "Quick Test, 2 minutes".
+    /// VoiceOver for the selection: "Quick Test, 1 minute 30 seconds".
     static func selectionLabel(_ selection: WatchSelection) -> String {
-        let minutes = selection.durationSeconds / 60
-        return "\(modeName(selection.mode)), \(minutes) \(minutes == 1 ? "minute" : "minutes")"
+        let minutes = selection.durationSeconds / 60, seconds = selection.durationSeconds % 60
+        var parts = [String]()
+        if minutes > 0 { parts.append("\(minutes) \(minutes == 1 ? "minute" : "minutes")") }
+        if seconds > 0 || minutes == 0 { parts.append("\(seconds) \(seconds == 1 ? "second" : "seconds")") }
+        return "\(modeName(selection.mode)), \(parts.joined(separator: " "))"
     }
 }
 

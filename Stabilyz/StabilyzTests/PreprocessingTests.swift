@@ -299,7 +299,7 @@ private func preprocess(_ samples: [SensorSample]) -> PreprocessedSeries {
     let samples = capture(seconds: 20) { t in
         Vector3(x: 0, y: 0, z: -1 + 0.4 * sin(2 * .pi * 1.8 * t))
     }
-    let trimmed = SessionLeadIn.trimmed(aligned(samples), configuration: config)
+    let trimmed = SessionLeadIn.trimmed(aligned(samples), endReason: .timer, configuration: config)
 
     #expect(config.preprocessing.leadInTrim == .seconds(3))
     // 100 Hz for 3s.
@@ -307,21 +307,82 @@ private func preprocess(_ samples: [SensorSample]) -> PreprocessedSeries {
     #expect(trimmed.samples.first?.deviceTimestamp == 3)
 }
 
-@Test func nothingIsTrimmedFromTheEnd() {
-    // Stop is a deliberate act and the user is walking right up to it. Trimming
-    // there would discard real gait to guard against an artefact that is not
-    // symmetric with the start.
+@Test func nothingIsTrimmedFromTheEndWhenTheTimerEndedTheSession() {
+    // A timer-ended recording is cut mid-walk by the clock: there is no
+    // stopping behaviour in its tail, so trimming it would discard real gait.
     let samples = capture(seconds: 20) { _ in Vector3(x: 0, y: 0, z: -1) }
-    let trimmed = SessionLeadIn.trimmed(aligned(samples), configuration: config)
+    let trimmed = SessionLeadIn.trimmed(aligned(samples), endReason: .timer, configuration: config)
 
     #expect(trimmed.samples.last?.deviceTimestamp == samples.last?.deviceTimestamp)
+}
+
+@Test func aManualStopAlsoDropsTheLastThreeSeconds() {
+    // Tura et al. (2012): the last strides before stopping degrade regularity.
+    let samples = capture(seconds: 20) { _ in Vector3(x: 0, y: 0, z: -1) }
+    let trimmed = SessionLeadIn.trimmed(aligned(samples), endReason: .manualStop, configuration: config)
+
+    #expect(config.preprocessing.manualStopTailTrim == .seconds(3))
+    // 3 s off each end at 100 Hz.
+    #expect(trimmed.samples.count == samples.count - 600)
+    #expect(trimmed.samples.first?.deviceTimestamp == 3)
+    let last = try! #require(trimmed.samples.last).deviceTimestamp
+    #expect(abs(last - (try! #require(samples.last).deviceTimestamp - 3)) < 1e-6)
+}
+
+@Test func theTailTrimIsMeasuredFromTheLastSample() {
+    let samples = capture(seconds: 20, startTime: 812.5) { _ in Vector3(x: 0, y: 0, z: -1) }
+    let timer = SessionLeadIn.trimmed(aligned(samples), endReason: .timer, configuration: config)
+    let manual = SessionLeadIn.trimmed(aligned(samples), endReason: .manualStop, configuration: config)
+
+    #expect(timer.samples.count - manual.samples.count == 300)
+    #expect(manual.samples.first?.deviceTimestamp == timer.samples.first?.deviceTimestamp)
+}
+
+@Test func aManualStopOnARecordingShorterThanBothTrimsComesBackEmpty() {
+    let samples = capture(seconds: 5) { _ in Vector3(x: 0, y: 0, z: -1) }
+    #expect(SessionLeadIn.trimmed(aligned(samples), endReason: .manualStop, configuration: config).samples.isEmpty)
+    // The timer path drops only the head, so 2 s of 5 s survive.
+    #expect(SessionLeadIn.trimmed(aligned(samples), endReason: .timer, configuration: config).samples.isEmpty == false)
+}
+
+@Test func theEndReasonIsDerivedFromTheClockAgainstTheAdvertisedLength() {
+    #expect(SessionEndReason(advertisedClockElapsed: .seconds(90), mode: .quickTest) == .timer)
+    #expect(SessionEndReason(advertisedClockElapsed: .seconds(90.4), mode: .quickTest) == .timer)
+    #expect(SessionEndReason(advertisedClockElapsed: .seconds(89.9), mode: .quickTest) == .manualStop)
+    #expect(SessionEndReason(advertisedClockElapsed: .seconds(60), mode: .quickTest) == .manualStop)
+    // The same 100 s is a finished Quick Test and an early-stopped Full Test.
+    #expect(SessionEndReason(advertisedClockElapsed: .seconds(100), mode: .quickTest) == .timer)
+    #expect(SessionEndReason(advertisedClockElapsed: .seconds(100), mode: .fullTest) == .manualStop)
+    #expect(SessionEndReason(advertisedClockElapsed: .seconds(180), mode: .fullTest) == .timer)
+}
+
+@Test func theTimerKeepsTheTailAndAManualStopLosesItThroughTheRealPipeline() async throws {
+    // Same samples, same mode; only the recorded clock differs. The valid-walking
+    // figure is read after the trim, so a manual Stop reports 3 s less walking.
+    func outcome(elapsed: Double) async throws -> Duration {
+        let spec = GoldenSignalSpec(seconds: 90)
+        let base = GoldenSignal.buffer(for: spec, mode: .quickTest)
+        let buffer = RawSessionBuffer(
+            mode: base.mode, audioConfig: base.audioConfig, anchor: base.anchor, series: base.series,
+            pedometerEvents: base.pedometerEvents, startedAt: base.startedAt, endedAt: base.endedAt,
+            advertisedClockElapsed: .seconds(elapsed), interruptionCount: 0, pedometerAvailable: false
+        )
+        let result = try await GaitAnalysisPipeline(configuration: config)
+            .analyze(buffer: buffer, baseline: nil, profile: nil, progress: { _ in })
+        return result.validWalkingDuration
+    }
+    let timer = try await outcome(elapsed: 90)
+    let manual = try await outcome(elapsed: 89)
+    let seconds = { (d: Duration) in Double(d.components.seconds) + Double(d.components.attoseconds) / 1e18 }
+    #expect(seconds(timer) - seconds(manual) > 1.5, "timer \(seconds(timer)) vs manual \(seconds(manual))")
+    #expect(seconds(timer) - seconds(manual) < 4.5)
 }
 
 @Test func theTrimIsMeasuredFromTheFirstSampleNotFromZero() {
     // A recorder whose first sample lands late must still lose three seconds of
     // signal, not three seconds of clock.
     let samples = capture(seconds: 20, startTime: 812.5) { _ in Vector3(x: 0, y: 0, z: -1) }
-    let trimmed = SessionLeadIn.trimmed(aligned(samples), configuration: config)
+    let trimmed = SessionLeadIn.trimmed(aligned(samples), endReason: .timer, configuration: config)
 
     #expect(trimmed.samples.first?.deviceTimestamp == 815.5)
     #expect(trimmed.samples.count == samples.count - 300)
@@ -331,7 +392,7 @@ private func preprocess(_ samples: [SensorSample]) -> PreprocessedSeries {
     // It becomes the too-short session it already was; the quality stage gives
     // the reason rather than this stage inventing one.
     let samples = capture(seconds: 2) { _ in Vector3(x: 0, y: 0, z: -1) }
-    let trimmed = SessionLeadIn.trimmed(aligned(samples), configuration: config)
+    let trimmed = SessionLeadIn.trimmed(aligned(samples), endReason: .timer, configuration: config)
 
     #expect(trimmed.samples.isEmpty)
 }
@@ -344,7 +405,7 @@ private func preprocess(_ samples: [SensorSample]) -> PreprocessedSeries {
     }
     let untrimmed = preprocess(samples)
     let trimmed = Preprocessing.process(
-        SessionLeadIn.trimmed(aligned(samples), configuration: config),
+        SessionLeadIn.trimmed(aligned(samples), endReason: .timer, configuration: config),
         configuration: config
     )
 
@@ -363,7 +424,7 @@ private func preprocess(_ samples: [SensorSample]) -> PreprocessedSeries {
         return Vector3(x: 0, y: 0, z: -1 + gait + insertion)
     }
     let series = Preprocessing.process(
-        SessionLeadIn.trimmed(aligned(samples), configuration: config),
+        SessionLeadIn.trimmed(aligned(samples), endReason: .timer, configuration: config),
         configuration: config
     )
     let vertical = series.segments.flatMap(\.vertical)

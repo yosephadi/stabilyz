@@ -195,8 +195,8 @@ final class SessionSetupViewModel {
     /// than the mode — it is the length the user is choosing between.
     func segmentLabel(for mode: TestMode) -> String {
         switch mode {
-        case .quickTest: "Quick (2 min)"
-        case .fullTest: "Full (6 min)"
+        case .quickTest: "Quick (1:30)"
+        case .fullTest: "Full (3:00)"
         }
     }
 

@@ -17,7 +17,7 @@ func countdownStarted(
     .countdownStarted(
         sessionID: id,
         mode: mode,
-        durationSeconds: mode == .quick ? 120 : 360,
+        durationSeconds: mode == .quick ? 90 : 180,
         plannedGoAt: goAt,
         hapticOwner: owner,
         hapticsEnabled: hapticsEnabled

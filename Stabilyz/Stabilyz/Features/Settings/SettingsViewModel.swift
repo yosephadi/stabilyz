@@ -129,6 +129,10 @@ final class SettingsViewModel {
 
     static let title = "You"
     static let clinicianSummaryLabel = ClinicianSummaryViewModel.title
+    static let profileSectionTitle = "About You"
+    static let timeSinceAmputationLabel = "Time since amputation"
+    static let prosthesisTypeLabel = "Prosthesis type"
+    static let kLevelLabel = "K-level"
     static let backupSectionTitle = "Backup & Data"
     static let exportLabel = "Export My Data"
     static let restoreLabel = "Restore from Backup"

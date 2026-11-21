@@ -4,7 +4,7 @@ import Testing
 
 private let session = WatchSession(
     id: sessionA,
-    selection: WatchSelection(mode: .quick, durationSeconds: 120),
+    selection: WatchSelection(mode: .quick, durationSeconds: 90),
     plannedGoAt: goAt,
     t0: goAt,
     hapticOwner: .watch,

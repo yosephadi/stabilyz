@@ -4,6 +4,10 @@
 <dict>
 	<key>UIBackgroundModes</key>
 	<array/>
+	<key>WKSupportsLiveActivityLaunchAttributeTypes</key>
+	<array>
+		<string>WatchNudgeSmartStackAttributes</string>
+	</array>
 	<key>WKBackgroundModes</key>
 	<array>
 		<string>physical-therapy</string>

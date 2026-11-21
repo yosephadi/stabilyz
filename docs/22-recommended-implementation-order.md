@@ -9,7 +9,7 @@ Dependencies: none. Output: runnable shell. DoD: app launches to placeholder; te
 
 **Phase 2 — Domain Models & Policies**
 Objective: the PRD data contract as compilable types.
-Tasks: `TestMode` + `SessionPolicy` (90 s/240 s) · `GaitSession`/`SessionOutcome`/`GaitMetrics`/`Baseline`/`BaselineState` · `SessionAudioConfig` · error taxonomy · unit tests for validity/baseline-state rules.
+Tasks: `TestMode` + `SessionPolicy` (60 s/135 s floors) · `GaitSession`/`SessionOutcome`/`GaitMetrics`/`Baseline`/`BaselineState` · `SessionAudioConfig` · error taxonomy · unit tests for validity/baseline-state rules.
 Dependencies: Phase 1. DoD: domain layer compiles with zero Apple-framework imports (except Accelerate reserved for Algorithms); rule tests green.
 
 **Phase 3 — Persistence**

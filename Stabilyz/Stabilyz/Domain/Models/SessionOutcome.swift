@@ -50,6 +50,16 @@ enum SessionAudioConfig: Sendable, Equatable, Codable {
     case none
     case stepFeedback
     case metronome(cue: MetronomeCue)
+
+    /// Whether the Metronome Cue was on. The History trend keeps such walks
+    /// as markers and leaves them off its line: an auditory cue can lower
+    /// stride-time variability, which would read as an improvement that the
+    /// walker did not make unaided (decided 2026-11-14). Step Feedback is not a
+    /// cue in this sense, and neither is silence.
+    var isMetronomeCued: Bool {
+        if case .metronome = self { return true }
+        return false
+    }
 }
 
 /// Sensor gap record, kept to explain noise and validity decisions

@@ -25,4 +25,4 @@
 
 ## 6.4 Data Volume
 
-Raw sensor data is **not persisted long-term** [REC]: a 6-minute session at ~100 Hz ≈ 36 k samples (~0.5 MB in memory) — trivially processed in memory; persisted session rows are metrics-only (KB-scale). Raw samples exist only in the recorder buffer and a scratch temp file for the duration of a session [REC: crash-recovery scratch], deleted at commit. This keeps the store tiny and the export archive portable. [PRD never requires raw-sensor retention; export scope is metrics/scores/baselines/profile/settings.]
+Raw sensor data is **not persisted long-term** [REC]: a 3-minute session at ~100 Hz ≈ 18 k samples (~0.25 MB in memory) — trivially processed in memory; persisted session rows are metrics-only (KB-scale). Raw samples exist only in the recorder buffer and a scratch temp file for the duration of a session [REC: crash-recovery scratch], deleted at commit. This keeps the store tiny and the export archive portable. [PRD never requires raw-sensor retention; export scope is metrics/scores/baselines/profile/settings.]

@@ -105,8 +105,8 @@ struct UnwiredKeyDerivation: KeyDerivation {
     }
 
     func calibratedIterationCount(targetDuration: TimeInterval) -> Int {
-        // Calibration needs the real KDF; docs/13 §13.2 starting point until then.
-        300_000
+        // Calibration needs the real KDF; the export floor until then.
+        KeyDerivationPolicy.minimumIterations
     }
 }
 

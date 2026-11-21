@@ -13,7 +13,7 @@ enum OnboardingStep: String, Codable, Sendable, CaseIterable {
     case disclaimer
 
     var isOptionalField: Bool {
-        self == .prosthesisType || self == .kLevel
+        self == .timeSinceAmputation || self == .prosthesisType || self == .kLevel
     }
 }
 
@@ -36,7 +36,8 @@ struct OnboardingDraft: Codable, Equatable, Sendable {
     var amputationLevel: AmputationLevel?
     var side: AmputationSide?
     /// A band, not a month count: the screen offers five ranges and the domain
-    /// converts. Required [PRD §5] — nil means unanswered.
+    /// converts. Optional (product decision 2026-11-14, was required in
+    /// [PRD §5]) — nil is a complete answer.
     var timeSinceAmputation: TimeSinceAmputation?
     /// Optional [PRD AC] — nil is a complete answer.
     var prosthesisType: ProsthesisType?

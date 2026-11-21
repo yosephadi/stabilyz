@@ -19,7 +19,10 @@ final class OnboardingResumeJourneyTests: XCTestCase {
         app.staticTexts["How long has it been since your amputation?"]
             .waitToAppear(timeout: 15, "the wizard resumed at the saved question")
         XCTAssertFalse(app.buttons["welcome.getStarted"].exists, "a draft relaunch passed through Welcome")
-        XCTAssertFalse(app.buttons["onboarding.next"].isEnabled, "the unanswered question is not blank")
+        // Time since amputation is optional (2026-11-14): unanswered means no band
+        // is selected and the screen offers Skip, not that Next is blocked.
+        XCTAssertTrue(app.buttons["onboarding.skip"].exists, "the optional question offers no Skip")
+        XCTAssertFalse(app.buttons["Less than 6 months"].isSelected, "the unanswered question is not blank")
 
         // Earlier answers survived the relaunch.
         app.buttons["onboarding.back"].tap()
