@@ -89,6 +89,12 @@ struct SettingsView: View {
         }
         .task { await model.observeStoreReplacements() }
         .task { await profileAnswers.load() }
+        // A restore replaces the store under this screen, which stays on
+        // screen beneath the restore flow, so its answers are read again once
+        // the flow closes, however it closed.
+        .onChange(of: model.restoreFlow != nil) { _, isOpen in
+            if !isOpen { Task { await profileAnswers.load() } }
+        }
     }
 
     // MARK: - Optional profile answers

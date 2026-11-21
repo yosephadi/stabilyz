@@ -26,9 +26,14 @@ private actor MemoryProfiles: UserProfileRepository {
     func fetchProfile() async throws -> UserProfile? { stored }
     func save(_ profile: UserProfile) async throws {
         if let failure { throw failure }
+        // A real store write takes time; yielding lets a second edit start
+        // while this one is still in flight.
+        await Task.yield()
         stored = profile
         saveCount += 1
     }
+    /// Stands in for a restore: the store changes underneath the screen.
+    func replace(with profile: UserProfile?) { stored = profile }
 }
 
 private func profile(
@@ -197,4 +202,37 @@ private func loaded(_ p: UserProfile?, failure: StabilyzError? = nil) async -> (
     await model.setKLevel(.k1)
     #expect(model.profile == nil)
     #expect(await repo.saveCount == 0)
+}
+
+// MARK: - Saves start from the stored profile, one at a time
+
+@MainActor
+@Test func anEditAfterARestoreKeepsTheRestoredProfile() async {
+    let (model, repo) = await loaded(profile(kLevel: .k2, level: .transfemoral, side: .right))
+    // A restore replaces the profile while the screen holds the old one.
+    let restored = profile(prosthesis: "everydayWalking", level: .transtibial, side: .left)
+    await repo.replace(with: restored)
+
+    await model.setKLevel(.k3)
+
+    let stored = await repo.stored
+    #expect(stored?.id == restored.id)
+    #expect(stored?.amputationLevel == .transtibial)
+    #expect(stored?.side == .left)
+    #expect(stored?.prosthesisType == "everydayWalking")
+    #expect(stored?.kLevel == .k3)
+}
+
+@MainActor
+@Test func twoEditsMadeTogetherBothLand() async {
+    let (model, repo) = await loaded(profile())
+
+    async let first: Void = model.setTimeSinceAmputation(.oneToTwoYears)
+    async let second: Void = model.setProsthesisType(.microprocessorKnee)
+    _ = await (first, second)
+
+    let stored = await repo.stored
+    #expect(stored?.timeSinceAmputationMonths == TimeSinceAmputation.oneToTwoYears.lowerBoundMonths)
+    #expect(stored?.prosthesisType == ProsthesisType.microprocessorKnee.rawValue)
+    #expect(await repo.saveCount == 2)
 }
